@@ -1,0 +1,29 @@
+---
+description: 盘古造世引擎。造一个世界/宇宙/星球并设计其底层物理化学生物法则、双恒星或非地球物理设定、审查架空设定是否自洽、生成可旋转 3D 星球预览时使用。
+globs: 
+alwaysApply: false
+---
+
+# 盘古 · 造世引擎（Cursor 入口）
+
+当用户要做**世界构建 / 宇宙设定 / 星球物理 / 设定自洽性审查 / 3D 星球预览**时：
+
+1. **先读** `{{PANGU_ROOT}}/SKILL.md` 全文（这是技能正文，约 200 行，必须完整读）。
+2. 再按正文点名，按需读 `{{PANGU_ROOT}}/references/` 下的文件（渐进披露，不要一次全读）。
+3. 脚本一律走绝对路径调用，避免工作目录不同导致模块找不到：
+
+```bash
+python "{{PANGU_ROOT}}/scripts/pangu.py" doctor
+python "{{PANGU_ROOT}}/scripts/pangu.py" validate <world.json> --fix-hint
+```
+
+## 不可违反的四条
+
+- **先立律，后长物**：物理层（常数、守恒律、天体）没定稿前，不谈生物与文明。
+- **三律**：逆行（至少一条常识是反的）、代价（可量化）、痕迹（居民看得见）。
+- **单一数据源**：`world.json` 是唯一真相，`preview.html` / `世界档案.md` 是生成物，禁止手改。
+- **产物落用户目录**：默认 `./out/<世界id>/`，不要写进 `{{PANGU_ROOT}}`。
+
+若 `{{PANGU_ROOT}}` 未被替换成真实路径，说明这份规则是手工复制的——先问用户盘古目录在哪。
+
+完整说明见 `{{PANGU_ROOT}}/AGENTS.md` 与 `{{PANGU_ROOT}}/adapters/README.md`。

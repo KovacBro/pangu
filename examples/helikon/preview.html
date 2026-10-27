@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>赫利孔 · 盘古 3D 预览</title>
+<style>
+  :root{
+    --ink:#e8eef7;
+    --ink-dim:#8fa0b8;
+    --ink-faint:#5a6a80;
+    --line:rgba(140,170,210,.16);
+    --glass:rgba(10,16,28,.62);
+    --glass-hi:rgba(20,30,48,.78);
+    --accent:#ffcf8a;
+    --accent2:#7fb6d9;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#04060c;color:var(--ink);font-family:var(--font)}
+  #scene{display:block;width:100%;height:100%;cursor:grab}
+  #scene.dragging{cursor:grabbing}
+
+  .fade-in{animation:fade .9s cubic-bezier(.22,.9,.28,1) both}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ── 左上 · 世界标头 ── */
+  #hud{position:fixed;top:0;left:0;padding:26px 30px;pointer-events:none;max-width:min(46vw,520px)}
+  #hud .kicker{font-size:10.5px;letter-spacing:.34em;color:var(--ink-faint);text-transform:uppercase;margin-bottom:12px}
+  #hud h1{margin:0;font-size:clamp(24px,3.2vw,40px);font-weight:600;letter-spacing:.14em;line-height:1.16;
+          text-shadow:0 2px 26px rgba(0,0,0,.85)}
+  #hud .sub{margin-top:9px;font-size:12.5px;letter-spacing:.22em;color:var(--accent);opacity:.92}
+  #hud .tag{margin-top:15px;font-size:13px;line-height:1.85;color:var(--ink-dim);max-width:34em}
+  #hud .tag::before{content:"";display:inline-block;width:16px;height:1px;background:var(--accent);
+                    vertical-align:middle;margin-right:9px;opacity:.7}
+
+  /* ── 右上 · 评分 ── */
+  #score{position:fixed;top:26px;right:30px;text-align:right;pointer-events:none}
+  #score .n{font-size:30px;font-weight:300;letter-spacing:.02em;line-height:1;
+            font-variant-numeric:tabular-nums}
+  #score .n small{font-size:12px;color:var(--ink-faint);margin-left:2px}
+  #score .g{font-size:10px;letter-spacing:.28em;color:var(--ink-faint);margin-top:7px}
+  #score .bar{width:92px;height:2px;background:rgba(255,255,255,.09);margin:11px 0 0 auto;overflow:hidden}
+  #score .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));
+                width:100%;transition:width 1.2s cubic-bezier(.22,.9,.28,1)}
+
+  /* ── 右侧 · 天体列表 ── */
+  #legend{position:fixed;right:30px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;
+          gap:7px;align-items:flex-end;max-height:56vh;overflow-y:auto;scrollbar-width:none}
+  #legend::-webkit-scrollbar{display:none}
+  .lg{display:flex;align-items:center;gap:9px;padding:6px 11px;border-radius:20px;
+      background:var(--glass);border:1px solid transparent;cursor:pointer;
+      transition:.28s cubic-bezier(.22,.9,.28,1);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+      font-size:11.5px;letter-spacing:.06em;color:var(--ink-dim);white-space:nowrap}
+  .lg:hover{background:var(--glass-hi);color:var(--ink);border-color:var(--line)}
+  .lg.on{color:var(--ink);border-color:rgba(255,207,138,.42);background:rgba(40,32,20,.7)}
+  .lg .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 9px currentColor}
+  .lg .ty{font-size:9px;color:var(--ink-faint);letter-spacing:.14em}
+
+  /* ── 底部 · 控制条 ── */
+  #dock{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);display:flex;align-items:center;
+        gap:3px;padding:7px;border-radius:14px;background:var(--glass);border:1px solid var(--line);
+        backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+        box-shadow:0 14px 44px rgba(0,0,0,.55)}
+  #dock button{appearance:none;border:0;background:transparent;color:var(--ink-dim);font-family:var(--font);
+        font-size:11.5px;letter-spacing:.1em;padding:8px 13px;border-radius:9px;cursor:pointer;transition:.2s}
+  #dock button:hover{background:rgba(255,255,255,.07);color:var(--ink)}
+  #dock button.on{background:rgba(255,207,138,.15);color:var(--accent)}
+  #dock .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
+  #dock .spd{font-variant-numeric:tabular-nums;min-width:44px}
+
+  /* ── 右下 · 声明 ── */
+  #note{position:fixed;right:30px;bottom:28px;font-size:10px;color:var(--ink-faint);
+        letter-spacing:.08em;text-align:right;line-height:1.7;pointer-events:none}
+  #note b{color:var(--ink-dim);font-weight:500}
+
+  /* ── 加载 / 降级 ── */
+  #boot{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:22px;background:#04060c;z-index:50;transition:opacity .8s,visibility 0s .8s}
+  #boot .ring{width:44px;height:44px;border:1px solid rgba(255,207,138,.16);border-top-color:var(--accent);
+              border-radius:50%;animation:spin 1.1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #boot .t{font-size:11px;letter-spacing:.34em;color:var(--ink-faint)}
+  #boot.done{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .8s,visibility 0s .8s}
+
+  #fallback{position:fixed;inset:0;z-index:60;background:#04060c;overflow-y:auto;padding:56px 8vw;display:none}
+  #fallback.show{display:block}
+  #fallback h2{font-size:22px;letter-spacing:.16em;margin:0 0 10px}
+  #fallback .warn{color:#ffb26b;font-size:12.5px;line-height:1.9;border-left:2px solid #ffb26b;
+                  padding-left:14px;margin-bottom:30px;max-width:60ch}
+  #fallback table{width:100%;max-width:760px;border-collapse:collapse;font-size:12.5px;margin:12px 0 28px}
+  #fallback th,#fallback td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  #fallback th{color:var(--ink-faint);font-weight:500;letter-spacing:.1em;font-size:10.5px}
+  #fallback ul{max-width:760px;line-height:2;font-size:13px;color:var(--ink-dim);padding-left:20px}
+
+  @media (max-width:760px){
+    #hud{padding:18px 18px;max-width:78vw}
+    #hud .tag{display:none}
+    #score{top:18px;right:18px}
+    #score .n{font-size:22px}
+    #legend{right:14px;gap:5px;max-height:40vh}
+    .lg{padding:5px 9px;font-size:10.5px}
+    .lg .ty{display:none}
+    #dock{bottom:14px;padding:5px}
+    #dock button{padding:7px 9px;font-size:10.5px;letter-spacing:.04em}
+    #note{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="hud" class="fade-in">
+  <div class="kicker">盘古 · 世界模型</div>
+  <h1 id="w-name">赫利孔</h1>
+  <div class="sub" id="w-sub"></div>
+  <div class="tag" id="w-tag"></div>
+</div>
+
+<div id="score" class="fade-in">
+  <div class="n">100<small>/100</small></div>
+  <div class="g">可发表</div>
+  <div class="bar"><i></i></div>
+</div>
+
+<div id="legend"></div>
+
+<div id="dock">
+  <button id="btn-play" class="on" title="空格">运行</button>
+  <button id="btn-spd" class="spd" title="速度">1×</button>
+  <div class="sep"></div>
+  <button id="v-sys" class="on">系统</button>
+  <button id="v-body">天体</button>
+  <button id="v-far">远景</button>
+  <div class="sep"></div>
+  <button id="btn-reset" title="R">复位</button>
+</div>
+
+<div id="note">
+  示意视图 · <b>天体与轨道非真实比例</b><br>
+  行星半径与轨道采用双尺度压缩
+</div>
+
+<div id="boot">
+  <div class="ring"></div>
+  <div class="t" id="boot-t">正在开天</div>
+</div>
+
+<div id="fallback">
+  <h2 id="fb-name">世界</h2>
+  <div class="warn" id="fb-warn"></div>
+  <div id="fb-body"></div>
+</div>
+
+<script id="pangu-world" type="application/json">{"meta":{"id":"helikon","name":"赫利孔","subtitle":"三阳世界","version":"1.0","created":"2026-10-27","author":"盘古 / 自主生成","tagline":"两个太阳，两道影子，一个从不迟到的历法。","aesthetic":["琥珀","钴蓝","铁锈","灰白"],"tags":["环双星","超级地球","层级三合星","双峰光合"],"autonomy":"auto"},"seed":{"prompt":"造一个地球三倍大小、却有两个太阳的另一个世界","core_paradox":"半径三倍于地球的岩石行星，仍保有固体地表、可呼吸大气，且天空中有两颗分色恒星同时照耀","resolution":"本世界引力常数仅为地球的 0.60 倍，使 26.4 倍地球质量的星体表面重力停在 1.76 g；双星间距被压到 0.30 AU，行星轨道恰为其 4 倍，使轨道稳定与八分历法同时成立","references":[{"title":"Kepler-16b — 首个被确认的环双星行星","url":"https://science.nasa.gov/mission/kepler/","takeaway":"绕双星公转的行星可以长期稳定存在，前提是轨道半径远大于双星间距","use":"为「双日照地」提供结构合法性；据此把双星间距压到 0.30 AU、行星放到 1.20 AU（k=4.0）"},{"title":"Holman & Wiegert (1999) 环双星稳定临界半径","url":"https://ui.adsabs.harvard.edu/abs/1999AJ....117..621H","takeaway":"稳定轨道下限约为双星间距的 2–2.5 倍，且强烈依赖双星质量比与偏心率","use":"确定 k=2.5 为安全线，本世界取 k=4.0 留出余量，以容纳 2.1° 的轨道倾角"},{"title":"超级地球与迷你海王星的半径分界（ Fulton et al. 2017 半径谷）","url":"https://ui.adsabs.harvard.edu/abs/2017AJ....154..109F","takeaway":"半径超过约 1.6–2.0 地球半径的星体，多数会吸积气体包层，失去固体表面","use":"本世界最容易被攻击的一点。用 G'=0.60G 偿还：密度不变而重力减半，使 3 R⊕ 的地壳得以支撑自身"},{"title":"双星系统中的光合作用色素演化（理论探讨）","url":"https://www.astrobiology.com/","takeaway":"不同色温的恒星会驱动光合生物演化出多吸收峰，而非单一叶绿素峰","use":"据此设定双峰卟啉色素，吸收 590 nm 与 450 nm，使植物呈晨紫暮红"},{"title":"开普勒第三定律与层级三合星构型","url":"https://en.wikipedia.org/wiki/Hierarchical_triple_system","takeaway":"层级三合星（内双星 + 远伴星）是自然界最稳定的三体构型，远伴星轨道须远大于内双星","use":"第三颗恒星置于 12 AU，与行星轨道 1.20 AU 相差 10 倍，满足层级稳定条件"}],"forbidden":["魔法","超自然力量","外星文明干预","时间旅行"]},"cosmology":{"frame":"circumbinary-superearth-hierarchical-triple","topology":"三维欧氏空间；内层为 0.30 AU 的双星，外层为 12 AU 的层级伴星，行星绕内双星质心公转","has_stars":true,"stars":[{"id":"A","name":"长明","class":"G2V","mass_solar":1.0,"radius_solar":1.0,"luminosity_solar":1.0,"temp_k":5780,"color":"#FFF6E2","orbit":{"parent":"AB","a_au":0.1352,"period_days":44.5,"eccentricity":0.02},"note":"主星，色温偏高，正午的天光由它主导，影子边缘锐利"},{"id":"B","name":"短烛","class":"K1V","mass_solar":0.82,"radius_solar":0.79,"luminosity_solar":0.46,"temp_k":5100,"color":"#FFD5A0","orbit":{"parent":"AB","a_au":0.1648,"period_days":44.5,"eccentricity":0.02},"note":"伴星，偏橙，影子的边缘永远糊，被称作「软影」"},{"id":"C","name":"远灯","class":"M4V","mass_solar":0.28,"radius_solar":0.3,"luminosity_solar":0.008,"temp_k":3300,"color":"#FF9C6B","orbit":{"parent":"AB","a_au":12.0,"period_days":11243,"eccentricity":0.18},"note":"层级伴星，30 年绕行一周，夜空里一盏不灭的橙红小灯，是唯一可靠的方位基准"}],"bodies":[{"id":"helikon","name":"赫利孔","kind":"planet","radius_km":19113,"radius_earth":3.0,"mass_earth":26.4,"density_gcc":5.39,"gravity_g":1.76,"rotation_hours":31.4,"axial_tilt_deg":18.2,"albedo":0.31,"orbit":{"parent":"AB","a_au":1.2,"eccentricity":0.03,"inclination_deg":2.1,"period_days":355.9},"atmosphere":{"surface_pressure_kpa":118,"composition":{"N2":0.66,"O2":0.19,"CO2":0.1,"Ar":0.05},"color":"#7FB6D9","height_km":180},"biomes":[{"id":"deep_sea","name":"深钴海","color":"#1E4058","elevation":0.0},{"id":"shallow","name":"浅青滩","color":"#356C8C","elevation":0.34},{"id":"ash_plain","name":"灰烬平原","color":"#8C7B63","elevation":0.46},{"id":"rust_wood","name":"锈林","color":"#A85A2E","elevation":0.6},{"id":"high_rock","name":"高地岩","color":"#6E6659","elevation":0.78},{"id":"summit","name":"峰脊","color":"#B9C4CE","elevation":0.955}],"rings":null,"visual_radius":3.0,"sea_level":0.46,"polar_amount":0.62,"polar_color":"#E8F0F8","note":"主干天体。三倍地球半径，1.76 g，一天 31.4 小时，一年恰好八个双星周期"},{"id":"erebos","name":"厄瑞玻斯","kind":"moon","radius_km":3504,"radius_earth":0.55,"mass_earth":0.045,"density_gcc":1.49,"gravity_g":0.09,"rotation_hours":null,"axial_tilt_deg":0.0,"albedo":0.12,"orbit":{"parent":"helikon","a_au":0.008,"eccentricity":0.001,"inclination_deg":1.2,"period_days":29.4},"atmosphere":null,"biomes":[{"id":"regolith","name":"灰壤","color":"#6A635C","elevation":0.0},{"id":"crater","name":"撞击坑","color":"#4A443E","elevation":0.55}],"rings":null,"visual_radius":0.85,"sea_level":0.0,"polar_amount":0.0,"note":"潮汐锁定的大卫星，稳定行星自转轴；一枚暗红的月，被称为「第三道影子」"}],"sky_phenomena":["每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘泛橙","两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影","每四十四天一次「双星合」：短烛走到长明之前，天光在 90 分钟内从琥珀降到铁灰，气温骤降 11 度","地平线上永远能看见远灯——一颗不闪的橙红小点，30 年绕天空一圈，是唯一可靠的方位与长周期计时基准","日落后天空不是黑的，而是深的钴蓝：大气中的尘在高空散射两颗恒星的红光","厄瑞玻斯升起时，地面会出现第三道极暗的影子，古人称之为「亡影」，认为它预示死亡"],"calendar":{"day_hours":31.4,"year_days":355.9,"months":8,"month_days":44.49,"epoch":"落火元年"}},"physics":{"constants":[{"symbol":"G","earth_value":"6.674e-11 m3kg-1s-2","world_value":"4.004e-11 m3kg-1s-2","delta":"0.60","why":"唯一的核心改动。使 26.4 M⊕、3 R⊕ 的星体表面重力停在 1.76 g，固体地壳得以在自身重量下保持刚性，而非坍缩为气态包层"},{"symbol":"c","earth_value":"2.998e8 m/s","world_value":"2.998e8 m/s","delta":"1.00","why":"未改动。这个世界的物理学家与我们看到同样的星空红移"},{"symbol":"α","earth_value":"7.297e-3","world_value":"7.297e-3","delta":"1.00","why":"未改动。化学与光谱学因此与地球同构，元素表可直接沿用"}],"laws":[{"name":"引力","statement":"平方反比，作用量与 G' 成正比","deviation":"标准形式，常数改写","consequence":"天体可以更大更轻；但恒星内部压强梯度变缓，主序寿命缩短约 15%"},{"name":"热力学第二定律","statement":"完整保留，无例外","deviation":"标准","consequence":"生态必须严格遵循能量金字塔；文明的一切动力都来自双星辐照的存量"},{"name":"角动量守恒","statement":"在行星尺度上被双星潮汐缓慢抽取","deviation":"缓慢泄漏","consequence":"自转每世纪减慢 0.002 秒；三十亿年后一天将长达 40 小时，双星合将不再精确对齐历法"},{"name":"电磁力","statement":"标准麦克斯韦方程组","deviation":"标准","consequence":"双星潮汐驱动的液态外核发电机维持全球磁场，极光在磁极常年可见"}],"broken_symmetries":[],"new_interactions":[{"name":"双星潮汐耦合场","range":"行星半径量级（10⁴ km），随双星相位周期性振荡","effect":"周期性挤压行星外核，维持地磁发电机运转；同时把双星的角动量缓慢注入行星自转，使厄瑞玻斯轨道以每世纪 3.4 cm 的速度外移","cost":"地壳承受每 44 天一次的潮汐应力峰值，全球每年约 1.1 万次 4 级以上地震；造山带全部沿潮汐节拍分布"}],"conservation_notes":"能量严格守恒。双星轨道因引力波辐射每世纪收缩 1.2 米，三十亿年后两星合并，世界终结——这是赫利孔人早已算出的末日。"},"mathematics":{"geometry":"欧氏几何，三维平直空间","number_system":"实数；但计数传统源自双星，采用「双进制」口算，八与十六在他们的语言里是「整」的意思","peculiarity":"由于一年恰好等于八个双星周期，他们的数论中「8」具有近乎神圣的地位，所有度量衡以 8 为基","consequence":"度量衡采用八进制：一尺 = 8 寸，一斤 = 8 两。换算成地球单位会产生持续的误差，这也是他们无法发展出精密钟表的原因之一"},"chemistry":{"periodic_status":"与地球完全一致（α 未改动）。唯一差异是超重元素在 Z=114 附近存在一段更宽的稳定岛，因 G' 较低使核内库仑排斥相对减弱","solvent":{"name":"水","note":"表层为液态水；地壳 40 km 以下存在超临界水层，作为第二溶剂，溶解能力远超地表水，是深层化能生态的基础"},"key_bonds":"共价键与金属键并重。因重力较高，晶体生长受压制，天然形成大块单晶而非多晶集合体","signature_materials":[{"name":"曜岩","formula":"SiO₂ 为主，含 FeTiO₃ 定向析出","property":"在双星双色辐照下生长的定向晶体，沿晶轴方向对不同色温的光有选择性反射：朝长明的一侧泛白，朝短烛的一侧泛橙","use":"全部宗教建筑的外墙材料。墙面的颜色会随一日之内双星相对位置而变化，被视为「会读时间的石头」"},{"name":"赤铜","formula":"Cu（天然单质）","property":"因超临界水层长期还原作用，大量以天然单质形式产出，无需冶炼","use":"最早的金属工具与货币。赫利孔人从未发明冶铜术，他们只是「捡」铜"},{"name":"重盐","formula":"(Na,K)Cl 高压相","property":"在 1.76 g 与 118 kPa 下形成的致密盐相，硬度接近石英，可缓慢溶于水","use":"建筑材料与储热介质。盐墙白天吸热、夜里放热，是灰阶诸城在「双星合」寒夜中活下来的关键"}],"abiotic_notes":"潮汐应力带每年释放的断层摩擦热，使深层岩石持续发生水岩反应，产生大量氢与硫化氢，向上渗漏形成「地息」——一种从裂缝冒出的、带臭鸡蛋味的可燃气，是深层生态的能量入口"},"biology":{"energy_currency":{"name":"硫铁簇","note":"以 Fe-S 簇作为电子载体，而非 ATP。能量以「簇的氧化态」形式在细胞内传递，一次充放循环携带的能量约为 ATP 的 1.7 倍，但转换效率只有 62%"},"metabolism_summary":"地表生态以双峰光合为能量入口；深层生态以「地息」中的 H₂S 为电子供体，走化能合成路线。两条食物链在灰烬平原的裂缝带交汇，形成地球上不存在的「双源生态」","photosynthesis":{"pigment":"双峰卟啉（代号 P-590/450）","absorbs":["#FFB347","#5B8FF9"],"appearance":"晨紫暮红。清晨短烛先升起，450 nm 峰主导，植被呈蓝紫；正午两星并照，双峰同时饱和，植被呈暗金属灰；黄昏长明先落，590 nm 峰主导，植被转为铁锈红"},"genetic_carrier":{"name":"六碱基核酸（HNA）","note":"在四种常规碱基外增加两种，密码子容量提升至 3 倍。代价是复制错误率高出地球 4 倍，物种演化速度极快——赫利孔的一个「世纪」足以产生地球上的一个新属"},"trophic_levels":[{"name":"初级生产者","share":0.82,"examples":["双峰藻（海洋）","锈苔（陆地）","地息菌（深层化能）"]},{"name":"初级消费者","share":0.13,"examples":["浮游甲壳类","六足食苔兽","盐虫"]},{"name":"次级消费者","share":0.038,"examples":["双影猎兽","滑翔翼龙类"]},{"name":"顶级掠食者","share":0.012,"examples":["灰背巨蜥","渊喉（深层）"]}],"sentient":{"exists":true,"name":"灰民","note":"唯一已知智慧物种。因长期生活在 1.76 g 下，身高仅 1.2 米，骨骼密度是人类的 2.4 倍，无颈——头部直接嵌入肩胛。视觉有四色感光细胞，能分辨两道影子的色温差，这是他们最古老的天文仪器"},"mass_extinctions":["大氧化事件（约 21 亿年前）：双峰藻把大气氧含量推到 19%，硫铁簇代谢者大批灭绝，深层生态被迫退守裂缝","双星合灾变（约 40 万年前）：一次罕见的双星近距互食使全球气温在 90 分钟内下降 27 度，87% 的陆生大型动物灭绝，灰民由此从采集转向储热定居","长夜之疫（约 1200 年前）：厄瑞玻斯轨道共振引发的潮汐高峰，全球地震频发，文明一度退回到石器时代"]},"civilization":{"exists":true,"name":"灰阶诸城","tech_path":"跳过冶铜与青铜，直接从天然赤铜进入冷锻工艺；因 G' 较低而无法造出高精度弹簧与齿轮，机械技术停在凸轮与杠杆阶段，转而把全部工程天赋投向「热」——盐墙储热、地息导流、曜岩定向反光","timekeeping":"以双星合为「月」，一月 44.49 天，一年八个「暗月」。他们不需要闰日：一年恰好是八个双星周期，这是几何的必然（周期比 = (a_行星/a_双星)^1.5 = 4^1.5 = 8），而非巧合。历法由祭司阶层垄断，因为他们掌握唯一能预测互食时刻的曜岩日晷","energy_source":"双星辐照（主要用于盐墙储热）+ 地息燃烧（深层化能产物）+ 潮汐摩擦热（地热供暖）","social_shape":"沿晨昏温差带分布的城邦联盟。社会阶层按「影子清晰度」划分：能在正午看清自己两道影子边界的人属上层（意味着视力好、从事天文或祭司职业）；影子糊成一团者为底层。这一划分并非迷信——四色视觉确实与营养状况强相关","taboo":"「不可直视双星合的正中时刻」。在互食的 90 分钟里，短烛的边缘会掠过长明，产生瞬间的强偏振光，直视会造成不可逆的视网膜灼伤。这条禁忌有明确的物理依据，是全球唯一被所有城邦共同遵守的法律"},"history":{"eras":[{"name":"双源纪","span":"约 21 亿年前 – 40 万年前","summary":"双源生态的黄金时代。地表光合与深层化能两条食物链并行繁荣，生物多样性达到峰值。此期无智慧生命，只有大量巨型六足类"},{"name":"落火纪","span":"40 万年前 – 1200 年前","summary":"双星合灾变后，幸存者退守地热裂缝。灰民学会用重盐砌墙储热，第一批永久定居点沿断裂带建立。纪元名来自灾变当日天空的颜色"},{"name":"灰阶纪","span":"1200 年前 – 当下","summary":"长夜之疫后重建。八座城邦沿晨昏温差带结成联盟，曜岩日晷与八分历法成为共同语言。当下正处在一次罕见的天文事件前夜：远灯将于 12 年后穿过双星连线，三方引力叠加，可能触发新一轮潮汐高峰"}],"revisions":[{"version":"1.0","date":"2026-10-27","change":"初版：确立 G'=0.60G、双星 0.30 AU、行星 1.20 AU、八分历法"}]},"consistency":{"score":100,"checks":[],"open_issues":[]},"narrative":{"three_seconds":"天上两个太阳，一大一小，一冷一暖，绕着彼此转。地上每个人都有两道影子，一道锐利，一道模糊。一年不是十二个月，是八个「暗月」——每四十四天，小的走到大的前面，天在九十分钟里暗下去，全城停摆，祭司登塔。他们的历法从不误差，因为一年恰好是八个双星周期，这是几何的必然，不是巧合。","setpiece":"双星合的那九十分钟。天空从琥珀色一层层褪到铁灰，气温骤降十一度，两道影子在广场石板上缓缓合拢成一个厚影。所有人停下手中的活，背对天空站立——不是因为敬畏，是因为直视会瞎。祭司在塔顶用曜岩日晷记录那一刻的精确角度，而城墙上的盐砖开始放出白天存下的热，白色的雾气顺着墙面升起，整座城像在呼吸。","hook":"他们从不校准历法。历法自己就是对的——因为一年正好是八个双星周期，这是开普勒第三定律替他们签好的契约。"}}</script>
+
+<script type="module">
+/* ════════════════════════════════════════════════════════════════
+   盘古 3D 预览层
+   单文件 / 零构建 / 零外部资源（除 three 从 CDN 动态加载）
+   ════════════════════════════════════════════════════════════════ */
+
+const WORLD = (() => {
+  try { return JSON.parse(document.getElementById('pangu-world').textContent); }
+  catch (e) { return {}; }
+})();
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const num = (v, d = 0) => (typeof v === 'number' && isFinite(v)) ? v : d;
+
+/* ── 数据抽取（全部容错，缺字段不抛错） ───────────────────────── */
+const META = WORLD.meta || {};
+const COS  = WORLD.cosmology || {};
+const IS_STARS = (COS.stars || []).filter(s => s && typeof s === 'object');
+const IS_BODIES = (COS.bodies || []).filter(b => b && typeof b === 'object');
+
+function starColor(s) {
+  if (s.color) return s.color;
+  const t = num(s.temp_k, 5800);
+  if (t < 3700) return '#ff8f5e';
+  if (t < 5200) return '#ffc98a';
+  if (t < 6000) return '#fff4e2';
+  if (t < 7500) return '#eef3ff';
+  return '#cfe0ff';
+}
+const visRadius = b => {
+  if (num(b.visual_radius, 0) > 0) return num(b.visual_radius);
+  const re = num(b.radius_earth, 0) || (num(b.radius_km, 0) / 6371) || 1;
+  return clamp(1.0 + 1.5 * Math.log10(re + 1), 0.6, 6);
+};
+const visStarRadius = s => clamp(1.4 * Math.pow(num(s.radius_solar, 1), 0.7), 0.8, 4);
+
+const ORBIT_SCALE = 26;
+
+/* ── 标头填充 ───────────────────────────────────────────────── */
+$('w-name').textContent = META.name || '未命名世界';
+$('w-sub').textContent  = META.subtitle || '';
+$('w-tag').textContent  = META.tagline || '';
+
+/* ── 降级页 ─────────────────────────────────────────────────── */
+function showFallback(reason) {
+  $('boot').classList.add('done');
+  const fb = $('fallback');
+  fb.classList.add('show');
+  $('fb-name').textContent = META.name || '未命名世界';
+  $('fb-warn').innerHTML =
+    '3D 渲染未能启动：' + reason + '<br><br>' +
+    '页面已切换为数据视图，世界设定依然完整可读。' +
+    '若需 3D：请联网后刷新，或把 <code>three.module.js</code> 放在本文件同目录，' +
+    '并将下方 CDN 列表首项改为 <code>./three.module.js</code>。';
+  let h = '';
+  if (IS_BODIES.length) {
+    h += '<table><tr><th>天体</th><th>类型</th><th>半径</th><th>质量</th><th>重力</th></tr>';
+    for (const b of IS_BODIES) {
+      h += `<tr><td>${b.name || '?'}</td><td>${b.kind || '—'}</td>` +
+           `<td>${num(b.radius_km, '—')} km</td><td>${num(b.mass_earth, '—')} M⊕</td>` +
+           `<td>${num(b.gravity_g, '—')} g</td></tr>`;
+    }
+    h += '</table>';
+  }
+  const sky = COS.sky_phenomena || [];
+  if (sky.length) {
+    h += '<div style="font-size:11px;letter-spacing:.24em;color:#5a6a80;margin-bottom:12px">抬头能看见</div><ul>';
+    for (const s of sky) h += `<li>${s}</li>`;
+    h += '</ul>';
+  }
+  $('fb-body').innerHTML = h;
+}
+
+/* ── 加载 three（多源回退） ─────────────────────────────────── */
+const THREE_SOURCES = [
+  'https://unpkg.com/three@0.160.0/build/three.module.js',
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  'https://fastly.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  'https://esm.sh/three@0.160.0',
+  'https://cdn.skypack.dev/three@0.160.0'
+];
+
+async function loadThree() {
+  for (let i = 0; i < THREE_SOURCES.length; i++) {
+    const url = THREE_SOURCES[i];
+    $('boot-t').textContent = i === 0 ? '正在开天' : `正在换源 (${i + 1}/${THREE_SOURCES.length})`;
+    try {
+      const m = await import(/* @vite-ignore */ url);
+      if (m && m.WebGLRenderer) return m;
+    } catch (e) { /* 静默换源 */ }
+  }
+  return null;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   主流程
+   ══════════════════════════════════════════════════════════════ */
+let THREE = await loadThree();
+if (!THREE) {
+  showFallback('所有 CDN 均不可达（可能处于离线环境）。');
+} else {
+  try { boot(THREE); }
+  catch (e) { console.error(e); showFallback('渲染初始化异常：' + (e && e.message ? e.message : e)); }
+}
+
+function boot(THREE) {
+
+  /* ── 渲染器 ─────────────────────────────────────────────── */
+  const canvas = $('scene');
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  } catch (e) {
+    showFallback('此浏览器不支持 WebGL。');
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NoToneMapping;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.5, 6000);
+
+  /* ── 星空 ───────────────────────────────────────────────── */
+  (function buildStars() {
+    const N = 5000, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < N; i++) {
+      const u = Math.random() * 2 - 1;
+      const th = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(1 - u * u);
+      const R = 900 + Math.random() * 260;
+      pos[i * 3]     = Math.cos(th) * r * R;
+      pos[i * 3 + 1] = u * R;
+      pos[i * 3 + 2] = Math.sin(th) * r * R;
+      const w = 0.55 + Math.random() * 0.45;
+      c.setRGB(w, w * (0.94 + Math.random() * 0.06), w * (0.88 + Math.random() * 0.12));
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const m = new THREE.PointsMaterial({
+      size: 1.7, sizeAttenuation: false, vertexColors: true,
+      transparent: true, opacity: 0.9, depthWrite: false
+    });
+    scene.add(new THREE.Points(g, m));
+  })();
+
+  /* ── 辉光贴图（程序生成，零外部资源） ───────────────────── */
+  const GLOW_TEX = (() => {
+    const S = 256, cv = document.createElement('canvas');
+    cv.width = cv.height = S;
+    const ctx = cv.getContext('2d');
+    const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0.00, 'rgba(255,255,255,1)');
+    g.addColorStop(0.14, 'rgba(255,255,255,0.72)');
+    g.addColorStop(0.32, 'rgba(255,255,255,0.22)');
+    g.addColorStop(0.62, 'rgba(255,255,255,0.05)');
+    g.addColorStop(1.00, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    const t = new THREE.CanvasTexture(cv);
+    if ('colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+
+  /* ── GLSL 公共噪声 ──────────────────────────────────────── */
+  const NOISE = `
+vec3 mod289(vec3 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 mod289(vec4 x){ return x - floor(x*(1.0/289.0))*289.0; }
+vec4 permute(vec4 x){ return mod289(((x*34.0)+1.0)*x); }
+vec4 taylorInvSqrt(vec4 r){ return 1.79284291400159 - 0.85373472095314*r; }
+float snoise(vec3 v){
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+  i = mod289(i);
+  vec4 p = permute(permute(permute(
+       i.z + vec4(0.0, i1.z, i2.z, 1.0))
+     + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+     + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+float fbm(vec3 p, int oct){
+  float a = 0.5, f = 1.0, s = 0.0;
+  for (int i = 0; i < 6; i++){
+    if (i >= oct) break;
+    s += a * snoise(p * f);
+    f *= 2.02; a *= 0.5;
+  }
+  return s;
+}
+float ridged(vec3 p){
+  float n = snoise(p);
+  return (1.0 - abs(n)) * (1.0 - abs(n)) - 0.5;
+}
+`;
+
+  /* ── 行星材质 ───────────────────────────────────────────── */
+  const SUN_MAX = 4;
+  const allSunPos = [], allSunColor = [], allSunPower = [];
+
+  function makePlanetMaterial(body, idx) {
+    const biomes = (body.biomes || []).filter(b => b && b.color).slice(0, 8);
+    const colors = [], stops = [];
+    if (biomes.length) {
+      for (const b of biomes) {
+        colors.push(new THREE.Color(b.color));
+        stops.push(clamp(num(b.elevation, 0), 0, 1));
+      }
+      stops[0] = 0;
+    } else {
+      colors.push(new THREE.Color('#6d7c72'));
+      stops.push(0);
+    }
+    while (colors.length < 8) { colors.push(colors[colors.length - 1].clone()); stops.push(1.0); }
+    while (stops.length < 8) { stops.push(1.0); }
+
+    const atm = body.atmosphere || {};
+    const polar = body.polar_color ? new THREE.Color(body.polar_color) : new THREE.Color('#dfe9f5');
+    const seaLevel = clamp(num(body.sea_level, 0.42), 0, 1);
+
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uSunPos:    { value: allSunPos.length ? allSunPos : [new THREE.Vector3(1, 0, 0)] },
+        uSunColor:  { value: allSunColor.length ? allSunColor : [new THREE.Color('#ffffff')] },
+        uSunPower:  { value: allSunPower.length ? allSunPower : [1.0] },
+        uSunCount: { value: SUN_COUNT },
+        uBiomeColors: { value: colors },
+        uBiomeStops:  { value: stops },
+        uBiomeCount:  { value: Math.max(1, Math.min(8, biomes.length || 1)) },
+        uSeaLevel:  { value: seaLevel },
+        uPolarColor:{ value: polar },
+        uPolarAmt:  { value: clamp(num(body.polar_amount, 0.55), 0, 1) },
+        uAmbient:   { value: new THREE.Color('#0b1220') },
+        uSeed:      { value: idx * 37.13 + 11.7 },
+        uTime:      { value: 0 }
+      },
+      vertexShader: `
+        varying vec3 vObj;
+        varying vec3 vN;
+        varying vec3 vW;
+        void main(){
+          vObj = position;
+          vN = normalize(mat3(modelMatrix) * normal);
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vW = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: NOISE + `
+        uniform vec3  uSunPos[${SUN_MAX}];
+        uniform vec3  uSunColor[${SUN_MAX}];
+        uniform float uSunPower[${SUN_MAX}];
+        uniform int   uSunCount;
+        uniform vec3  uBiomeColors[8];
+        uniform float uBiomeStops[8];
+        uniform int   uBiomeCount;
+        uniform float uSeaLevel;
+        uniform vec3  uPolarColor;
+        uniform float uPolarAmt;
+        uniform vec3  uAmbient;
+        uniform float uSeed;
+        uniform float uTime;
+        varying vec3 vObj;
+        varying vec3 vN;
+        varying vec3 vW;
+
+        void main(){
+          vec3 p = normalize(vObj);
+          /* 双层地形：低频定大陆轮廓，高频只做细节，避免「迷彩」感 */
+          float cont   = fbm(p * 1.65 + uSeed, 4) * 0.5 + 0.5;
+          float detail = fbm(p * 5.20 + uSeed * 2.3, 3) * 0.5 + 0.5;
+          float ridge  = ridged(p * 8.0 + uSeed * 1.7);
+          float h = cont * 0.74 + detail * 0.26 + ridge * 0.09;
+          h = clamp(h * 1.38 - 0.20, 0.0, 1.0);
+
+          vec3 col = uBiomeColors[0];
+          for (int i = 1; i < 8; i++){
+            if (i >= uBiomeCount) break;
+            col = mix(col, uBiomeColors[i], smoothstep(uBiomeStops[i] - 0.07, uBiomeStops[i] + 0.07, h));
+          }
+
+          /* 极冠：纬度 + 高度扰动，避免生硬的圆环 */
+          float lat = abs(p.y);
+          float cap = smoothstep(0.74, 0.965, lat + (h - 0.5) * 0.22) * uPolarAmt;
+          col = mix(col, uPolarColor, cap);
+
+          /* 海洋：低洼处压暗并加蓝 */
+          float sea = smoothstep(uSeaLevel + 0.02, uSeaLevel - 0.06, h);
+          col = mix(col, col * vec3(0.55, 0.72, 1.05), sea * 0.85);
+
+          vec3 N = normalize(vN);
+          vec3 lit = vec3(0.0);
+          for (int i = 0; i < ${SUN_MAX}; i++){
+            if (i >= uSunCount) break;
+            vec3 L = normalize(uSunPos[i] - vW);
+            float d = max(dot(N, L), 0.0);
+            lit += uSunColor[i] * uSunPower[i] * (d * 0.9 + d * d * 0.14);
+          }
+
+          vec3 outc = col * (lit + uAmbient);
+
+          /* 海面镜面高光（双光源各出一道，这正是「双日双影」的视觉根源） */
+          vec3 V = normalize(cameraPosition - vW);
+          for (int i = 0; i < ${SUN_MAX}; i++){
+            if (i >= uSunCount) break;
+            vec3 L = normalize(uSunPos[i] - vW);
+            vec3 H = normalize(L + V);
+            float spec = pow(max(dot(N, H), 0.0), 42.0) * sea * 0.55;
+            outc += uSunColor[i] * spec * uSunPower[i];
+          }
+
+          gl_FragColor = vec4(outc, 1.0);
+        }
+      `
+    });
+  }
+
+  /* ── 云层 ───────────────────────────────────────────────── */
+  function makeCloudMaterial(idx) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uSunPos:   { value: allSunPos.length ? allSunPos : [new THREE.Vector3(1, 0, 0)] },
+        uSunColor: { value: allSunColor.length ? allSunColor : [new THREE.Color('#ffffff')] },
+        uSunPower: { value: allSunPower.length ? allSunPower : [1.0] },
+        uSunCount: { value: SUN_COUNT },
+        uSeed:     { value: idx * 61.7 + 3.3 },
+        uTime:     { value: 0 },
+        uOpacity:  { value: 0.62 }
+      },
+      vertexShader: `
+        varying vec3 vObj; varying vec3 vN; varying vec3 vW;
+        void main(){
+          vObj = position;
+          vN = normalize(mat3(modelMatrix) * normal);
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vW = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: NOISE + `
+        uniform vec3  uSunPos[${SUN_MAX}];
+        uniform vec3  uSunColor[${SUN_MAX}];
+        uniform float uSunPower[${SUN_MAX}];
+        uniform int   uSunCount;
+        uniform float uSeed;
+        uniform float uTime;
+        uniform float uOpacity;
+        varying vec3 vObj; varying vec3 vN; varying vec3 vW;
+        void main(){
+          vec3 p = normalize(vObj);
+          float n = fbm(p * 3.1 + uSeed + vec3(uTime * 0.008), 4) * 0.5 + 0.5;
+          float a = smoothstep(0.52, 0.78, n);
+          a *= uOpacity;
+          if (a < 0.012) discard;
+
+          vec3 N = normalize(vN);
+          float lit = 0.0;
+          for (int i = 0; i < ${SUN_MAX}; i++){
+            if (i >= uSunCount) break;
+            vec3 L = normalize(uSunPos[i] - vW);
+            lit += max(dot(N, L), 0.0) * uSunPower[i];
+          }
+          lit = clamp(lit, 0.0, 1.6);
+          vec3 shade = mix(vec3(0.16, 0.20, 0.30), vec3(1.0, 0.99, 0.96), clamp(lit, 0.0, 1.0));
+          gl_FragColor = vec4(shade, a);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide
+    });
+  }
+
+  /* ── 大气辉光 ───────────────────────────────────────────── */
+  function makeAtmoMaterial(color, strength) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uColor:    { value: new THREE.Color(color) },
+        uStrength: { value: strength },
+        uSunPos:   { value: allSunPos.length ? allSunPos : [new THREE.Vector3(1, 0, 0)] },
+        uSunPower: { value: allSunPower.length ? allSunPower : [1.0] },
+        uSunCount: { value: SUN_COUNT }
+      },
+      vertexShader: `
+        varying vec3 vN; varying vec3 vW;
+        void main(){
+          vN = normalize(mat3(modelMatrix) * normal);
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vW = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3  uColor;
+        uniform float uStrength;
+        uniform vec3  uSunPos[${SUN_MAX}];
+        uniform float uSunPower[${SUN_MAX}];
+        uniform int   uSunCount;
+        varying vec3 vN; varying vec3 vW;
+        void main(){
+          vec3 N = normalize(vN);
+          vec3 V = normalize(cameraPosition - vW);
+          float rim = pow(1.0 - abs(dot(N, V)), 2.8);
+          float lit = 0.0;
+          for (int i = 0; i < ${SUN_MAX}; i++){
+            if (i >= uSunCount) break;
+            vec3 L = normalize(uSunPos[i] - vW);
+            lit += max(dot(N, L), 0.0) * uSunPower[i];
+          }
+          lit = clamp(lit, 0.0, 1.0);
+          gl_FragColor = vec4(uColor, rim * uStrength * (0.16 + 0.84 * lit));
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide
+    });
+  }
+
+  /* ── 场景装配 ───────────────────────────────────────────── */
+  const orbitRoot = new THREE.Group();
+  scene.add(orbitRoot);
+
+  const pickables = [];          // 可点击对象
+  const nodes = {};              // id -> {group, body, kind}
+  const orbitLines = [];
+  const ambient = new THREE.AmbientLight(0x223044, 1.0);
+  scene.add(ambient);
+
+  /* 恒星 */
+  const sunPositionsWorld = [];
+  const SUN_COUNT = Math.max(1, IS_STARS.length);
+  const L_TOT = IS_STARS.reduce((a, s) => a + num(s.luminosity_solar, 1), 0) || 1;
+  IS_STARS.forEach((s, i) => {
+    const R = visStarRadius(s);
+    const g = new THREE.Group();
+    const col = new THREE.Color(starColor(s));
+
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(R, 40, 28),
+      new THREE.MeshBasicMaterial({ color: col })
+    );
+    core.userData.pick = { kind: 'star', id: s.id || ('star' + i), name: s.name || ('恒星' + i), body: s };
+    g.add(core);
+    pickables.push(core);
+
+    // 两层辉光
+    const glow1 = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: GLOW_TEX, color: col, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.92
+    }));
+    glow1.scale.setScalar(R * 7.0);
+    g.add(glow1);
+
+    const glow2 = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: GLOW_TEX, color: col, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.26
+    }));
+    glow2.scale.setScalar(R * 17.0);
+    g.add(glow2);
+
+    // 光源（供卫星/环等标准材质使用）
+    const lum = num(s.luminosity_solar, 1);
+    const power = clamp(0.85 * Math.pow(lum / L_TOT, 0.4), 0.04, 1.2);
+    const L = new THREE.PointLight(col, power * 2.2, 0, 0);
+    g.add(L);
+
+    nodes[s.id || ('star' + i)] = { group: g, kind: 'star', body: s, radius: R };
+    orbitRoot.add(g);
+
+    allSunColor.push(col);
+    allSunPower.push(power);
+    allSunPos.push(new THREE.Vector3());   // 每帧更新
+    sunPositionsWorld.push(g);
+  });
+
+  /* 无恒星时的微弱环境；并补齐 uniform 数组到编译期长度 */
+  if (!IS_STARS.length) {
+    allSunColor.push(new THREE.Color('#33445c'));
+    allSunPower.push(0.12);
+    allSunPos.push(new THREE.Vector3(0, 0, 1));
+  }
+  while (allSunColor.length < SUN_MAX) {
+    allSunColor.push(new THREE.Color('#000000'));
+    allSunPower.push(0);
+    allSunPos.push(new THREE.Vector3(0, 0, 1));
+  }
+
+  /* 物体 */
+  const bodyNodes = [];
+  IS_BODIES.forEach((b, i) => {
+    const R = visRadius(b);
+    const g = new THREE.Group();
+
+    const mat = makePlanetMaterial(b, i);
+    const surface = new THREE.Mesh(new THREE.SphereGeometry(R, 72, 48), mat);
+    surface.userData.pick = { kind: 'body', id: b.id || ('body' + i), name: b.name || '天体', body: b };
+    g.add(surface);
+    pickables.push(surface);
+
+    // 云
+    let cloud = null;
+    if (b.atmosphere) {
+      cloud = new THREE.Mesh(new THREE.SphereGeometry(R * 1.016, 48, 32), makeCloudMaterial(i));
+      g.add(cloud);
+    }
+
+    // 大气
+    let atmo = null;
+    if (b.atmosphere) {
+      const aCol = b.atmosphere.color || '#88bbdd';
+      const press = num(b.atmosphere.surface_pressure_kpa, 100);
+      const strength = clamp(0.35 + Math.log10(press + 1) * 0.55, 0.25, 1.35);
+      atmo = new THREE.Mesh(new THREE.SphereGeometry(R * 1.055, 48, 32), makeAtmoMaterial(aCol, strength));
+      g.add(atmo);
+    }
+
+    // 行星环
+    if (b.rings) {
+      const rr = b.rings;
+      const inner = R * num(rr.inner_r, 1.4);
+      const outer = R * num(rr.outer_r, 2.2);
+      const ringGeo = new THREE.RingGeometry(inner, outer, 128, 1);
+      // 修 UV，让径向贴图可读
+      const pos = ringGeo.attributes.position;
+      const uv = ringGeo.attributes.uv;
+      const v3 = new THREE.Vector3();
+      for (let k = 0; k < pos.count; k++) {
+        v3.fromBufferAttribute(pos, k);
+        const t = (v3.length() - inner) / Math.max(1e-6, outer - inner);
+        uv.setXY(k, t, 0.5);
+      }
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(rr.color || '#c9b79a'),
+        transparent: true, opacity: clamp(num(rr.opacity, 0.55), 0, 1),
+        side: THREE.DoubleSide, depthWrite: false
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.rotation.z = 0.18;
+      g.add(ring);
+    }
+
+    scene.add(g);
+    nodes[b.id || ('body' + i)] = { group: g, kind: 'body', body: b, radius: R, surface, cloud, mat };
+    bodyNodes.push({ node: nodes[b.id || ('body' + i)], data: b, index: i });
+  });
+
+  /* 轨道：先算位置关系，再画线 */
+  function orbitRadius(entry) {
+    const a = num(entry.orbit && entry.orbit.a_au, 0);
+    return a > 0 ? a * ORBIT_SCALE : 0;
+  }
+
+  // 恒星轨道（绕质心）
+  const starOrbiters = IS_STARS.map((s, i) => ({ s, i, a: orbitRadius(s), period: num(s.orbit && s.orbit.period_days, 0) }));
+  const starParent = new Set(starOrbiters.map(o => String(o.s.orbit && o.s.orbit.parent || 'bary')));
+
+  // 天体轨道：若 parent 是某天体，挂到该天体组下；否则绕质心
+  bodyNodes.forEach(({ node, data }) => {
+    const parentId = String((data.orbit && data.orbit.parent) || '');
+    const host = nodes[parentId];
+    if (host && host.kind === 'body') {
+      // 卫星：挂到母星组
+      let d = orbitRadius(data);
+      d = Math.max(d, host.radius * 2.15);   // 防穿模
+      node.orbitHost = host.group;
+      node.orbitDist = d;
+      node.orbitPeriod = num(data.orbit && data.orbit.period_days, 0);
+      host.group.add(node.group);
+      node.group.position.set(d, 0, 0);
+    } else {
+      orbitRoot.add(node.group);
+      node.orbitHost = orbitRoot;
+      node.orbitDist = orbitRadius(data);
+      node.orbitPeriod = num(data.orbit && data.orbit.period_days, 0);
+      node.group.position.set(node.orbitDist, 0, 0);
+    }
+  });
+
+  /* 轨道线 */
+  function addOrbitLine(dist, color, opacity, tilt) {
+    if (!(dist > 0)) return;
+    // 远处轨道（如 12 AU 的层级伴星）在系统视图里会横穿画面，按距离衰减
+    const fade = clamp(120 / dist, 0.1, 1);
+    const pts = [];
+    for (let i = 0; i <= 220; i++) {
+      const a = (i / 220) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * dist, 0, Math.sin(a) * dist));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(color), transparent: true,
+      opacity: opacity * fade, depthWrite: false
+    });
+    const line = new THREE.Line(geo, mat);
+    if (tilt) line.rotation.x = tilt;
+    orbitRoot.add(line);
+    orbitLines.push(line);
+  }
+
+  starOrbiters.forEach(o => {
+    if (o.a > 0) addOrbitLine(o.a, starColor(o.s), 0.26, 0);
+  });
+  bodyNodes.forEach(({ node, data }) => {
+    if (node.orbitHost === orbitRoot && node.orbitDist > 0) {
+      const tilt = num(data.orbit && data.orbit.inclination_deg, 0) * Math.PI / 180;
+      addOrbitLine(node.orbitDist, data.biomes && data.biomes[0] ? data.biomes[0].color : '#7fb6d9', 0.30, tilt);
+    }
+  });
+
+  /* ── 时间 ───────────────────────────────────────────────────
+     真实周期比跨度过大（卫星 29 天 / 行星 356 天），直接线性映射会让
+     行星几乎静止。改用平方根压缩：既保住快慢次序，又让所有运动可读。 */
+  const periods = bodyNodes.map(b => b.node.orbitPeriod).filter(p => p > 0);
+  const starP = starOrbiters.map(o => o.period).filter(p => p > 0);
+  const REF_P = Math.min(...periods.concat(starP).concat([365])) || 365;
+  const OMEGA_UNIT = (Math.PI * 2) / 12;   // 基准周期 = 12 秒一圈
+  const omegaFor = P => (P > 0 ? OMEGA_UNIT * Math.sqrt(REF_P / P) : 0);
+
+  let t = 0, playing = true, speed = 1;
+  const SPEEDS = [0.25, 1, 4, 16];
+  let speedIdx = 1;
+
+  /* ── 相机控制器（自研，零 addons 依赖） ─────────────────── */
+  class OrbitLite {
+    constructor(cam, dom) {
+      this.cam = cam; this.dom = dom;
+      this.target = new THREE.Vector3();
+      this.tTarget = new THREE.Vector3();
+      this.theta = 0.95; this.phi = 1.15; this.radius = 90;
+      this.tTheta = 0.95; this.tPhi = 1.15; this.tRadius = 90;
+      this.minR = 6; this.maxR = 900;
+      this.dragging = false; this.moved = 0;
+      this.px = 0; this.py = 0;
+      this._bind();
+    }
+    _bind() {
+      const d = this.dom;
+      d.addEventListener('pointerdown', e => {
+        this.dragging = true; this.moved = 0;
+        this.px = e.clientX; this.py = e.clientY;
+        d.classList.add('dragging');
+        d.setPointerCapture && d.setPointerCapture(e.pointerId);
+      });
+      d.addEventListener('pointermove', e => {
+        if (!this.dragging) return;
+        const dx = e.clientX - this.px, dy = e.clientY - this.py;
+        this.px = e.clientX; this.py = e.clientY;
+        this.moved += Math.abs(dx) + Math.abs(dy);
+        this.tTheta -= dx * 0.0055;
+        this.tPhi = clamp(this.tPhi - dy * 0.0050, 0.06 * Math.PI, 0.94 * Math.PI);
+        this.theta = this.tTheta; this.phi = this.tPhi;   // 拖拽时立即跟手
+      });
+      const up = e => {
+        this.dragging = false;
+        d.classList.remove('dragging');
+        if (e && e.pointerId != null && d.releasePointerCapture) {
+          try { d.releasePointerCapture(e.pointerId); } catch (_) {}
+        }
+      };
+      d.addEventListener('pointerup', up);
+      d.addEventListener('pointercancel', up);
+      d.addEventListener('wheel', e => {
+        e.preventDefault();
+        this.tRadius = clamp(this.tRadius * (1 + Math.sign(e.deltaY) * 0.11), this.minR, this.maxR);
+      }, { passive: false });
+
+      // 双指缩放
+      let pinch = 0;
+      d.addEventListener('touchmove', e => {
+        if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          if (pinch) this.tRadius = clamp(this.tRadius * (pinch / dist), this.minR, this.maxR);
+          pinch = dist;
+        }
+      }, { passive: true });
+      d.addEventListener('touchend', () => { pinch = 0; });
+    }
+    setTarget(v, r) {
+      this.tTarget.copy(v);
+      if (r) this.tRadius = clamp(r, this.minR, this.maxR);
+    }
+    reset() {
+      this.theta = this.tTheta; this.phi = this.tPhi;
+      this.radius = this.tRadius;
+    }
+    update() {
+      const k = 0.14;
+      this.theta += (this.tTheta - this.theta) * k;
+      this.phi += (this.tPhi - this.phi) * k;
+      this.radius += (this.tRadius - this.radius) * k;
+      this.target.lerp(this.tTarget, k);
+      const sp = Math.sin(this.phi);
+      this.cam.position.set(
+        this.target.x + this.radius * sp * Math.sin(this.theta),
+        this.target.y + this.radius * Math.cos(this.phi),
+        this.target.z + this.radius * sp * Math.cos(this.theta)
+      );
+      this.cam.lookAt(this.target);
+    }
+  }
+
+  const ctrl = new OrbitLite(camera, canvas);
+
+  /* ── 视角 ───────────────────────────────────────────────── */
+  const main = bodyNodes[0] || null;
+  const mainDist = main ? (main.node.orbitDist || 40) : 40;
+  const farDist = Math.max(
+    120,
+    ...bodyNodes.map(b => b.node.orbitDist || 0),
+    ...starOrbiters.map(o => o.a * 2.6)
+  );
+
+  function viewSys() {
+    ctrl.setTarget(new THREE.Vector3(0, 0, 0), mainDist * 2.55);
+    ctrl.tPhi = 1.15; ctrl.tTheta = 0.95;
+    markView('v-sys');
+  }
+  function viewBody() {
+    if (!main) return viewSys();
+    const p = new THREE.Vector3();
+    main.node.group.getWorldPosition(p);
+    ctrl.setTarget(p, main.node.radius * 3.6);
+    // 相机移到行星的向阳面：视线偏移方向 = 从行星指向恒星（原点）
+    const dir = p.clone().multiplyScalar(-1);
+    if (dir.lengthSq() > 1e-6) {
+      ctrl.tTheta = Math.atan2(dir.x, dir.z);
+      ctrl.tPhi = 1.22;
+    }
+    markView('v-body');
+  }
+  function viewFar() {
+    ctrl.setTarget(new THREE.Vector3(0, 0, 0), farDist * 1.55);
+    ctrl.tPhi = 0.72; ctrl.tTheta = 0.5;
+    markView('v-far');
+  }
+  function markView(id) {
+    ['v-sys', 'v-body', 'v-far'].forEach(x => $(x).classList.toggle('on', x === id));
+  }
+
+  /* ── 图例 ───────────────────────────────────────────────── */
+  const KIND_CN = {
+    planet: '行星', moon: '卫星', ring: '环', station: '空间站',
+    shell: '壳世界', anomaly: '异常体', star: '恒星'
+  };
+  (function buildLegend() {
+    const box = $('legend');
+    const items = [];
+    IS_STARS.forEach((s, i) => items.push({
+      id: s.id || ('star' + i), name: s.name || ('恒星' + i), kind: '恒星',
+      color: starColor(s), type: 'star'
+    }));
+    bodyNodes.forEach(({ node, data }) => items.push({
+      id: data.id || '?', name: data.name || '天体',
+      kind: KIND_CN[data.kind] || data.kind || '天体',
+      color: (data.biomes && data.biomes[0] && data.biomes[0].color) || '#8899aa',
+      type: 'body'
+    }));
+
+    items.forEach(it => {
+      const el = document.createElement('div');
+      el.className = 'lg';
+      el.innerHTML = `<span>${it.name}</span><span class="ty">${it.kind}</span>` +
+                     `<span class="dot" style="background:${it.color};color:${it.color}"></span>`;
+      el.onclick = () => {
+        const n = nodes[it.id];
+        if (!n) return;
+        const p = new THREE.Vector3();
+        n.group.getWorldPosition(p);
+        ctrl.setTarget(p, n.radius * 3.6);
+        document.querySelectorAll('.lg').forEach(x => x.classList.remove('on'));
+        el.classList.add('on');
+        ['v-sys', 'v-body', 'v-far'].forEach(x => $(x).classList.remove('on'));
+      };
+      box.appendChild(el);
+    });
+  })();
+
+  /* ── 点击拾取 ───────────────────────────────────────────── */
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  canvas.addEventListener('click', e => {
+    if (ctrl.moved > 6) return;    // 拖拽结束的误触
+    const r = canvas.getBoundingClientRect();
+    ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    ray.setFromCamera(ndc, camera);
+    const hit = ray.intersectObjects(pickables, false)[0];
+    if (hit && hit.object.userData.pick) {
+      const n = nodes[hit.object.userData.pick.id];
+      if (n) {
+        const p = new THREE.Vector3();
+        n.group.getWorldPosition(p);
+        ctrl.setTarget(p, n.radius * 3.6);
+      }
+    }
+  });
+
+  /* ── 控制条 ─────────────────────────────────────────────── */
+  $('btn-play').onclick = () => {
+    playing = !playing;
+    $('btn-play').textContent = playing ? '运行' : '暂停';
+    $('btn-play').classList.toggle('on', playing);
+  };
+  $('btn-spd').onclick = () => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    speed = SPEEDS[speedIdx];
+    $('btn-spd').textContent = speed + '×';
+  };
+  $('v-sys').onclick = viewSys;
+  $('v-body').onclick = viewBody;
+  $('v-far').onclick = viewFar;
+  $('btn-reset').onclick = () => {
+    const n = bodyNodes.length ? bodyNodes[0].data : (IS_STARS[0] || {});
+    viewSys();
+  };
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); $('btn-play').click(); }
+    if (e.key === '1') viewSys();
+    if (e.key === '2') viewBody();
+    if (e.key === '3') viewFar();
+    if (e.key === 'r' || e.key === 'R') $('btn-reset').click();
+  });
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  /* ── 初始视角 ───────────────────────────────────────────── */
+  ctrl.tRadius = ctrl.radius = mainDist * 2.55;
+  viewSys();
+  ctrl.radius = ctrl.tRadius;   // 首帧不做缩放动画
+
+  /* ── 动画 ───────────────────────────────────────────────── */
+  const clock = new THREE.Clock();
+  let fpsAcc = 0, fpsN = 0, downgraded = false;
+
+  function tick() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const step = playing ? dt * speed : 0;
+    t += step;
+
+    // 恒星绕质心
+    starOrbiters.forEach((o, idx) => {
+      const node = nodes[o.s.id || ('star' + idx)];
+      if (!node) return;
+      if (o.a > 0 && o.period > 0) {
+        const w = omegaFor(o.period);
+        const ang = t * w + idx * Math.PI;
+        node.group.position.set(Math.cos(ang) * o.a, 0, Math.sin(ang) * o.a);
+      }
+    });
+
+    // 天体公转 + 自转
+    bodyNodes.forEach(({ node, data }, idx) => {
+      let orbitW = 0;
+      if (node.orbitDist > 0 && node.orbitPeriod > 0) {
+        orbitW = omegaFor(node.orbitPeriod);
+        const ang = t * orbitW + idx * 1.7;
+        node.group.position.set(Math.cos(ang) * node.orbitDist, 0, Math.sin(ang) * node.orbitDist);
+      }
+      // 潮汐锁定：自转角速度 = 公转角速度
+      const rotH = data.rotation_hours;
+      let spin;
+      if (rotH === null || rotH === undefined) {
+        spin = orbitW || omegaFor(node.orbitPeriod || REF_P);
+      } else {
+        spin = (Math.PI * 2) / Math.max(4, (num(rotH, 24) / 24) * 8);
+      }
+      if (node.surface) node.surface.rotation.y += spin * step;
+      if (node.cloud) node.cloud.rotation.y += spin * step * 1.12;
+
+      if (node.mat) node.mat.uniforms.uTime.value = t;
+    });
+
+    // 更新太阳世界坐标（着色器用）
+    const tmp = new THREE.Vector3();
+    for (let i = 0; i < Math.min(allSunPos.length, IS_STARS.length); i++) {
+      const s = IS_STARS[i];
+      const node = nodes[s.id || ('star' + i)];
+      if (node) {
+        node.group.getWorldPosition(tmp);
+        allSunPos[i].copy(tmp);
+      }
+    }
+
+    ctrl.update();
+    renderer.render(scene, camera);
+
+    // 自适应降级
+    fpsAcc += dt; fpsN++;
+    if (!downgraded && fpsN > 120) {
+      const fps = fpsN / fpsAcc;
+      if (fps < 30 && renderer.getPixelRatio() > 1) {
+        renderer.setPixelRatio(1);
+        downgraded = true;
+      }
+      fpsAcc = 0; fpsN = 0;
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  /* ── 启动 ───────────────────────────────────────────────── */
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      $('boot').classList.add('done');
+      document.getElementById('hud').classList.add('fade-in');
+    });
+  });
+  tick();
+}
+</script>
+</body>
+</html>

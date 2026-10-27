@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 生成物（由 pangu.py 重新生成，不入库）
+out/
+dist/
+*.zip
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 日志与本地环境
+*.log
+.env
+.env.*
+!.env.example

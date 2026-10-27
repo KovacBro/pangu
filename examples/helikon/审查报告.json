@@ -1,0 +1,186 @@
+{
+  "score": 100,
+  "grade": "可发表",
+  "fatal": 0,
+  "warn": 0,
+  "missing": [],
+  "checks": [
+    {
+      "id": "L01",
+      "dim": "structure",
+      "question": "逆行律：是否存在明确的反常识悖论？",
+      "verdict": "pass",
+      "note": "半径三倍于地球的岩石行星，仍保有固体地表、可呼吸大气，且天空中有两颗分色恒星同时照耀"
+    },
+    {
+      "id": "L02",
+      "dim": "energy",
+      "question": "代价律：反常识是否标了价？",
+      "verdict": "pass",
+      "note": "已标价"
+    },
+    {
+      "id": "L03",
+      "dim": "observation",
+      "question": "痕迹律：居民抬头能看见什么异常？",
+      "verdict": "pass",
+      "note": "每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘泛橙；两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影；每四十四天一次「双星合」：短烛走到长明之前，天光在 90 分钟内从琥珀降到铁灰，气温骤降 11 度"
+    },
+    {
+      "id": "S01",
+      "dim": "structure",
+      "question": "meta 必填字段齐全？",
+      "verdict": "pass",
+      "note": "赫利孔 v1.0"
+    },
+    {
+      "id": "S02",
+      "dim": "structure",
+      "question": "天体必填字段齐全？",
+      "verdict": "pass",
+      "note": "2 个天体"
+    },
+    {
+      "id": "S03",
+      "dim": "structure",
+      "question": "生物群系分布合法？",
+      "verdict": "pass",
+      "note": "正常"
+    },
+    {
+      "id": "S04",
+      "dim": "structure",
+      "question": "恒星轨道满足开普勒第三定律？",
+      "verdict": "pass",
+      "note": "一致"
+    },
+    {
+      "id": "P01",
+      "dim": "structure",
+      "question": "质量/半径/密度/重力四者自洽？",
+      "verdict": "pass",
+      "note": "四数吻合"
+    },
+    {
+      "id": "P02",
+      "dim": "structure",
+      "question": "表面重力在可演化生命区间？",
+      "verdict": "pass",
+      "note": "正常"
+    },
+    {
+      "id": "P03",
+      "dim": "structure",
+      "question": "环双星轨道稳定？",
+      "verdict": "pass",
+      "note": "间距 0.3 AU，轨道安全"
+    },
+    {
+      "id": "P04",
+      "dim": "structure",
+      "question": "卫星未被潮汐撕裂？",
+      "verdict": "pass",
+      "note": "无卫星或超限"
+    },
+    {
+      "id": "E01",
+      "dim": "energy",
+      "question": "平衡温度能否支持液态溶剂？",
+      "verdict": "pass",
+      "note": "helikon=255.1K"
+    },
+    {
+      "id": "E02",
+      "dim": "energy",
+      "question": "营养级份额之和接近 1？",
+      "verdict": "pass",
+      "note": "合计 1.00"
+    },
+    {
+      "id": "E03",
+      "dim": "energy",
+      "question": "表面气压在可呼吸/可存活区间？",
+      "verdict": "pass",
+      "note": "正常"
+    },
+    {
+      "id": "O01",
+      "dim": "observation",
+      "question": "历法年长与轨道周期一致？",
+      "verdict": "pass",
+      "note": "历法 355.9d / 轨道 355.9d"
+    },
+    {
+      "id": "O02",
+      "dim": "observation",
+      "question": "历法日长与自转周期一致？",
+      "verdict": "pass",
+      "note": "历法 31.4h / 自转 31.4h"
+    },
+    {
+      "id": "N01",
+      "dim": "narrative",
+      "question": "叙事三件套是否齐全？",
+      "verdict": "pass",
+      "note": "齐全"
+    },
+    {
+      "id": "N02",
+      "dim": "narrative",
+      "question": "检索依据是否充分且被使用？",
+      "verdict": "pass",
+      "note": "5 条"
+    },
+    {
+      "id": "X01",
+      "dim": "structure",
+      "question": "是否有未解决的遗留问题？",
+      "verdict": "pass",
+      "note": "无"
+    },
+    {
+      "id": "X02",
+      "dim": "structure",
+      "question": "物理层是否已立？",
+      "verdict": "pass",
+      "note": "3 条常数，4 条定律"
+    }
+  ],
+  "derived": {
+    "g_ratio": 0.5999,
+    "total_luminosity": 1.468,
+    "binary_sep_au": 0.3,
+    "bodies": [
+      {
+        "id": "helikon",
+        "name": "赫利孔",
+        "is_satellite": false,
+        "radius_earth": 3.0,
+        "mass_earth": 26.4,
+        "density_gcc_calc": 5.391,
+        "density_gcc_declared": 5.39,
+        "gravity_g_calc": 1.76,
+        "gravity_g_declared": 1.76,
+        "v_escape_km_s": 33.19,
+        "radius_km_calc": 19113.0,
+        "a_au": 1.2,
+        "t_eq_k": 255.1
+      },
+      {
+        "id": "erebos",
+        "name": "厄瑞玻斯",
+        "is_satellite": true,
+        "radius_earth": 0.55,
+        "mass_earth": 0.045,
+        "density_gcc_calc": 1.491,
+        "density_gcc_declared": 1.49,
+        "gravity_g_calc": 0.089,
+        "gravity_g_declared": 0.09,
+        "v_escape_km_s": 3.2,
+        "radius_km_calc": 3504.1,
+        "a_au": 0.008,
+        "t_eq_k": 0.0
+      }
+    ]
+  }
+}
