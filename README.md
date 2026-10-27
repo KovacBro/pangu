@@ -1,0 +1,192 @@
+# 盘古 1.0 Pangu
+
+<img src="assets/icon.svg" width="72" align="right" alt="pangu">
+
+[![version](https://img.shields.io/badge/version-1.0.0-E8B15C)](CHANGELOG.md)
+[![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
+[![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
+[![tests](https://img.shields.io/badge/selftest-17%2F17-3FA96A)](scripts/selftest.py)
+
+**开天辟地式造世引擎** — 先立律，后长物。
+
+一个**与宿主无关**的 agent 技能：从一句话种子出发，设定世界的数学 / 物理 / 化学 / 生物底层法则，再严格推导出它的山、水、生物与文明，最后给出可交互的 3D 预览。
+
+不绑定任何平台。Claude、GPT、Gemini、本地模型，Claude Code、Codex、Cursor、Windsurf、Cline、Zed，或者你自己写的 harness —— 只要能读文件，就能用它；只要支持 MCP，就能把它当工具调。
+
+> 地球不是模板，是一个样本。
+
+---
+
+## 怎么装（三种方式，任选其一）
+
+```bash
+python install.py --list        # 看所有安装目标
+
+# A. 装成原生技能目录（Claude Code / Codex / Cline / OpenHands 等）
+python install.py --target skill                       # → ~/.claude/skills/pangu
+
+# B. 在项目里铺指针文件（Cursor / Windsurf / Gemini / Codex / Amp）
+python install.py --target all --dest .
+
+# C. 当 MCP 工具服务器用（Zed / Continue / Cherry Studio / Claude Desktop）
+python install.py --print-mcp                          # 打印配置片段
+```
+
+`--dry-run` 可先预览会写哪些文件。安装器幂等，重复执行不会产生重复内容。
+
+**纯对话环境**（网页版聊天、不能读文件的模型）：直接贴 `adapters/generic/BOOTSTRAP.md`，那是同一套方法论的压缩版。
+
+### 兼容矩阵
+
+| Harness | 入口 | 说明 |
+|---|---|---|
+| Claude Code / Claude.ai Skills | `SKILL.md` | 目录名建议 `pangu`，与 frontmatter 一致 |
+| OpenAI Codex CLI / Amp / Jules | `AGENTS.md` | 每轮自动读取 |
+| Cursor | `adapters/cursor/pangu.mdc` | 由 description 触发 |
+| Windsurf | `adapters/windsurf/pangu.md` | `model_decision` 触发 |
+| Gemini CLI | `adapters/gemini/GEMINI.md` | 项目根自动读取 |
+| Cline / Roo / Kilo | `AGENTS.md` | 工作区规则 |
+| Zed / Continue / Cherry Studio | `adapters/mcp/pangu_mcp.py` | MCP tool，7 个 |
+| 任意纯对话模型 | `adapters/generic/BOOTSTRAP.md` | 粘贴即用 |
+
+细节见 `adapters/README.md`，排错见 `docs/跨harness移植说明.md`。
+
+---
+
+## 三十秒上手
+
+```bash
+python scripts/pangu.py doctor                     # 环境自检
+
+python scripts/pangu.py init --name "赫利孔" \
+    --seed "三倍地球大，天上有两个太阳" --out out/helikon.json
+
+# 按七斧填完 world.json 后
+python scripts/pangu.py validate out/helikon.json --fix-hint
+python scripts/pangu.py preview  out/helikon.json
+python scripts/pangu.py export   out/helikon.json --md out/世界档案.md
+```
+
+`preview` 生成的 HTML 双击即开，不需要服务器、不需要构建、不需要联网（首次需从 CDN 取一次 Three.js，之后走缓存；完全离线时会降级为数据视图）。
+
+---
+
+## 它解决什么问题
+
+普通的世界观生成有三个死穴：
+
+| 病灶 | 症状 | 盘古的解法 |
+|---|---|---|
+| 倒因为果 | 先想要龙，再补物理，设定互相打架 | **七斧顺序**：物理层没立完，不许谈生物 |
+| 地球换皮 | 改颜色改名字，法则一模一样 | **逆行律**：至少一个底层维度必须与直觉相反 |
+| 无代价奇观 | 越夸张越没解释，一问就崩 | **代价律 + 痕迹律**：每个奇观标价，且必须留下可观测痕迹 |
+
+---
+
+## 核心概念
+
+### 三律（缺一不可）
+
+1. **逆行律** — 这世界哪条常识是反的？
+2. **代价律** — 为了得到它，失去了什么？（必须可量化）
+3. **痕迹律** — 居民抬头能看见什么异常？
+
+### 七斧
+
+```
+混沌 → 分判 → 立律 → 炼质 → 化生 → 启智 → 演界
+定调    定天    定法    定料    定活    定人    定史
+```
+
+每斧三步：**问**（2–3 个有区分度的问题）→ **搜**（网页检索校准）→ **定**（写入 JSON 并自检）。
+
+### 检索四类
+
+**锚定**（真实数值）｜ **证伪**（为什么不行）｜ **取反**（极端案例再推远）｜ **质感**（意象与配色）
+
+其中「证伪」不可省——**先找它为什么不可能，再解释它为什么可能**。
+
+---
+
+## 目录结构
+
+```
+盘古/
+├── SKILL.md                    技能正文（Agent Skills 开放格式）：三律、七斧、命令速查
+├── AGENTS.md                   通用 agent 指令入口（Codex / Amp / Jules / Cline…）
+├── install.py                  跨 harness 安装器（skill / agents / cursor / windsurf / gemini / mcp）
+├── README.md                   本文件
+├── adapters/                   入口适配层（不含业务逻辑，只做加载）
+│   ├── README.md               兼容矩阵与排错
+│   ├── claude/CLAUDE.md        项目级入口
+│   ├── cursor/pangu.mdc        Cursor 规则
+│   ├── windsurf/pangu.md       Windsurf 规则
+│   ├── gemini/GEMINI.md        Gemini CLI 入口
+│   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，7 个 tool）
+├── docs/
+│   ├── 开发文档-v1.0.md         架构、算法、接口、验收矩阵、路线图
+│   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
+│   ├── 3D预览层规范.md          渲染层技术规格
+│   └── 优化建议.md              已知短板与改进方向
+├── references/
+│   ├── 七斧创世法.md            每斧的提问脚本 / 推导链 / 常见错误
+│   ├── 公理库.md                62 条反常识积木（含代价与痕迹）
+│   ├── 检索与灵感策略.md        四类检索配方与取反技巧
+│   ├── 自洽性审查协议.md        五维十六问
+│   └── world-schema.md          JSON 全字段规范 + 机检清单
+├── scripts/
+│   ├── pangu.py                 CLI：init / validate / preview / export / axioms / doctor
+│   ├── world_schema.py          校验内核：天体物理计算、评分、公理库解析
+│   ├── preview_template.html    Three.js 单文件 3D 预览模板
+│   └── selftest.py              验收自测（对齐开发文档 §9）
+└── examples/helikon/            完整示例「赫利孔」三阳世界
+    ├── world.json
+    ├── preview.html
+    ├── 世界档案.md
+    └── 审查报告.json
+```
+
+---
+
+## 示例：赫利孔
+
+一颗**三倍地球半径**的岩石行星，天上**两个太阳**。
+
+这句话在地球物理下是自相矛盾的：半径 3 R⊕ 的岩石行星会吸积成迷你海王星，失去固体表面。盘古的处理是给它标价：
+
+- **改 G**：G' = 0.60 G，使 26.4 M⊕ 的表面重力停在 1.76 g，地壳撑得住
+- **压双星**：间距压到 0.30 AU，行星放在 1.20 AU（4 倍间距，稳定）
+- **捡了个便宜**：周期比 = (a_行星/a_双星)^1.5 = 4^1.5 = **8**。一年恰好八个双星周期，历法不需要闰日——这是开普勒第三定律的必然，不是设定者的巧合
+- **代价**：每 44 天一次潮汐应力峰值，全球每年 1.1 万次 4 级以上地震；造山带沿潮汐节拍分布
+- **痕迹**：两道颜色不同的影子；每 44 天一次 90 分钟的「双星合」；日落后天空是钴蓝而非黑色
+
+自洽评分 100/100（0 fatal / 0 warn）。
+
+---
+
+## 与「世界观构建」技能的关系
+
+| | 盘古 | 世界观构建 |
+|---|---|---|
+| 层级 | 宇宙底层：律、常数、星体、生态 | 人文表层：地区、势力、年表、地图 |
+| 输出 | axioms + cosmos + biosphere | regions + factions + eras |
+
+**盘古是上游**。先造地，再住人。顺序不能反。
+
+---
+
+## 依赖与限制
+
+- Python ≥ 3.9，**零第三方包**（安装器、CLI、MCP 服务器全都只用标准库）
+- 3D 层需要浏览器支持 WebGL；Three.js 从 CDN 加载，带四路回退与离线降级页
+- 3D 图**不表示真实比例**：轨道与天体半径采用双尺度压缩（数量级差 5 位以上，同屏无意义）
+- 平衡温度公式忽略温室效应，实际表面温度可能高 30–50 K
+- 检索能力由宿主提供，盘古只给出检索配方；无联网时"搜"环节退化为"凭知识锚定"，仍可产出但校准变弱
+
+---
+
+## 许可
+
+MIT。改设定只改 `world.json`，然后重跑脚本——不要手改生成物，否则文档、3D 与报告会互相漂移。
