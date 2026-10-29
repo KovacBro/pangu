@@ -90,6 +90,97 @@ def _get(d: Any, *keys, default=None):
 
 
 # ════════════════════════════════════════════════════════════════════
+# 点路径解析（切片引用 / 红队靶点 / CA 规则溯源 共用）
+# ════════════════════════════════════════════════════════════════════
+
+_SEG_RE = re.compile(r"^([^\[\]\.]+)((?:\[\d+\])*)$")
+
+
+def resolve_path(root: Any, path: Any):
+    """
+    解析 'cosmology.sky_phenomena[0]' 形式的点路径（支持下标）。
+
+    返回 (found: bool, value: Any, error: str)。
+
+    这是 1.1 三件新功能的公共地基：
+      · narrative.slice.cites     —— 切片引用了哪些字段
+      · consistency.redteam[].target —— 红队打的是哪个字段
+      · biology.evolution.rules[].source —— CA 规则出自哪个字段
+    """
+    if not isinstance(path, str) or not path.strip():
+        return False, None, "路径为空"
+    if root is None:
+        return False, None, "数据源为空"
+
+    tokens = []
+    for seg in path.strip().split("."):
+        seg = seg.strip()
+        if not seg:
+            continue
+        m = _SEG_RE.match(seg)
+        if not m:
+            return False, None, f"路径段无法解析：{seg}"
+        tokens.append(m.group(1))
+        for idx in re.findall(r"\[(\d+)\]", m.group(2) or ""):
+            tokens.append(int(idx))
+    if not tokens:
+        return False, None, "路径无有效段"
+
+    cur = root
+    walked = []
+    for t in tokens:
+        if isinstance(t, int):
+            if not isinstance(cur, (list, tuple)):
+                return False, None, f"{'.'.join(walked)} 不是数组，无法取下标 [{t}]"
+            if t >= len(cur):
+                return False, None, f"{'.'.join(walked)}[{t}] 越界（长度 {len(cur)}）"
+            cur = cur[t]
+            walked.append(f"[{t}]")
+        else:
+            if not isinstance(cur, dict):
+                return False, None, f"{'.'.join(walked)} 不是对象，无法取字段 {t}"
+            if t not in cur:
+                return False, None, f"字段不存在：{'.'.join(walked + [t])}"
+            cur = cur[t]
+            walked.append(t)
+    return True, cur, ""
+
+
+def _count_cjk(text: str) -> int:
+    """去标点后的字符数（汉字、字母、数字都算一个字）。"""
+    if not isinstance(text, str):
+        return 0
+    return len(re.findall(r"[\w\u4e00-\u9fff]", text))
+
+
+def phenomenon_names(world: dict) -> dict:
+    """
+    收集「抬头能看见的现象」的可匹配名。返回 {现象名: [别名...]}。
+
+    来源两处：
+      1. sky_phenomena 里的「……」书名号短语（作者写现象时惯用的命名位）
+      2. cosmology.sky_phenomena_aliases 显式声明的别名表
+    """
+    cos = world.get("cosmology") or {}
+    sky = cos.get("sky_phenomena") or []
+    out = {}
+    for s in sky:
+        if not isinstance(s, str):
+            continue
+        for m in re.findall(r"「([^」]{1,16})」", s):
+            out.setdefault(m, [])
+    aliases = cos.get("sky_phenomena_aliases")
+    if isinstance(aliases, dict):
+        for k, v in aliases.items():
+            out.setdefault(str(k), [])
+            if isinstance(v, (list, tuple)):
+                out[str(k)].extend(str(x) for x in v)
+            elif v:
+                out[str(k)].append(str(v))
+    return out
+
+
+# ════════════════════════════════════════════════════════════════════
 # 报告结构
 # ════════════════════════════════════════════════════════════════════
 
@@ -253,11 +344,14 @@ def compute_derived(world: dict) -> dict:
 
         a = _num(_get(b, "orbit", "a_au"), 0)
         alb = _num(b.get("albedo"), 0.3)
+        # 1.1：温室补偿。1.0 只有平衡温度，等于假设零温室——冰球世界会被误判成宜居。
+        gh = _num(_get(b, "atmosphere", "greenhouse_delta_k"), 0)
         t_eq = 0.0
         if (not is_sat) and a > 0 and lt > 0:
             x = (1.0 - alb) * lt / (a * a)
             if x > 0:
                 t_eq = 278.6 * (x ** 0.25)
+        t_surf = (t_eq + gh) if t_eq else 0.0
 
         out["bodies"].append({
             "id": b.get("id", "?"),
@@ -273,6 +367,8 @@ def compute_derived(world: dict) -> dict:
             "radius_km_calc": round(r_e * EARTH_RADIUS_KM, 1),
             "a_au": a,
             "t_eq_k": round(t_eq, 1),
+            "greenhouse_delta_k": round(gh, 1),
+            "t_surface_k": round(t_surf, 1),
         })
     return out
 
@@ -287,7 +383,7 @@ def _score_label(ok: bool, warn_only: bool = False) -> str:
     return "warn" if warn_only else "fatal"
 
 
-def validate(world: dict) -> Report:
+def validate(world: dict, strict: bool = False) -> Report:
     rep = Report()
     add = lambda *a, **k: rep.checks.append(Check(*a, **k))
 
@@ -487,13 +583,20 @@ def validate(world: dict) -> Report:
         "fatal" if roche_issues else "pass",
         "；".join(roche_issues) if roche_issues else "无卫星或超限")
 
-    # ── E01 平衡温度 ────────────────────────────────────────────────
-    t_bad = [f"{d['id']}={d['t_eq_k']}K" for d in derived["bodies"]
-             if d["t_eq_k"] and not (150 <= d["t_eq_k"] <= 400)]
-    add("E01", "energy", "平衡温度能否支持液态溶剂？",
+    # ── E01 表面温度（1.1：改用含温室补偿的表面温度判定）────────────
+    t_bad = [f"{d['id']}={d['t_surface_k']}K" for d in derived["bodies"]
+             if d["t_surface_k"] and not (150 <= d["t_surface_k"] <= 400)]
+    t_notes = []
+    for d in derived["bodies"]:
+        if not d["t_surface_k"]:
+            continue
+        gh = d.get("greenhouse_delta_k") or 0
+        t_notes.append(f"{d['id']} T_eq={d['t_eq_k']}K"
+                       + (f"+温室{gh:g}→{d['t_surface_k']}K" if gh else f"→{d['t_surface_k']}K"))
+    add("E01", "energy", "表面温度能否支持液态溶剂？",
         "pass" if not t_bad else "warn",
         ("；".join(t_bad) + "（150–400 K 之外，需温室/地热补偿）") if t_bad else
-        "；".join(f"{d['id']}={d['t_eq_k']}K" for d in derived["bodies"] if d["t_eq_k"]) or "无法计算")
+        "；".join(t_notes) or "无法计算")
 
     # ── E02 营养级 ──────────────────────────────────────────────────
     tl = (bio.get("trophic_levels") or []) if isinstance(bio, dict) else []
@@ -545,6 +648,39 @@ def validate(world: dict) -> Report:
     else:
         add("O02", "observation", "历法日长与自转周期一致？", "skip", "数据不足")
 
+    # ── O03 / O04 地面视角（1.1）────────────────────────────────────
+    surf = cos.get("surface")
+    if not isinstance(surf, dict):
+        add("O03", "observation", "地面观察点合法？", "skip", "未定义 cosmology.surface")
+        add("O04", "observation", "地面视角有可观测的恒星？", "skip",
+            "未定义 cosmology.surface")
+    else:
+        obs = surf.get("observer") if isinstance(surf.get("observer"), dict) else {}
+        lat = _num(obs.get("lat_deg"), 0.0) if obs else 0.0
+        lon = _num(obs.get("lon_deg"), 0.0) if obs else 0.0
+        o03_bad = []
+        if obs and not (-90.0 <= lat <= 90.0):
+            o03_bad.append(f"纬度 {lat} 越界")
+        if obs and not (-180.0 <= lon <= 180.0):
+            o03_bad.append(f"经度 {lon} 越界")
+        add("O03", "observation", "地面观察点合法？",
+            "pass" if not o03_bad else "warn",
+            "；".join(o03_bad) if o03_bad else
+            (f"观察点 {lat}°, {lon}°" if obs else "未指定观察点，地面视图取赤道"))
+
+        star_ids = {s.get("id") for s in stars if isinstance(s, dict)}
+        ref_ids = surf.get("star_ids") or []
+        bad_ref = [str(r) for r in ref_ids if r not in star_ids]
+        if not star_ids:
+            add("O04", "observation", "地面视角有可观测的恒星？", "warn",
+                "cosmology.stars 为空，地面视图将降级为数据视图")
+        elif bad_ref:
+            add("O04", "observation", "地面视角有可观测的恒星？", "warn",
+                "surface.star_ids 指向不存在的恒星：" + "、".join(bad_ref))
+        else:
+            add("O04", "observation", "地面视角有可观测的恒星？", "pass",
+                f"{len(star_ids)} 颗恒星可观测")
+
     # ── N01 叙事 ────────────────────────────────────────────────────
     nar_miss = [k for k in ("three_seconds", "setpiece", "hook")
                 if not str(nar.get(k) or "").strip()]
@@ -561,6 +697,146 @@ def validate(world: dict) -> Report:
             f"{len(refs)} 条（需 ≥4）" + (f"，{len(weak)} 条缺 use 字段" if weak else ""))
     else:
         add("N02", "narrative", "检索依据是否充分且被使用？", "warn", "无检索记录")
+
+    # ── N03–N06 第一人称切片（1.1）──────────────────────────────────
+    sl = nar.get("slice") if isinstance(nar.get("slice"), dict) else None
+    sl_text = str(sl.get("text") or "").strip() if sl else ""
+    if sl is None or not sl_text:
+        add("N03", "narrative", "第一人称切片是否可交付？",
+            "fatal" if strict else "skip",
+            "缺少 narrative.slice.text——世界还没落到人的感官层" if strict
+            else "未定义 narrative.slice（1.1 可选能力）")
+        add("N04", "narrative", "切片引用能全部解析？", "skip", "无切片")
+        add("N05", "narrative", "切片里出现了抬头可见的现象？", "skip", "无切片")
+        add("N06", "narrative", "切片时序与历法对得上？", "skip", "无切片")
+    else:
+        n = _count_cjk(sl_text)
+        n03_bad = []
+        if not (180 <= n <= 260):
+            n03_bad.append(f"字数 {n}，要求 180–260")
+        if str(sl.get("status") or "draft").strip() != "ok":
+            n03_bad.append(f"status={sl.get('status', 'draft')}，交付需 ok")
+        add("N03", "narrative", "第一人称切片是否可交付？",
+            "pass" if not n03_bad else ("fatal" if strict else "warn"),
+            "；".join(n03_bad) if n03_bad else f"{n} 字，已定稿")
+
+        cites = sl.get("cites") or []
+        bad_cites = []
+        for c in cites:
+            okk, _, why = resolve_path(world, c)
+            if not okk:
+                bad_cites.append(f"{c}（{why}）")
+        add("N04", "narrative", "切片引用能全部解析？",
+            "pass" if not bad_cites else "warn",
+            "；".join(bad_cites) if bad_cites else f"{len(cites)} 条引用全部命中")
+
+        hits = []
+        for nm, al in phenomenon_names(world).items():
+            for cand in [nm] + list(al or []):
+                if cand and cand in sl_text:
+                    hits.append(nm)
+                    break
+        add("N05", "narrative", "切片里出现了抬头可见的现象？",
+            "pass" if len(hits) >= 2 else "warn",
+            "命中 " + "、".join(sorted(set(hits))) if hits else
+            "切片里没有任何 sky_phenomena 现象——居民没抬头")
+
+        d_h0 = _num(cal.get("day_hours"), 0)
+        y_d0 = _num(cal.get("year_days"), 0)
+        hrs = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*(?:个)?(?:小时|时辰)", sl_text)]
+        dys = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*(?:个)?(?:天|昼夜)", sl_text)]
+        t_bad = []
+        if d_h0:
+            t_bad += [f"切片写 {x:g} 小时，历法日长 {d_h0:g} 小时"
+                      for x in hrs if abs(x - d_h0) / d_h0 > 0.15]
+        if y_d0:
+            t_bad += [f"切片写 {x:g} 天，历法年长 {y_d0:g} 天"
+                      for x in dys if abs(x - y_d0) / y_d0 > 0.15]
+        add("N06", "narrative", "切片时序与历法对得上？",
+            "pass" if not t_bad else "warn",
+            "；".join(t_bad) if t_bad else "时序与历法一致")
+
+    # ── N07 / N08 红队审查（1.1）────────────────────────────────────
+    rt = con.get("redteam") if isinstance(con.get("redteam"), list) else []
+    if not rt:
+        add("N07", "narrative", "红队质疑是否成军？",
+            "fatal" if strict else "skip",
+            "缺少 consistency.redteam——没有对手的世界经不起拷问" if strict
+            else "未定义 consistency.redteam（1.1 可选能力）")
+        add("N08", "narrative", "红队质疑是否全部有结论？", "skip", "无红队")
+    else:
+        bad_targets = []
+        for r in rt:
+            if not isinstance(r, dict):
+                bad_targets.append("非对象条目")
+                continue
+            okk, _, why = resolve_path(world, r.get("target"))
+            if not okk:
+                bad_targets.append(f"{r.get('id', '?')}→{r.get('target')}（{why}）")
+        n07_bad = list(bad_targets)
+        if len(rt) < 5:
+            n07_bad.append(f"仅 {len(rt)} 条，建议 ≥5")
+        add("N07", "narrative", "红队质疑是否成军？",
+            "pass" if not n07_bad else "warn",
+            "；".join(n07_bad) if n07_bad else f"{len(rt)} 条，靶点全部可解析")
+
+        opens = [r for r in rt
+                 if isinstance(r, dict) and str(r.get("verdict") or "open").strip() == "open"]
+        add("N08", "narrative", "红队质疑是否全部有结论？",
+            "pass" if not opens else ("fatal" if strict else "warn"),
+            (f"{len(opens)} 条仍为 open：" +
+             "、".join(str(r.get("id", "?")) for r in opens[:4])) if opens else "全部有结论")
+
+    # ── N09–N11 生态演化（1.1）─────────────────────────────────────
+    evo = bio.get("evolution") if isinstance(bio, dict) else None
+    if not isinstance(evo, dict):
+        add("N09", "evolution", "生态演化模型可编译？", "skip", "未定义 biology.evolution")
+        add("N10", "evolution", "演化结果落地到设定里了吗？", "skip", "未定义 biology.evolution")
+        add("N11", "evolution", "周期性灾变有演化证据吗？", "skip", "未定义 biology.evolution")
+    else:
+        prog = None
+        try:
+            import ca_engine as _ca  # 延迟导入：无 evolution 的世界不加载 CA 引擎
+            prog = _ca.compile_evolution(evo, world)
+        except Exception as e:  # noqa: BLE001
+            add("N09", "evolution", "生态演化模型可编译？", "warn",
+                f"CA 引擎不可用：{type(e).__name__}: {e}")
+        if prog is not None:
+            if prog.errors:
+                add("N09", "evolution", "生态演化模型可编译？", "warn",
+                    f"{len(prog.errors)} 处规则矛盾：" + "；".join(prog.errors[:3]))
+            else:
+                add("N09", "evolution", "生态演化模型可编译？", "pass",
+                    f"{len(prog.states)} 态 / {len(prog.rules)} 条规则 / "
+                    f"{len(prog.forcing)} 项外部强迫")
+
+            impacts = evo.get("impacts") or []
+            good_imp = [i for i in impacts
+                        if isinstance(i, dict) and str(i.get("target") or "").strip()]
+            add("N10", "evolution", "演化结果落地到设定里了吗？",
+                "pass" if good_imp else "warn",
+                f"{len(good_imp)} 处落地：" + "、".join(
+                    str(i.get("target")) for i in good_imp[:3]) if good_imp else
+                "CA 跑完却没改动任何 trophic_levels / sky_phenomena——只是装饰图")
+
+            cyc = _num(_get(evo, "summary", "cycle_steps"), 0)
+            periodic = [s for s in sky if isinstance(s, str)
+                        and re.search(r"每\s*[\d一二三四五六七八九十百]+\s*(?:天|日|月)", s)]
+            if not periodic:
+                add("N11", "evolution", "周期性灾变有演化证据吗？", "skip",
+                    "sky_phenomena 未提及周期灾变")
+            elif cyc <= 0:
+                add("N11", "evolution", "周期性灾变有演化证据吗？", "warn",
+                    f"sky_phenomena 有 {len(periodic)} 处周期描述，但 cycle_steps={cyc:g}")
+            else:
+                hps = _num(_get(evo, "clock", "hours_per_step"), 0)
+                if hps > 0:
+                    add("N11", "evolution", "周期性灾变有演化证据吗？", "pass",
+                        f"cycle_steps={cyc:g} ≈ {cyc * hps / 24.0:.1f} 天"
+                        f"（一步 {hps:g} 小时）")
+                else:
+                    add("N11", "evolution", "周期性灾变有演化证据吗？", "warn",
+                        "clock.hours_per_step 缺失，演化周期无法换算成天")
 
     # ── X01 遗留问题 ────────────────────────────────────────────────
     issues = con.get("open_issues") or []

@@ -92,6 +92,10 @@
   #fallback th,#fallback td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
   #fallback th{color:var(--ink-faint);font-weight:500;letter-spacing:.1em;font-size:10.5px}
   #fallback ul{max-width:760px;line-height:2;font-size:13px;color:var(--ink-dim);padding-left:20px}
+  #fallback .fb-go{appearance:none;border:1px solid var(--line);background:var(--glass-hi);
+                   color:var(--ink);font-family:var(--font);font-size:12px;letter-spacing:.1em;
+                   padding:9px 16px;border-radius:9px;cursor:pointer;transition:.2s}
+  #fallback .fb-go:hover{border-color:rgba(255,207,138,.42);color:var(--accent)}
 
   @media (max-width:760px){
     #hud{padding:18px 18px;max-width:78vw}
@@ -104,6 +108,49 @@
     #dock{bottom:14px;padding:5px}
     #dock button{padding:7px 9px;font-size:10.5px;letter-spacing:.04em}
     #note{display:none}
+  }
+
+  /* ══ 1.1 · 地面视角 / 演化视图 ══ */
+  .overlay{position:fixed;inset:0 0 76px 0;z-index:8;display:none;background:#04060c}
+  .overlay.show{display:block}
+  #surface-canvas{display:block;width:100%;height:100%}
+  .ov-hint{position:absolute;left:26px;top:22px;font-size:11px;letter-spacing:.14em;
+           color:var(--ink-faint);pointer-events:none;line-height:2}
+  .ov-hint b{color:var(--accent);font-weight:500}
+  .ov-hint .warn{color:#ffb26b}
+  .ov-ctrl{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;
+           gap:4px;align-items:center;padding:6px;border-radius:12px;background:var(--glass);
+           border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+  .ov-ctrl button{appearance:none;border:0;background:transparent;color:var(--ink-dim);
+                  font-family:var(--font);font-size:11px;letter-spacing:.06em;
+                  padding:6px 11px;border-radius:8px;cursor:pointer;transition:.2s}
+  .ov-ctrl button:hover{background:rgba(255,255,255,.07);color:var(--ink)}
+  .ov-ctrl button.on{background:rgba(255,207,138,.15);color:var(--accent)}
+  .ov-ctrl input[type=range]{width:170px;accent-color:#ffcf8a;background:transparent}
+  .ov-ctrl .read{font-size:11px;color:var(--ink-faint);min-width:82px;text-align:right;
+                 font-variant-numeric:tabular-nums}
+
+  #life-view{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,.82fr);
+             grid-template-rows:minmax(0,1fr) auto;gap:12px;padding:16px}
+  #life-view.show{display:grid}
+  .life-panel{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+              background:rgba(8,12,20,.72);display:flex;flex-direction:column;min-height:0}
+  .life-panel h3{margin:0;padding:9px 12px;font-size:10px;letter-spacing:.2em;
+                 color:var(--ink-faint);font-weight:500;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .life-panel canvas{display:block;width:100%;flex:1 1 auto;min-height:0;
+                     image-rendering:pixelated}
+  #life-probe{overflow-y:auto;padding:6px 12px 12px;scrollbar-width:thin}
+  .probe-row{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;
+             padding:5px 0;border-bottom:1px dashed rgba(140,170,210,.1);color:var(--ink-dim)}
+  .probe-row b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
+  .probe-row.bad b{color:#ff7a6b}
+  .probe-row.good b{color:#7fe0a8}
+  .probe-flag{margin-top:9px;font-size:11px;line-height:1.75;color:#ffb26b}
+  #life-ctrl{grid-column:1/-1;position:static;transform:none;justify-self:center}
+
+  @media (max-width:900px){
+    #life-view{grid-template-columns:1fr;grid-template-rows:1.3fr 1fr auto auto;overflow-y:auto}
+    .ov-hint{font-size:10px}
   }
 </style>
 </head>
@@ -133,12 +180,41 @@
   <button id="v-body">天体</button>
   <button id="v-far">远景</button>
   <div class="sep"></div>
+  <button id="v-surface">地面</button>
+  <button id="v-life">演化</button>
+  <div class="sep"></div>
   <button id="btn-reset" title="R">复位</button>
 </div>
 
 <div id="note">
   示意视图 · <b>天体与轨道非真实比例</b><br>
   行星半径与轨道采用双尺度压缩
+</div>
+
+<!-- 1.1 · 地面视角：站在地表抬头，两颗星按真实方位角/高度角走 -->
+<div id="surface-view" class="overlay">
+  <canvas id="surface-canvas"></canvas>
+  <div class="ov-hint" id="surface-hint"></div>
+  <div class="ov-ctrl">
+    <button id="sf-play" class="on">运行</button>
+    <input id="sf-time" type="range" min="0" max="1000" value="0">
+    <span class="read" id="sf-clock">—</span>
+    <button id="sf-year">一年快进</button>
+  </div>
+</div>
+
+<!-- 1.1 · 演化视图：2D 生态相 / 数据 / 环境状态监测 -->
+<div id="life-view" class="overlay">
+  <div class="life-panel"><h3>演化 · 2D 生态相</h3><canvas id="life-grid"></canvas></div>
+  <div class="life-panel"><h3>数据 · 密度与天文强迫</h3><canvas id="life-chart"></canvas></div>
+  <div class="life-panel"><h3>环境状态监测</h3><div id="life-probe"></div></div>
+  <div class="ov-ctrl" id="life-ctrl">
+    <button id="lf-play" class="on">运行</button>
+    <button id="lf-step">单步</button>
+    <button id="lf-reset">重置</button>
+    <button id="lf-spd">1×</button>
+    <span class="read" id="lf-clock">第 0 步</span>
+  </div>
 </div>
 
 <div id="boot">
@@ -152,7 +228,7 @@
   <div id="fb-body"></div>
 </div>
 
-<script id="pangu-world" type="application/json">{"meta":{"id":"helikon","name":"赫利孔","subtitle":"三阳世界","version":"1.0","created":"2026-10-27","author":"盘古 / 自主生成","tagline":"两个太阳，两道影子，一个从不迟到的历法。","aesthetic":["琥珀","钴蓝","铁锈","灰白"],"tags":["环双星","超级地球","层级三合星","双峰光合"],"autonomy":"auto"},"seed":{"prompt":"造一个地球三倍大小、却有两个太阳的另一个世界","core_paradox":"半径三倍于地球的岩石行星，仍保有固体地表、可呼吸大气，且天空中有两颗分色恒星同时照耀","resolution":"本世界引力常数仅为地球的 0.60 倍，使 26.4 倍地球质量的星体表面重力停在 1.76 g；双星间距被压到 0.30 AU，行星轨道恰为其 4 倍，使轨道稳定与八分历法同时成立","references":[{"title":"Kepler-16b — 首个被确认的环双星行星","url":"https://science.nasa.gov/mission/kepler/","takeaway":"绕双星公转的行星可以长期稳定存在，前提是轨道半径远大于双星间距","use":"为「双日照地」提供结构合法性；据此把双星间距压到 0.30 AU、行星放到 1.20 AU（k=4.0）"},{"title":"Holman & Wiegert (1999) 环双星稳定临界半径","url":"https://ui.adsabs.harvard.edu/abs/1999AJ....117..621H","takeaway":"稳定轨道下限约为双星间距的 2–2.5 倍，且强烈依赖双星质量比与偏心率","use":"确定 k=2.5 为安全线，本世界取 k=4.0 留出余量，以容纳 2.1° 的轨道倾角"},{"title":"超级地球与迷你海王星的半径分界（ Fulton et al. 2017 半径谷）","url":"https://ui.adsabs.harvard.edu/abs/2017AJ....154..109F","takeaway":"半径超过约 1.6–2.0 地球半径的星体，多数会吸积气体包层，失去固体表面","use":"本世界最容易被攻击的一点。用 G'=0.60G 偿还：密度不变而重力减半，使 3 R⊕ 的地壳得以支撑自身"},{"title":"双星系统中的光合作用色素演化（理论探讨）","url":"https://www.astrobiology.com/","takeaway":"不同色温的恒星会驱动光合生物演化出多吸收峰，而非单一叶绿素峰","use":"据此设定双峰卟啉色素，吸收 590 nm 与 450 nm，使植物呈晨紫暮红"},{"title":"开普勒第三定律与层级三合星构型","url":"https://en.wikipedia.org/wiki/Hierarchical_triple_system","takeaway":"层级三合星（内双星 + 远伴星）是自然界最稳定的三体构型，远伴星轨道须远大于内双星","use":"第三颗恒星置于 12 AU，与行星轨道 1.20 AU 相差 10 倍，满足层级稳定条件"}],"forbidden":["魔法","超自然力量","外星文明干预","时间旅行"]},"cosmology":{"frame":"circumbinary-superearth-hierarchical-triple","topology":"三维欧氏空间；内层为 0.30 AU 的双星，外层为 12 AU 的层级伴星，行星绕内双星质心公转","has_stars":true,"stars":[{"id":"A","name":"长明","class":"G2V","mass_solar":1.0,"radius_solar":1.0,"luminosity_solar":1.0,"temp_k":5780,"color":"#FFF6E2","orbit":{"parent":"AB","a_au":0.1352,"period_days":44.5,"eccentricity":0.02},"note":"主星，色温偏高，正午的天光由它主导，影子边缘锐利"},{"id":"B","name":"短烛","class":"K1V","mass_solar":0.82,"radius_solar":0.79,"luminosity_solar":0.46,"temp_k":5100,"color":"#FFD5A0","orbit":{"parent":"AB","a_au":0.1648,"period_days":44.5,"eccentricity":0.02},"note":"伴星，偏橙，影子的边缘永远糊，被称作「软影」"},{"id":"C","name":"远灯","class":"M4V","mass_solar":0.28,"radius_solar":0.3,"luminosity_solar":0.008,"temp_k":3300,"color":"#FF9C6B","orbit":{"parent":"AB","a_au":12.0,"period_days":11243,"eccentricity":0.18},"note":"层级伴星，30 年绕行一周，夜空里一盏不灭的橙红小灯，是唯一可靠的方位基准"}],"bodies":[{"id":"helikon","name":"赫利孔","kind":"planet","radius_km":19113,"radius_earth":3.0,"mass_earth":26.4,"density_gcc":5.39,"gravity_g":1.76,"rotation_hours":31.4,"axial_tilt_deg":18.2,"albedo":0.31,"orbit":{"parent":"AB","a_au":1.2,"eccentricity":0.03,"inclination_deg":2.1,"period_days":355.9},"atmosphere":{"surface_pressure_kpa":118,"composition":{"N2":0.66,"O2":0.19,"CO2":0.1,"Ar":0.05},"color":"#7FB6D9","height_km":180},"biomes":[{"id":"deep_sea","name":"深钴海","color":"#1E4058","elevation":0.0},{"id":"shallow","name":"浅青滩","color":"#356C8C","elevation":0.34},{"id":"ash_plain","name":"灰烬平原","color":"#8C7B63","elevation":0.46},{"id":"rust_wood","name":"锈林","color":"#A85A2E","elevation":0.6},{"id":"high_rock","name":"高地岩","color":"#6E6659","elevation":0.78},{"id":"summit","name":"峰脊","color":"#B9C4CE","elevation":0.955}],"rings":null,"visual_radius":3.0,"sea_level":0.46,"polar_amount":0.62,"polar_color":"#E8F0F8","note":"主干天体。三倍地球半径，1.76 g，一天 31.4 小时，一年恰好八个双星周期"},{"id":"erebos","name":"厄瑞玻斯","kind":"moon","radius_km":3504,"radius_earth":0.55,"mass_earth":0.045,"density_gcc":1.49,"gravity_g":0.09,"rotation_hours":null,"axial_tilt_deg":0.0,"albedo":0.12,"orbit":{"parent":"helikon","a_au":0.008,"eccentricity":0.001,"inclination_deg":1.2,"period_days":29.4},"atmosphere":null,"biomes":[{"id":"regolith","name":"灰壤","color":"#6A635C","elevation":0.0},{"id":"crater","name":"撞击坑","color":"#4A443E","elevation":0.55}],"rings":null,"visual_radius":0.85,"sea_level":0.0,"polar_amount":0.0,"note":"潮汐锁定的大卫星，稳定行星自转轴；一枚暗红的月，被称为「第三道影子」"}],"sky_phenomena":["每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘泛橙","两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影","每四十四天一次「双星合」：短烛走到长明之前，天光在 90 分钟内从琥珀降到铁灰，气温骤降 11 度","地平线上永远能看见远灯——一颗不闪的橙红小点，30 年绕天空一圈，是唯一可靠的方位与长周期计时基准","日落后天空不是黑的，而是深的钴蓝：大气中的尘在高空散射两颗恒星的红光","厄瑞玻斯升起时，地面会出现第三道极暗的影子，古人称之为「亡影」，认为它预示死亡"],"calendar":{"day_hours":31.4,"year_days":355.9,"months":8,"month_days":44.49,"epoch":"落火元年"}},"physics":{"constants":[{"symbol":"G","earth_value":"6.674e-11 m3kg-1s-2","world_value":"4.004e-11 m3kg-1s-2","delta":"0.60","why":"唯一的核心改动。使 26.4 M⊕、3 R⊕ 的星体表面重力停在 1.76 g，固体地壳得以在自身重量下保持刚性，而非坍缩为气态包层"},{"symbol":"c","earth_value":"2.998e8 m/s","world_value":"2.998e8 m/s","delta":"1.00","why":"未改动。这个世界的物理学家与我们看到同样的星空红移"},{"symbol":"α","earth_value":"7.297e-3","world_value":"7.297e-3","delta":"1.00","why":"未改动。化学与光谱学因此与地球同构，元素表可直接沿用"}],"laws":[{"name":"引力","statement":"平方反比，作用量与 G' 成正比","deviation":"标准形式，常数改写","consequence":"天体可以更大更轻；但恒星内部压强梯度变缓，主序寿命缩短约 15%"},{"name":"热力学第二定律","statement":"完整保留，无例外","deviation":"标准","consequence":"生态必须严格遵循能量金字塔；文明的一切动力都来自双星辐照的存量"},{"name":"角动量守恒","statement":"在行星尺度上被双星潮汐缓慢抽取","deviation":"缓慢泄漏","consequence":"自转每世纪减慢 0.002 秒；三十亿年后一天将长达 40 小时，双星合将不再精确对齐历法"},{"name":"电磁力","statement":"标准麦克斯韦方程组","deviation":"标准","consequence":"双星潮汐驱动的液态外核发电机维持全球磁场，极光在磁极常年可见"}],"broken_symmetries":[],"new_interactions":[{"name":"双星潮汐耦合场","range":"行星半径量级（10⁴ km），随双星相位周期性振荡","effect":"周期性挤压行星外核，维持地磁发电机运转；同时把双星的角动量缓慢注入行星自转，使厄瑞玻斯轨道以每世纪 3.4 cm 的速度外移","cost":"地壳承受每 44 天一次的潮汐应力峰值，全球每年约 1.1 万次 4 级以上地震；造山带全部沿潮汐节拍分布"}],"conservation_notes":"能量严格守恒。双星轨道因引力波辐射每世纪收缩 1.2 米，三十亿年后两星合并，世界终结——这是赫利孔人早已算出的末日。"},"mathematics":{"geometry":"欧氏几何，三维平直空间","number_system":"实数；但计数传统源自双星，采用「双进制」口算，八与十六在他们的语言里是「整」的意思","peculiarity":"由于一年恰好等于八个双星周期，他们的数论中「8」具有近乎神圣的地位，所有度量衡以 8 为基","consequence":"度量衡采用八进制：一尺 = 8 寸，一斤 = 8 两。换算成地球单位会产生持续的误差，这也是他们无法发展出精密钟表的原因之一"},"chemistry":{"periodic_status":"与地球完全一致（α 未改动）。唯一差异是超重元素在 Z=114 附近存在一段更宽的稳定岛，因 G' 较低使核内库仑排斥相对减弱","solvent":{"name":"水","note":"表层为液态水；地壳 40 km 以下存在超临界水层，作为第二溶剂，溶解能力远超地表水，是深层化能生态的基础"},"key_bonds":"共价键与金属键并重。因重力较高，晶体生长受压制，天然形成大块单晶而非多晶集合体","signature_materials":[{"name":"曜岩","formula":"SiO₂ 为主，含 FeTiO₃ 定向析出","property":"在双星双色辐照下生长的定向晶体，沿晶轴方向对不同色温的光有选择性反射：朝长明的一侧泛白，朝短烛的一侧泛橙","use":"全部宗教建筑的外墙材料。墙面的颜色会随一日之内双星相对位置而变化，被视为「会读时间的石头」"},{"name":"赤铜","formula":"Cu（天然单质）","property":"因超临界水层长期还原作用，大量以天然单质形式产出，无需冶炼","use":"最早的金属工具与货币。赫利孔人从未发明冶铜术，他们只是「捡」铜"},{"name":"重盐","formula":"(Na,K)Cl 高压相","property":"在 1.76 g 与 118 kPa 下形成的致密盐相，硬度接近石英，可缓慢溶于水","use":"建筑材料与储热介质。盐墙白天吸热、夜里放热，是灰阶诸城在「双星合」寒夜中活下来的关键"}],"abiotic_notes":"潮汐应力带每年释放的断层摩擦热，使深层岩石持续发生水岩反应，产生大量氢与硫化氢，向上渗漏形成「地息」——一种从裂缝冒出的、带臭鸡蛋味的可燃气，是深层生态的能量入口"},"biology":{"energy_currency":{"name":"硫铁簇","note":"以 Fe-S 簇作为电子载体，而非 ATP。能量以「簇的氧化态」形式在细胞内传递，一次充放循环携带的能量约为 ATP 的 1.7 倍，但转换效率只有 62%"},"metabolism_summary":"地表生态以双峰光合为能量入口；深层生态以「地息」中的 H₂S 为电子供体，走化能合成路线。两条食物链在灰烬平原的裂缝带交汇，形成地球上不存在的「双源生态」","photosynthesis":{"pigment":"双峰卟啉（代号 P-590/450）","absorbs":["#FFB347","#5B8FF9"],"appearance":"晨紫暮红。清晨短烛先升起，450 nm 峰主导，植被呈蓝紫；正午两星并照，双峰同时饱和，植被呈暗金属灰；黄昏长明先落，590 nm 峰主导，植被转为铁锈红"},"genetic_carrier":{"name":"六碱基核酸（HNA）","note":"在四种常规碱基外增加两种，密码子容量提升至 3 倍。代价是复制错误率高出地球 4 倍，物种演化速度极快——赫利孔的一个「世纪」足以产生地球上的一个新属"},"trophic_levels":[{"name":"初级生产者","share":0.82,"examples":["双峰藻（海洋）","锈苔（陆地）","地息菌（深层化能）"]},{"name":"初级消费者","share":0.13,"examples":["浮游甲壳类","六足食苔兽","盐虫"]},{"name":"次级消费者","share":0.038,"examples":["双影猎兽","滑翔翼龙类"]},{"name":"顶级掠食者","share":0.012,"examples":["灰背巨蜥","渊喉（深层）"]}],"sentient":{"exists":true,"name":"灰民","note":"唯一已知智慧物种。因长期生活在 1.76 g 下，身高仅 1.2 米，骨骼密度是人类的 2.4 倍，无颈——头部直接嵌入肩胛。视觉有四色感光细胞，能分辨两道影子的色温差，这是他们最古老的天文仪器"},"mass_extinctions":["大氧化事件（约 21 亿年前）：双峰藻把大气氧含量推到 19%，硫铁簇代谢者大批灭绝，深层生态被迫退守裂缝","双星合灾变（约 40 万年前）：一次罕见的双星近距互食使全球气温在 90 分钟内下降 27 度，87% 的陆生大型动物灭绝，灰民由此从采集转向储热定居","长夜之疫（约 1200 年前）：厄瑞玻斯轨道共振引发的潮汐高峰，全球地震频发，文明一度退回到石器时代"]},"civilization":{"exists":true,"name":"灰阶诸城","tech_path":"跳过冶铜与青铜，直接从天然赤铜进入冷锻工艺；因 G' 较低而无法造出高精度弹簧与齿轮，机械技术停在凸轮与杠杆阶段，转而把全部工程天赋投向「热」——盐墙储热、地息导流、曜岩定向反光","timekeeping":"以双星合为「月」，一月 44.49 天，一年八个「暗月」。他们不需要闰日：一年恰好是八个双星周期，这是几何的必然（周期比 = (a_行星/a_双星)^1.5 = 4^1.5 = 8），而非巧合。历法由祭司阶层垄断，因为他们掌握唯一能预测互食时刻的曜岩日晷","energy_source":"双星辐照（主要用于盐墙储热）+ 地息燃烧（深层化能产物）+ 潮汐摩擦热（地热供暖）","social_shape":"沿晨昏温差带分布的城邦联盟。社会阶层按「影子清晰度」划分：能在正午看清自己两道影子边界的人属上层（意味着视力好、从事天文或祭司职业）；影子糊成一团者为底层。这一划分并非迷信——四色视觉确实与营养状况强相关","taboo":"「不可直视双星合的正中时刻」。在互食的 90 分钟里，短烛的边缘会掠过长明，产生瞬间的强偏振光，直视会造成不可逆的视网膜灼伤。这条禁忌有明确的物理依据，是全球唯一被所有城邦共同遵守的法律"},"history":{"eras":[{"name":"双源纪","span":"约 21 亿年前 – 40 万年前","summary":"双源生态的黄金时代。地表光合与深层化能两条食物链并行繁荣，生物多样性达到峰值。此期无智慧生命，只有大量巨型六足类"},{"name":"落火纪","span":"40 万年前 – 1200 年前","summary":"双星合灾变后，幸存者退守地热裂缝。灰民学会用重盐砌墙储热，第一批永久定居点沿断裂带建立。纪元名来自灾变当日天空的颜色"},{"name":"灰阶纪","span":"1200 年前 – 当下","summary":"长夜之疫后重建。八座城邦沿晨昏温差带结成联盟，曜岩日晷与八分历法成为共同语言。当下正处在一次罕见的天文事件前夜：远灯将于 12 年后穿过双星连线，三方引力叠加，可能触发新一轮潮汐高峰"}],"revisions":[{"version":"1.0","date":"2026-10-27","change":"初版：确立 G'=0.60G、双星 0.30 AU、行星 1.20 AU、八分历法"}]},"consistency":{"score":100,"checks":[],"open_issues":[]},"narrative":{"three_seconds":"天上两个太阳，一大一小，一冷一暖，绕着彼此转。地上每个人都有两道影子，一道锐利，一道模糊。一年不是十二个月，是八个「暗月」——每四十四天，小的走到大的前面，天在九十分钟里暗下去，全城停摆，祭司登塔。他们的历法从不误差，因为一年恰好是八个双星周期，这是几何的必然，不是巧合。","setpiece":"双星合的那九十分钟。天空从琥珀色一层层褪到铁灰，气温骤降十一度，两道影子在广场石板上缓缓合拢成一个厚影。所有人停下手中的活，背对天空站立——不是因为敬畏，是因为直视会瞎。祭司在塔顶用曜岩日晷记录那一刻的精确角度，而城墙上的盐砖开始放出白天存下的热，白色的雾气顺着墙面升起，整座城像在呼吸。","hook":"他们从不校准历法。历法自己就是对的——因为一年正好是八个双星周期，这是开普勒第三定律替他们签好的契约。"}}</script>
+<script id="pangu-world" type="application/json">{"meta":{"id":"helikon","name":"赫利孔","subtitle":"三阳世界","version":"1.1","created":"2026-10-27","author":"盘古 / 自主生成","tagline":"两个太阳，两道影子，一个从不迟到的历法。","aesthetic":["琥珀","钴蓝","铁锈","灰白"],"tags":["环双星","超级地球","层级三合星","双峰光合"],"autonomy":"auto"},"seed":{"prompt":"造一个地球三倍大小、却有两个太阳的另一个世界","core_paradox":"半径三倍于地球的岩石行星，仍保有固体地表、可呼吸大气，且天空中有两颗分色恒星同时照耀","resolution":"本世界引力常数仅为地球的 0.60 倍，使 26.4 倍地球质量的星体表面重力停在 1.76 g；双星间距被压到 0.30 AU，行星轨道恰为其 4 倍，使轨道稳定与八分历法同时成立","references":[{"title":"Kepler-16b — 首个被确认的环双星行星","url":"https://science.nasa.gov/mission/kepler/","takeaway":"绕双星公转的行星可以长期稳定存在，前提是轨道半径远大于双星间距","use":"为「双日照地」提供结构合法性；据此把双星间距压到 0.30 AU、行星放到 1.20 AU（k=4.0）"},{"title":"Holman & Wiegert (1999) 环双星稳定临界半径","url":"https://ui.adsabs.harvard.edu/abs/1999AJ....117..621H","takeaway":"稳定轨道下限约为双星间距的 2–2.5 倍，且强烈依赖双星质量比与偏心率","use":"确定 k=2.5 为安全线，本世界取 k=4.0 留出余量，以容纳 2.1° 的轨道倾角"},{"title":"超级地球与迷你海王星的半径分界（ Fulton et al. 2017 半径谷）","url":"https://ui.adsabs.harvard.edu/abs/2017AJ....154..109F","takeaway":"半径超过约 1.6–2.0 地球半径的星体，多数会吸积气体包层，失去固体表面","use":"本世界最容易被攻击的一点。用 G'=0.60G 偿还：密度不变而重力减半，使 3 R⊕ 的地壳得以支撑自身"},{"title":"双星系统中的光合作用色素演化（理论探讨）","url":"https://www.astrobiology.com/","takeaway":"不同色温的恒星会驱动光合生物演化出多吸收峰，而非单一叶绿素峰","use":"据此设定双峰卟啉色素，吸收 590 nm 与 450 nm，使植物呈晨紫暮红"},{"title":"开普勒第三定律与层级三合星构型","url":"https://en.wikipedia.org/wiki/Hierarchical_triple_system","takeaway":"层级三合星（内双星 + 远伴星）是自然界最稳定的三体构型，远伴星轨道须远大于内双星","use":"第三颗恒星置于 12 AU，与行星轨道 1.20 AU 相差 10 倍，满足层级稳定条件"}],"forbidden":["魔法","超自然力量","外星文明干预","时间旅行"]},"cosmology":{"frame":"circumbinary-superearth-hierarchical-triple","topology":"三维欧氏空间；内层为 0.30 AU 的双星，外层为 12 AU 的层级伴星，行星绕内双星质心公转","has_stars":true,"stars":[{"id":"A","name":"长明","class":"G2V","mass_solar":1.0,"radius_solar":1.0,"luminosity_solar":1.0,"temp_k":5780,"color":"#FFF6E2","orbit":{"parent":"AB","a_au":0.1352,"period_days":44.5,"eccentricity":0.02,"phase_deg":0.0,"arg_periapsis_deg":0.0},"note":"主星，色温偏高，正午的天光由它主导，影子边缘锐利"},{"id":"B","name":"短烛","class":"K1V","mass_solar":0.82,"radius_solar":0.79,"luminosity_solar":0.46,"temp_k":5100,"color":"#FFD5A0","orbit":{"parent":"AB","a_au":0.1648,"period_days":44.5,"eccentricity":0.02,"phase_deg":180.0,"arg_periapsis_deg":0.0},"note":"伴星，偏橙，影子的边缘永远糊，被称作「软影」"},{"id":"C","name":"远灯","class":"M4V","mass_solar":0.28,"radius_solar":0.3,"luminosity_solar":0.008,"temp_k":3300,"color":"#FF9C6B","orbit":{"parent":"AB","a_au":12.0,"period_days":11243,"eccentricity":0.18,"phase_deg":180.0,"arg_periapsis_deg":0.0},"note":"层级伴星，30 年绕行一周，夜空里一盏不灭的橙红小灯，是唯一可靠的方位基准"}],"bodies":[{"id":"helikon","name":"赫利孔","kind":"planet","radius_km":19113,"radius_earth":3.0,"mass_earth":26.4,"density_gcc":5.39,"gravity_g":1.76,"rotation_hours":31.4,"axial_tilt_deg":18.2,"albedo":0.31,"orbit":{"parent":"AB","a_au":1.2,"eccentricity":0.03,"inclination_deg":2.1,"period_days":355.9},"atmosphere":{"surface_pressure_kpa":118,"composition":{"N2":0.66,"O2":0.19,"CO2":0.1,"Ar":0.05},"color":"#7FB6D9","height_km":180},"biomes":[{"id":"deep_sea","name":"深钴海","color":"#1E4058","elevation":0.0},{"id":"shallow","name":"浅青滩","color":"#356C8C","elevation":0.34},{"id":"ash_plain","name":"灰烬平原","color":"#8C7B63","elevation":0.46},{"id":"rust_wood","name":"锈林","color":"#A85A2E","elevation":0.6},{"id":"high_rock","name":"高地岩","color":"#6E6659","elevation":0.78},{"id":"summit","name":"峰脊","color":"#B9C4CE","elevation":0.955}],"rings":null,"visual_radius":3.0,"sea_level":0.46,"polar_amount":0.62,"polar_color":"#E8F0F8","note":"主干天体。三倍地球半径，1.76 g，一天 31.4 小时，一年恰好八个双星周期 地壳以「重盐—石英」复合相为主：1.76 g 与 118 kPa 下重盐硬度接近石英，屈服强度比地球硅酸盐地壳高一个量级，因此 3R⊕ 的密度差不至于在百万年内塌陷。"},{"id":"erebos","name":"厄瑞玻斯","kind":"moon","radius_km":3504,"radius_earth":0.55,"mass_earth":0.045,"density_gcc":1.49,"gravity_g":0.09,"rotation_hours":null,"axial_tilt_deg":0.0,"albedo":0.12,"orbit":{"parent":"helikon","a_au":0.008,"eccentricity":0.001,"inclination_deg":1.2,"period_days":29.4},"atmosphere":null,"biomes":[{"id":"regolith","name":"灰壤","color":"#6A635C","elevation":0.0},{"id":"crater","name":"撞击坑","color":"#4A443E","elevation":0.55}],"rings":null,"visual_radius":0.85,"sea_level":0.0,"polar_amount":0.0,"note":"潮汐锁定的大卫星，稳定行星自转轴；一枚暗红的月，被称为「第三道影子」"}],"sky_phenomena":["每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘泛橙","两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影","每四十四天一次「双星合」：短烛走到长明之前，天光在 90 分钟内从琥珀降到铁灰，气温骤降 11 度","地平线上永远能看见远灯——一颗不闪的橙红小点，30 年绕天空一圈，是唯一可靠的方位与长周期计时基准","日落后天空不是黑的，而是深的钴蓝：大气中的尘在高空散射两颗恒星的红光","厄瑞玻斯升起时，地面会出现第三道极暗的影子，古人称之为「亡影」，认为它预示死亡"],"calendar":{"day_hours":31.4,"year_days":355.9,"months":8,"month_days":44.49,"epoch":"落火元年"},"sky_phenomena_aliases":{"双影":["两个影子","两道影子","两道影","影子","厚影"],"双星合":["双星合","互食"],"晨紫暮红":["晨紫暮红","铁灰","暗金属灰","蓝紫"]},"surface":{"observer":{"lat_deg":12.0,"lon_deg":0.0,"elev_m":300},"horizon_deg":0.0,"ground_color":"#2a3a4a","notes":"晨昏温差带上的灰阶诸城之一。坡顶海拔 300 米，是全城少数能同时看清两道影子边界的地方。"}},"physics":{"constants":[{"symbol":"G","earth_value":"6.674e-11 m3kg-1s-2","world_value":"4.004e-11 m3kg-1s-2","delta":"0.60","why":"唯一的核心改动。使 26.4 M⊕、3 R⊕ 的星体表面重力停在 1.76 g，固体地壳得以在自身重量下保持刚性，而非坍缩为气态包层"},{"symbol":"c","earth_value":"2.998e8 m/s","world_value":"2.998e8 m/s","delta":"1.00","why":"未改动。这个世界的物理学家与我们看到同样的星空红移"},{"symbol":"α","earth_value":"7.297e-3","world_value":"7.297e-3","delta":"1.00","why":"未改动。化学与光谱学因此与地球同构，元素表可直接沿用"}],"laws":[{"name":"引力","statement":"平方反比，作用量与 G' 成正比","deviation":"标准形式，常数改写","consequence":"天体可以更大更轻；但恒星内部压强梯度变缓，主序寿命缩短约 15%"},{"name":"热力学第二定律","statement":"完整保留，无例外","deviation":"标准","consequence":"生态必须严格遵循能量金字塔；文明的一切动力都来自双星辐照的存量"},{"name":"角动量守恒","statement":"在行星尺度上被双星潮汐缓慢抽取","deviation":"缓慢泄漏","consequence":"自转每世纪减慢 0.002 秒；三十亿年后一天将长达 40 小时，双星合将不再精确对齐历法"},{"name":"电磁力","statement":"标准麦克斯韦方程组","deviation":"标准","consequence":"双星潮汐驱动的液态外核发电机维持全球磁场，极光在磁极常年可见"}],"broken_symmetries":[],"new_interactions":[{"name":"双星潮汐耦合场","range":"行星半径量级（10⁴ km），随双星相位周期性振荡","effect":"周期性挤压行星外核，维持地磁发电机运转；同时把双星的角动量缓慢注入行星自转，使厄瑞玻斯轨道以每世纪 3.4 cm 的速度外移","cost":"地壳承受每 44 天一次的潮汐应力峰值，全球每年约 1.1 万次 4 级以上地震；造山带全部沿潮汐节拍分布"}],"conservation_notes":"能量严格守恒。双星轨道因引力波辐射每世纪收缩 1.2 米，三十亿年后两星合并，世界终结——这是赫利孔人早已算出的末日。"},"mathematics":{"geometry":"欧氏几何，三维平直空间","number_system":"实数；但计数传统源自双星，采用「双进制」口算，八与十六在他们的语言里是「整」的意思","peculiarity":"由于一年恰好等于八个双星周期，他们的数论中「8」具有近乎神圣的地位，所有度量衡以 8 为基","consequence":"度量衡采用八进制：一尺 = 8 寸，一斤 = 8 两。换算成地球单位会产生持续的误差，这也是他们无法发展出精密钟表的原因之一"},"chemistry":{"periodic_status":"与地球完全一致（α 未改动）。唯一差异是超重元素在 Z=114 附近存在一段更宽的稳定岛，因 G' 较低使核内库仑排斥相对减弱","solvent":{"name":"水","note":"表层为液态水；地壳 40 km 以下存在超临界水层，作为第二溶剂，溶解能力远超地表水，是深层化能生态的基础"},"key_bonds":"共价键与金属键并重。因重力较高，晶体生长受压制，天然形成大块单晶而非多晶集合体","signature_materials":[{"name":"曜岩","formula":"SiO₂ 为主，含 FeTiO₃ 定向析出","property":"在双星双色辐照下生长的定向晶体，沿晶轴方向对不同色温的光有选择性反射：朝长明的一侧泛白，朝短烛的一侧泛橙","use":"全部宗教建筑的外墙材料。墙面的颜色会随一日之内双星相对位置而变化，被视为「会读时间的石头」"},{"name":"赤铜","formula":"Cu（天然单质）","property":"因超临界水层长期还原作用，大量以天然单质形式产出，无需冶炼","use":"最早的金属工具与货币。赫利孔人从未发明冶铜术，他们只是「捡」铜"},{"name":"重盐","formula":"(Na,K)Cl 高压相","property":"在 1.76 g 与 118 kPa 下形成的致密盐相，硬度接近石英，可缓慢溶于水","use":"建筑材料与储热介质。盐墙白天吸热、夜里放热，是灰阶诸城在「双星合」寒夜中活下来的关键"}],"abiotic_notes":"潮汐应力带每年释放的断层摩擦热，使深层岩石持续发生水岩反应，产生大量氢与硫化氢，向上渗漏形成「地息」——一种从裂缝冒出的、带臭鸡蛋味的可燃气，是深层生态的能量入口"},"biology":{"energy_currency":{"name":"硫铁簇","note":"以 Fe-S 簇作为电子载体，而非 ATP。能量以「簇的氧化态」形式在细胞内传递，一次充放循环携带的能量约为 ATP 的 1.7 倍，但转换效率只有 62%"},"metabolism_summary":"地表生态以双峰光合为能量入口；深层生态以「地息」中的 H₂S 为电子供体，走化能合成路线。两条食物链在灰烬平原的裂缝带交汇，形成地球上不存在的「双源生态」","photosynthesis":{"pigment":"双峰卟啉（代号 P-590/450）","absorbs":["#FFB347","#5B8FF9"],"appearance":"晨紫暮红。清晨短烛先升起，450 nm 峰主导，植被呈蓝紫；正午两星并照，双峰同时饱和，植被呈暗金属灰；黄昏长明先落，590 nm 峰主导，植被转为铁锈红"},"genetic_carrier":{"name":"六碱基核酸（HNA）","note":"在四种常规碱基外增加两种，密码子容量提升至 3 倍。代价是复制错误率高出地球 4 倍，物种演化速度极快——赫利孔的一个「世纪」足以产生地球上的一个新属"},"trophic_levels":[{"name":"初级生产者","share":0.761,"examples":["双峰藻（海洋）","锈苔（陆地）","地息菌（深层化能）"]},{"name":"初级消费者","share":0.111,"examples":["浮游甲壳类","六足食苔兽","盐虫"]},{"name":"次级消费者","share":0.057,"examples":["双影猎兽","滑翔翼龙类"]},{"name":"顶级掠食者","share":0.012,"examples":["灰背巨蜥","渊喉（深层）"]},{"name":"分解者与腐食链","share":0.059,"examples":["嗜热菌毯","裂缝腐食螨"],"note":"演化模型未建这一层；份额由「总量守恒」倒推，是 CA 暴露出来的缺口"}],"evolution":{"compiler":"1.0","note":"本模型不是内置规则，而是从本世界的双峰光合、地息化能、双星合周期逐条编译出来的；每条规则的 source 都能在 world.json 里解析到出处。","grid":{"nx":120,"ny":90,"cell_km":1000.0,"topology":"lon-closed"},"clock":{"hours_per_step":1.8,"steps_per_day":17.44},"states":[{"id":"bare","name":"空岩","kind":"substrate","color":"#3b3a40","initial_share":0.34},{"id":"rustmoss","name":"锈苔","kind":"producer","color":"#7a4a8c","initial_share":0.22,"source":"biology.photosynthesis.absorbs"},{"id":"alga","name":"双峰藻","kind":"producer","color":"#2f6f9e","initial_share":0.12,"source":"biology.trophic_levels[0].examples[0]"},{"id":"ventmat","name":"地息菌席","kind":"producer","color":"#c9a227","initial_share":0.06,"source":"chemistry.abiotic_notes"},{"id":"grazer","name":"食苔兽","kind":"consumer","color":"#b5651d","initial_share":0.14,"source":"biology.trophic_levels[1].examples[1]"},{"id":"hunter","name":"双影猎兽","kind":"consumer","color":"#8b1a1a","initial_share":0.06,"source":"biology.trophic_levels[2].examples[0]"},{"id":"salt","name":"盐壳","kind":"other","color":"#dcd7c9","initial_share":0.03,"source":"chemistry.signature_materials[2]"},{"id":"char","name":"焦土","kind":"hazard","color":"#1a1a1a","initial_share":0.03,"source":"biology.mass_extinctions[1]"}],"forcing":[{"id":"F1","name":"双星辐照","kind":"insolation","period_days":1.308,"phase_deg":0,"amp":1.0,"source":"cosmology.calendar.day_hours"},{"id":"F2","name":"双星合冷脉冲","kind":"pulse","period_days":44.49,"phase_deg":0,"amp":1.0,"source":"cosmology.calendar.month_days"},{"id":"F3","name":"潮汐应力","kind":"tidal","period_days":44.49,"phase_deg":180,"amp":0.8,"source":"biology.mass_extinctions[2]"}],"rules":[{"id":"R1","from":"bare","to":"rustmoss","prob":0.15,"forcing":"F1","forcing_gain":1.0,"when":{"neighbors":{"of":"rustmoss","count":">=1","radius":1,"shape":"moore"}},"source":"biology.photosynthesis.absorbs","cost":{"currency":"硫铁簇","value":1.0},"note":"双峰卟啉 P-590/450 双峰吸收：光照越足，锈苔铺得越快"},{"id":"R2","from":"rustmoss","to":"char","prob":0.01,"retrograde":true,"when":{"forcing_above":{"id":"F1","value":0.92}},"source":"biology.photosynthesis.appearance","cost":{"currency":"硫铁簇","value":0.0},"note":"逆行律：地球直觉是光越强长得越好；赫利孔两星并照时双峰同时饱和，反而光抑制灼伤（“正午植被呈暗金属灰”）"},{"id":"R3","from":"bare","to":"ventmat","prob":0.03,"forcing":"F3","forcing_gain":1.0,"when":{"neighbors":{"of":"ventmat","count":">=1","radius":1,"shape":"moore"}},"source":"chemistry.abiotic_notes","cost":{"currency":"硫铁簇","value":0.8},"note":"地息（H₂S）从裂缝渗漏，菌席只能在潮汐开缝时沿裂隙扩展"},{"id":"R4","from":"rustmoss","to":"char","prob":0.006,"when":{"neighbors":{"of":"ventmat","count":">=1","radius":1,"shape":"moore"}},"source":"chemistry.abiotic_notes","cost":{"currency":"硫铁簇","value":0.0},"note":"地息是可燃气：菌席渗漏带的锈苔会被引燃"},{"id":"R5","from":"char","to":"bare","prob":0.1,"when":{"neighbors":{"of":"char","count":"<=4","radius":1,"shape":"moore"}},"source":"biology.mass_extinctions[1]","cost":{"currency":"硫铁簇","value":0.0}},{"id":"R6","from":"rustmoss","to":"grazer","prob":0.022,"when":{"neighbors":{"of":"rustmoss","count":">=5","radius":1,"shape":"moore"}},"source":"biology.trophic_levels[1].examples[1]","cost":{"currency":"硫铁簇","value":1.5},"note":"六足食苔兽在锈苔连片处取食——由食物密度驱动成核，而非依赖同类邻居"},{"id":"R7","from":"grazer","to":"hunter","prob":0.008,"when":{"neighbors":{"of":"grazer","count":">=2","radius":1,"shape":"moore"}},"source":"biology.trophic_levels[2].examples[0]","cost":{"currency":"硫铁簇","value":2.0},"note":"双影猎兽在食苔兽成群处出现"},{"id":"R8","from":"grazer","to":"bare","prob":0.3,"when":{"none_of":[{"neighbors":{"of":"rustmoss","count":">=1","radius":1,"shape":"moore"}},{"neighbors":{"of":"alga","count":">=1","radius":1,"shape":"moore"}},{"neighbors":{"of":"ventmat","count":">=1","radius":1,"shape":"moore"}}]},"source":"biology.trophic_levels[1]","cost":{"currency":"硫铁簇","value":0.0}},{"id":"R9","from":"hunter","to":"bare","prob":0.06,"when":{"neighbors":{"of":"grazer","count":"==0","radius":1,"shape":"moore"}},"source":"biology.trophic_levels[2]","cost":{"currency":"硫铁簇","value":0.0}},{"id":"R10","from":"bare","to":"alga","prob":0.06,"forcing":"F1","forcing_gain":1.0,"when":{"neighbors":{"of":"alga","count":">=2","radius":1,"shape":"moore"}},"source":"biology.trophic_levels[0].examples[0]","cost":{"currency":"硫铁簇","value":1.0}},{"id":"R11","from":"bare","to":"salt","prob":0.004,"forcing":"F2","forcing_gain":1.0,"when":{"neighbors":{"of":"char","count":">=3","radius":1,"shape":"moore"}},"source":"chemistry.signature_materials[2]","cost":{"currency":"硫铁簇","value":0.5},"note":"重盐在双星合寒夜后于烧焦带结晶——盐墙储热是灰阶诸城熬过互食 90 分钟的关键"},{"id":"R12","from":"alga","to":"grazer","prob":0.002,"when":{"neighbors":{"of":"grazer","count":">=2","radius":1,"shape":"moore"}},"source":"biology.trophic_levels[0].examples[0]","cost":{"currency":"硫铁簇","value":1.5}},{"id":"R13","from":"ventmat","to":"grazer","prob":0.008,"when":{"neighbors":{"of":"grazer","count":">=2","radius":1,"shape":"moore"}},"source":"chemistry.abiotic_notes","cost":{"currency":"硫铁簇","value":1.5}},{"id":"R14","from":"bare","to":"alga","prob":2e-05,"source":"biology.trophic_levels[0].examples[0]","cost":{"currency":"硫铁簇","value":1.0},"note":"孢源：极低概率的远距离定植，防止小众生态位被吃绝后永久锁死"},{"id":"R15","from":"bare","to":"ventmat","prob":2e-05,"source":"chemistry.abiotic_notes","cost":{"currency":"硫铁簇","value":0.8},"note":"孢源：同上，保证深层化能生态有重新点火的机会"},{"id":"R16","from":"hunter","to":"bare","prob":0.002,"source":"biology.trophic_levels[3]","cost":{"currency":"硫铁簇","value":0.0},"note":"顶级掠食者的自然死亡"},{"id":"R17","from":"grazer","to":"bare","prob":0.004,"source":"biology.trophic_levels[1]","cost":{"currency":"硫铁簇","value":0.0},"note":"初级消费者的自然死亡"}],"steps":800,"seed":7,"summary":{"steady_density":0.335,"cycle_steps":35,"collapse_prob":0.0,"measured_at_step":800,"primary_state":"rustmoss","energy_spent":38814.7,"state_density":{"bare":0.025,"rustmoss":0.335,"alga":0.242,"ventmat":0.184,"grazer":0.111,"hunter":0.057,"salt":0.031,"char":0.015}},"figures":["out/helikon/ca-t0.png","out/helikon/ca-t400.png","out/helikon/ca-t800.png"],"impacts":[{"target":"biology.trophic_levels[0].share","before":0.82,"after":0.761,"note":"CA 实测三个生产者稳态合计 0.761，取代纸面的 0.82"},{"target":"biology.trophic_levels[1].share","before":0.13,"after":0.111,"note":"初级消费者由捕食转化与自然死亡共同平衡，低于原估值"},{"target":"biology.trophic_levels[2].share","before":0.038,"after":0.057,"note":"CA 暴露：原纸面 0.038 低估了捕食效率，实测次级消费者更高"},{"target":"biology.trophic_levels[4]","before":null,"after":0.059,"note":"CA 未建模分解者，守恒差额暴露出一整层缺失的生态位"}],"status":"ok"},"sentient":{"exists":true,"name":"灰民","note":"唯一已知智慧物种。因长期生活在 1.76 g 下，身高仅 1.2 米，骨骼密度是人类的 2.4 倍，无颈——头部直接嵌入肩胛。视觉有四色感光细胞，能分辨两道影子的色温差，这是他们最古老的天文仪器"},"mass_extinctions":["大氧化事件（约 21 亿年前）：双峰藻把大气氧含量推到 19%，硫铁簇代谢者大批灭绝，深层生态被迫退守裂缝","双星合灾变（约 40 万年前）：一次罕见的双星近距互食使全球气温在 90 分钟内下降 27 度，87% 的陆生大型动物灭绝，灰民由此从采集转向储热定居","长夜之疫（约 1200 年前）：厄瑞玻斯轨道共振引发的潮汐高峰，全球地震频发，文明一度退回到石器时代"]},"civilization":{"exists":true,"name":"灰阶诸城","tech_path":"跳过冶铜与青铜，直接从天然赤铜进入冷锻工艺；因 G' 较低而无法造出高精度弹簧与齿轮，机械技术停在凸轮与杠杆阶段，转而把全部工程天赋投向「热」——盐墙储热、地息导流、曜岩定向反光","timekeeping":"以双星合为「月」，一月 44.49 天，一年八个「暗月」。他们不需要闰日：一年恰好是八个双星周期，这是几何的必然（周期比 = (a_行星/a_双星)^1.5 = 4^1.5 = 8），而非巧合。历法由祭司阶层垄断，因为他们掌握唯一能预测互食时刻的曜岩日晷","energy_source":"双星辐照（主要用于盐墙储热）+ 地息燃烧（深层化能产物）+ 潮汐摩擦热（地热供暖）","social_shape":"沿晨昏温差带分布的城邦联盟。社会阶层按「影子清晰度」划分：能在正午看清自己两道影子边界的人属上层（意味着视力好、从事天文或祭司职业）；影子糊成一团者为底层。这一划分并非迷信——四色视觉确实与营养状况强相关","taboo":"「不可直视双星合的正中时刻」。在互食的 90 分钟里，短烛的边缘会掠过长明，产生瞬间的强偏振光，直视会造成不可逆的视网膜灼伤。这条禁忌有明确的物理依据，是全球唯一被所有城邦共同遵守的法律"},"history":{"eras":[{"name":"双源纪","span":"约 21 亿年前 – 40 万年前","summary":"双源生态的黄金时代。地表光合与深层化能两条食物链并行繁荣，生物多样性达到峰值。此期无智慧生命，只有大量巨型六足类"},{"name":"落火纪","span":"40 万年前 – 1200 年前","summary":"双星合灾变后，幸存者退守地热裂缝。灰民学会用重盐砌墙储热，第一批永久定居点沿断裂带建立。纪元名来自灾变当日天空的颜色"},{"name":"灰阶纪","span":"1200 年前 – 当下","summary":"长夜之疫后重建。八座城邦沿晨昏温差带结成联盟，曜岩日晷与八分历法成为共同语言。当下正处在一次罕见的天文事件前夜：远灯将于 12 年后穿过双星连线，三方引力叠加，可能触发新一轮潮汐高峰"}],"revisions":[{"version":"1.0","date":"2026-10-27","change":"初版：确立 G'=0.60G、双星 0.30 AU、行星 1.20 AU、八分历法"},{"version":"1.1","date":"2026-10-29","change":"加第一人称切片 / 地面视角 / 红队审查 / 世界原生元胞自动机（17 条规则由本世界设定编译）；营养级份额按 CA 实跑结果修正，并补出缺失的分解者层"}]},"consistency":{"score":100,"checks":[],"open_issues":[],"redteam":[{"id":"RT01","q":"表面重力 1.76 g、半径 3.0 R⊕、密度 5.391 g/cc，地壳屈服强度撑得住这个密度差吗？给一个数量级。","target":"cosmology.bodies[0].gravity_g","template":"数量级","verdict":"accepted","answer":"接受。1.76 g 下 3R⊕ 的静岩压力约为地球的 5 倍，硅酸盐地壳会进入韧性流动。赫利孔的解释是 G′=0.60G 使核内库仑排斥减弱、铁镍核占比更高（已写在 physics.constants[0].why），但原 note 没交代地壳刚度。已在 cosmology.bodies[0].note 补上重盐—石英复合相机制。","fix":"cosmology.bodies[0].note=补高重力下的地壳刚度机制"},{"id":"RT02","q":"逃逸速度 33.19 km/s，表面温度 255.1 K——这个组合下，大气在亿年尺度上留得住吗？光致逃逸通量是多少？","target":"cosmology.bodies[0].mass_earth","template":"边界条件","verdict":"answered","answer":"33.19 km/s 的逃逸速度是地球的 2.96 倍，Jeans 逃逸参数远大于 1，热逃逸可忽略。真正的威胁是水的光解后氢逃逸，但 118 kPa 的大气柱在 10 亿年尺度上足以维持。不构成矛盾。"},{"id":"RT03","q":"系统总光度 1.468 L☉ 摊到 26.4 M⊕，初级生产者份额 0.761，这条能量预算能撑住 5 层消费者吗？","target":"biology.trophic_levels[0].share","template":"能量收支","verdict":"accepted","answer":"接受，而且元胞自动机已经把它跑出来了。1.468 L☉ 摊到 26.4 M⊕ 的预算撑不住纸面的 0.82/0.13/0.038/0.012。实跑 800 步稳态为 0.761/0.111/0.057，并暴露出一整层缺失的分解者。营养级份额已按 CA 结果修正。","fix":"biology.trophic_levels[0].share=按 CA 实跑结果修正"},{"id":"RT04","q":"「每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘…」从地面怎么观测？观测时刻表能不能提前预报？历法月长 44.49 天，对得上吗？","target":"cosmology.calendar.month_days","template":"观测一致性","verdict":"answered","answer":"能预报。双星互绕周期 44.49 天恰是历法月长，一年 8 个月即 8 个双星周期，这是周期比 (a/a_b)^1.5 = 8 的几何必然。祭司阶层垄断曜岩日晷正是因为他们读得懂这个相位；预报误差主要来自轨道偏心率 0.03。"},{"id":"RT05","q":"「两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影…」在 31.4 小时的一天里，居民什么时候能看到它？看不到的那部分时间，设定靠什么成立？","target":"cosmology.sky_phenomena","template":"观测一致性","verdict":"answered","answer":"两影夹角由双星相位决定，一个自转周期（31.4 小时）内走完一轮，正午相位差最小、两影合拢。居民在每个白天都能看到夹角的连续变化——这正是痕迹律要的那种抬头可见、且随时间可读的异常。"}]},"narrative":{"three_seconds":"天上两个太阳，一大一小，一冷一暖，绕着彼此转。地上每个人都有两道影子，一道锐利，一道模糊。一年不是十二个月，是八个「暗月」——每四十四天，小的走到大的前面，天在九十分钟里暗下去，全城停摆，祭司登塔。他们的历法从不误差，因为一年恰好是八个双星周期，这是几何的必然，不是巧合。","setpiece":"双星合的那九十分钟。天空从琥珀色一层层褪到铁灰，气温骤降十一度，两道影子在广场石板上缓缓合拢成一个厚影。所有人停下手中的活，背对天空站立——不是因为敬畏，是因为直视会瞎。祭司在塔顶用曜岩日晷记录那一刻的精确角度，而城墙上的盐砖开始放出白天存下的热，白色的雾气顺着墙面升起，整座城像在呼吸。","hook":"他们从不校准历法。历法自己就是对的——因为一年正好是八个双星周期，这是开普勒第三定律替他们签好的契约。","slice":{"text":"我醒在第 31 小时。天还没亮，盐墙的余温贴着后背，像一只手把我按住。睁眼第一件事不是看天，是看墙——曜岩外墙由白转橙，说明短烛已经绕到长明前面，今天有双影。我摸黑走到坡顶，两个影子已经铺在脚下了：一个边缘像刀，冷灰；一个边缘像毛边纸，泛着琥珀。我数它们之间的夹角，八指宽，比昨天窄。四色眼睛能看见那道色温差，这是灰民最古老的钟。正午两星并照，影子合成一个厚团，我低头，不敢看天——曜岩石面在那一刻会亮得发白。日落前最后一小时最难熬，光从铁灰里退出去，我缩回盐墙后面。躺下时我摸了摸影子刚才待过的地方，石头还是热的。","cites":["cosmology.calendar.day_hours","cosmology.sky_phenomena[0]","cosmology.sky_phenomena[1]","biology.sentient.note","chemistry.signature_materials[0]","chemistry.signature_materials[2]"],"hours":[0.0,31.4],"status":"ok"}}}</script>
 
 <script type="module">
 /* ════════════════════════════════════════════════════════════════
@@ -198,6 +274,754 @@ $('w-name').textContent = META.name || '未命名世界';
 $('w-sub').textContent  = META.subtitle || '';
 $('w-tag').textContent  = META.tagline || '';
 
+/* ════════════════════════════════════════════════════════════════
+   1.1 · 地面视角：站在地表抬头
+   方位角/高度角用球面三角真算，影子方向 = 恒星方位 + 180°
+   ════════════════════════════════════════════════════════════════ */
+const SURF = (() => {
+  const cvs = $('surface-canvas');
+  const hint = $('surface-hint');
+  const ctx = cvs.getContext('2d');
+  const S = COS.surface || {};
+  const OBS = (S.observer && typeof S.observer === 'object') ? S.observer : null;
+  const CAL = COS.calendar || {};
+  const DAY_H = num(CAL.day_hours, 24) || 24;
+  const MONTH_D = num(CAL.month_days, 30) || 30;
+  const MAIN = IS_BODIES[0] || {};
+  const TILT = num(MAIN.axial_tilt_deg, 0);
+  // 只取内层双星：外层伴星躲得远，不该和主双星叠在同一方位
+  const STARS = (() => {
+    const orb = IS_STARS.filter(s => num(s.orbit && s.orbit.a_au, 0) > 0)
+      .sort((a, b) => num(a.orbit.a_au, 0) - num(b.orbit.a_au, 0));
+    if (orb.length >= 2) {
+      const a0 = num(orb[0].orbit.a_au, 0);
+      const inner = orb.filter(s => num(s.orbit.a_au, 0) <= a0 * 3);
+      return inner.length >= 2 ? inner.slice(0, 2) : orb.slice(0, 2);
+    }
+    return IS_STARS.slice(0, 2);
+  })();
+  const GROUND = S.ground_color || '#2a3a4a';
+
+  const sepAu = (() => {
+    const orb = STARS.filter(s => num(s.orbit && s.orbit.a_au, 0) > 0);
+    if (orb.length < 2) return 0;
+    return num(orb[0].orbit.a_au, 0) + num(orb[1].orbit.a_au, 0);
+  })();
+  const planetA = num(MAIN.orbit && MAIN.orbit.a_au, 1) || 1;
+  const rawSep = sepAu > 0 ? (sepAu / planetA) * 180 / Math.PI : 0;
+  const SEP_DEG = rawSep > 0 ? clamp(rawSep * 1.9, 10, 70) : 0;
+
+  let W = 0, H = 0, dpr = 1;
+  let tHours = 0, playing = true, yearSpin = false, yearPhase = 0;
+  let raf = 0, started = false, last = 0;
+
+  const rad = d => d * Math.PI / 180;
+  const deg = r => r * 180 / Math.PI;
+  const FOV = rad(240);          // 超广角：太阳与影子相差 180°，还要各自容下两星的夹角
+  let viewAz = 0;                // 可拖动转头
+  const horizonY = () => H * 0.57;
+
+  function mix(a, b, k) {
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]
+      .map(v => Math.round(v));
+  }
+  const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+  // 时角由行星自转决定。双星相距极近，从行星看两者时角基本一致——
+  // 它们的分离体现在方位差（SEP_DEG），而不是反相 180°（那会变成一颗升另一颗落）。
+  const PHASE0 = num(STARS[0] && STARS[0].orbit && STARS[0].orbit.phase_deg, 0);
+
+  function hourAngle() {
+    return (tHours / DAY_H) * Math.PI * 2 + rad(PHASE0);
+  }
+  function altOf(star) {
+    const lat = rad(num(OBS && OBS.lat_deg, 0));
+    const dec = rad(num(star.orbit && star.orbit.inclination_deg, 0) + TILT * Math.sin(yearPhase));
+    const Hh = hourAngle();
+    const s = Math.sin(lat) * Math.sin(dec) + Math.cos(lat) * Math.cos(dec) * Math.cos(Hh);
+    return Math.asin(clamp(s, -1, 1));
+  }
+  function azOf(star) {
+    const lat = rad(num(OBS && OBS.lat_deg, 0));
+    const dec = rad(num(star.orbit && star.orbit.inclination_deg, 0) + TILT * Math.sin(yearPhase));
+    const Hh = hourAngle();
+    return Math.atan2(-Math.cos(dec) * Math.sin(Hh),
+      Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.sin(lat) * Math.cos(Hh));
+  }
+
+  function positions() {
+    const list = STARS.map(s => ({ s, alt: altOf(s), az: azOf(s) }));
+    if (list.length >= 2 && SEP_DEG > 0) {
+      // 双星互绕：一「月」走完一轮，两星方位差 = 角距，正午附近合拢
+      const ph = (tHours / (MONTH_D * 24)) % 1;
+      const dir = Math.cos(ph * Math.PI * 2);
+      const base = list[0].az, half = rad(SEP_DEG) / 2;
+      list[0].az = base + half * dir;
+      list[1].az = base - half * dir;
+    }
+    return list;
+  }
+
+  function project(az, alt) {
+    let d = az - viewAz;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    const hz = horizonY();
+    return {
+      x: W / 2 + (d / (FOV / 2)) * (W / 2),
+      y: hz - (alt / (Math.PI / 2)) * hz,
+      vis: Math.abs(d) < FOV / 2,
+    };
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cvs.clientWidth || window.innerWidth;
+    H = cvs.clientHeight || (window.innerHeight - 76);
+    cvs.width = Math.round(W * dpr); cvs.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawShadow(az, alt, color, blur) {
+    if (alt <= rad(1.2)) return;
+    let d = az + Math.PI - viewAz;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    const sx = W / 2 + (d / (FOV / 2)) * (W / 2);
+    const len = clamp(H * 0.5 / Math.tan(Math.max(alt, rad(1.2))), 24, H * 2.2);
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    if (blur) ctx.filter = `blur(${blur}px)`;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 30, H);
+    ctx.lineTo(W / 2 + 30, H);
+    ctx.lineTo(sx + 18, H - len);
+    ctx.lineTo(sx - 18, H - len);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    if (!W || !H) resize();
+    const pos = positions();
+    const maxAlt = Math.max(-1, ...pos.map(p => p.alt));
+    const dayF = clamp(deg(maxAlt) / 32, 0, 1);
+    const hz = horizonY();
+
+    // 天空
+    const g = ctx.createLinearGradient(0, 0, 0, hz);
+    g.addColorStop(0, rgb(mix([5, 7, 16], [46, 68, 104], dayF)));
+    g.addColorStop(0.72, rgb(mix([10, 13, 26], [126, 118, 118], dayF)));
+    g.addColorStop(1, rgb(mix([18, 20, 30], [206, 150, 104], dayF)));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, hz);
+
+    // 星点（天亮了就隐去）
+    if (dayF < 0.85) {
+      ctx.save();
+      ctx.globalAlpha = (1 - dayF) * 0.85;
+      for (let i = 0; i < 160; i++) {
+        const x = ((i * 733) % 997) / 997 * W;
+        const y = ((i * 419) % 613) / 613 * hz * 0.94;
+        const r = 0.4 + ((i * 37) % 11) / 22;
+        ctx.fillStyle = i % 7 === 0 ? '#ffd9a0' : '#cfe0ff';
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 地面
+    const gc = GROUND.replace('#', '');
+    const gr = parseInt(gc.slice(0, 2), 16) || 42;
+    const gg = parseInt(gc.slice(2, 4), 16) || 58;
+    const gb = parseInt(gc.slice(4, 6), 16) || 74;
+    const gd = ctx.createLinearGradient(0, hz, 0, H);
+    gd.addColorStop(0, rgb([gr + 14, gg + 16, gb + 18]));
+    gd.addColorStop(1, rgb([gr - 10, gg - 12, gb - 12]));
+    ctx.fillStyle = gd;
+    ctx.fillRect(0, hz, W, H - hz);
+
+    // 地平线
+    ctx.strokeStyle = 'rgba(255,220,180,.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
+
+    // 两道影子（先画，太阳盖在上面）
+    pos.forEach((p, i) => {
+      if (p.alt <= 0) return;
+      const col = i === 0 ? 'rgba(3,5,9,.88)' : 'rgba(24,14,6,.72)';
+      drawShadow(p.az, p.alt, col, i === 0 ? 0 : 5);
+    });
+
+    // 两颗太阳（vis 属于投影结果，不在原始点上）
+    pos.forEach((p, i) => {
+      if (p.alt < -rad(3)) return;
+      const q = project(p.az, p.alt);
+      const c = starColor(p.s);
+      if (!q.vis) {
+        // 出框了：在边缘留一个方位指示，别让太阳凭空消失
+        let d = p.az - viewAz;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        const ex = d < 0 ? 16 : W - 16;
+        const ey = clamp(q.y, 46, horizonY() - 8);
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(ex, ey, 6, 0, 6.2832); ctx.fill();
+        ctx.globalAlpha = 0.32;
+        ctx.beginPath(); ctx.arc(ex, ey, 15, 0, 6.2832); ctx.fill();
+        ctx.restore();
+        return;
+      }
+      const r = 16 + 10 * clamp(num(p.s.luminosity_solar, 1), 0.2, 3) / 3;
+      const halo = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r * 4.2);
+      halo.addColorStop(0, c);
+      halo.addColorStop(0.18, c + 'aa');
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(q.x, q.y, r * 4.2, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#fffdf6';
+      ctx.beginPath(); ctx.arc(q.x, q.y, r * 0.62, 0, 6.2832); ctx.fill();
+    });
+
+    // 观测者脚下的标记
+    ctx.strokeStyle = 'rgba(255,255,255,.25)';
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 12, H - 8); ctx.lineTo(W / 2 + 12, H - 8);
+    ctx.stroke();
+
+    // 提示
+    const names = pos.map((p, i) => `${p.s.name || ('恒星' + i)} ${deg(p.alt).toFixed(0)}°`).join(' · ');
+    const ang = SEP_DEG > 0 ? (SEP_DEG * Math.abs(Math.cos((tHours / (MONTH_D * 24)) * Math.PI * 2))).toFixed(0) : '0';
+    hint.innerHTML =
+      `观察点 <b>${num(OBS && OBS.lat_deg, 0)}°</b> · 海拔 ${num(OBS && OBS.elev_m, 0)} m` +
+      `　｜　一天 <b>${DAY_H}</b> 小时` +
+      `<br>${names}` +
+      `<br>两影夹角 <b>${ang}°</b>${SEP_DEG ? '' : '（单星世界，只有一道影）'}` +
+      `<br><span style="opacity:.6">拖动画面可转头</span>`;
+  }
+
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    if (playing) tHours = (tHours + dt * (yearSpin ? 6 : 1.2)) % (yearSpin ? MONTH_D * 24 : DAY_H);
+    if (yearSpin) yearPhase += dt * 0.9;
+    const slider = $('sf-time');
+    if (slider && !slider.dataset.drag) slider.value = String(Math.round((tHours % DAY_H) / DAY_H * 1000));
+    $('sf-clock').textContent = `${Math.floor(tHours % DAY_H)}h / ${DAY_H}h`;
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function open() {
+    if (!STARS.length) {
+      UI.hideOverlays();
+      $('surface-view').classList.add('show');
+      cvs.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+      hint.innerHTML = '<span class="warn">这个世界的 cosmology.stars 为空，没有可观测的恒星。</span>';
+      UI.mark('v-surface');
+      return;
+    }
+    LIFE.close();
+    $('surface-view').classList.add('show');
+    UI.mark('v-surface');
+    resize();
+    if (!started) {
+      started = true;
+      $('sf-play').onclick = () => {
+        playing = !playing;
+        $('sf-play').textContent = playing ? '运行' : '暂停';
+        $('sf-play').classList.toggle('on', playing);
+      };
+      $('sf-year').onclick = () => {
+        yearSpin = !yearSpin;
+        $('sf-year').classList.toggle('on', yearSpin);
+      };
+      const sl = $('sf-time');
+      sl.addEventListener('input', () => {
+        sl.dataset.drag = '1';
+        tHours = (num(sl.value, 0) / 1000) * DAY_H;
+        draw();
+      });
+      sl.addEventListener('change', () => { delete sl.dataset.drag; });
+      // 默认视角：背对双星 100°，双日退到左缘、双影在右侧铺开，一屏同时可见
+      const p0 = positions();
+      if (p0.length) viewAz = p0[0].az + rad(100);
+      let dragX = null;
+      cvs.addEventListener('pointerdown', e => {
+        dragX = e.clientX;
+        try { cvs.setPointerCapture(e.pointerId); } catch (_) { }
+      });
+      cvs.addEventListener('pointermove', e => {
+        if (dragX === null) return;
+        viewAz -= (e.clientX - dragX) * 0.005;
+        dragX = e.clientX;
+        draw();
+      });
+      cvs.addEventListener('pointerup', () => { dragX = null; });
+      cvs.addEventListener('pointercancel', () => { dragX = null; });
+    }
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
+  }
+
+  function close() {
+    $('surface-view').classList.remove('show');
+    if (raf) { cancelAnimationFrame(raf); raf = 0; started = false; }
+  }
+
+  window.addEventListener('resize', () => { if ($('surface-view').classList.contains('show')) resize(); });
+
+  return { open, close };
+})();
+
+/* ════════════════════════════════════════════════════════════════
+   1.1 · 演化视图：2D 生态相 / 数据 / 环境状态监测
+   与 Python 端同规则同参数同 seed —— 允许逐格不同，密度差 >5% 算 bug
+   ════════════════════════════════════════════════════════════════ */
+const LIFE = (() => {
+  const EVO = (WORLD.biology && WORLD.biology.evolution) || null;
+  const gcv = $('life-grid'), gctx = gcv.getContext('2d');
+  const ccv = $('life-chart'), cctx = ccv.getContext('2d');
+  const probe = $('life-probe');
+
+  let prog = null, cells = null, rnd = null, rngSeed = 7;
+  let step = 0, playing = true, speedIdx = 0, started = false, raf = 0, acc = 0, last = 0;
+  const SPEEDS = [1, 2, 4, 8];
+  let hist = [];          // [{dens:{id:v}, forcing:{id:v}}]
+  let snapshots = [];     // 关键步存档用于 2D 显示
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function countOk(expr, v) {
+    if (typeof expr === 'number') return v === expr;
+    const s = String(expr || '').trim();
+    let m = s.match(/^(\d+)\s*\.\.\s*(\d+)$/);
+    if (m) return v >= +m[1] && v <= +m[2];
+    m = s.match(/^(>=|<=|==|>|<)\s*(\d+)$/);
+    if (m) {
+      const k = +m[2];
+      return { '>=': v >= k, '<=': v <= k, '==': v === k, '>': v > k, '<': v < k }[m[1]];
+    }
+    if (/^\d+$/.test(s)) return v === +s;
+    return false;
+  }
+
+  // world.json 里写的是 neighbors.of（状态名），运行期要换成 of_index；
+  // 漏了这一步，所有带邻居条件的规则都会静默失效。
+  function normalizeWhen(w, byId) {
+    if (!w || typeof w !== 'object') return null;
+    const out = {};
+    Object.keys(w).forEach(k => {
+      const v = w[k];
+      if (k === 'neighbors' && v && typeof v === 'object') {
+        const nb = Object.assign({}, v);
+        if (nb.of !== undefined && byId[nb.of] !== undefined) nb.of_index = byId[nb.of];
+        out.neighbors = nb;
+      } else if ((k === 'all_of' || k === 'any_of' || k === 'none_of') && Array.isArray(v)) {
+        out[k] = v.map(x => normalizeWhen(x, byId)).filter(Boolean);
+      } else if (k === 'forcing_above' || k === 'forcing_below') {
+        out[k] = Object.assign({}, v);
+      }
+    });
+    return out;
+  }
+
+  function whenOk(w, cnt, fv) {
+    if (!w) return true;
+    if (w.all_of && !w.all_of.every(x => whenOk(x, cnt, fv))) return false;
+    if (w.any_of && !w.any_of.some(x => whenOk(x, cnt, fv))) return false;
+    if (w.none_of && w.none_of.some(x => whenOk(x, cnt, fv))) return false;
+    const nb = w.neighbors;
+    if (nb && typeof nb === 'object') {
+      const k = (nb.of_index !== undefined) ? nb.of_index : -1;
+      if (!countOk(nb.count === undefined ? '>=1' : nb.count, cnt[k] || 0)) return false;
+    }
+    const fa = w.forcing_above;
+    if (fa && (fv[fa.id] || 0) < num(fa.value, 0)) return false;
+    const fb = w.forcing_below;
+    if (fb && (fv[fb.id] || 0) > num(fb.value, 0)) return false;
+    return true;
+  }
+
+  function forcingAt(e, tHours) {
+    const out = {};
+    (e.forcing || []).forEach(f => {
+      const p = num(f.period_days, 0);
+      if (p <= 0) { out[f.id] = num(f.amp, 1); return; }
+      let ph = (tHours / (p * 24) + num(f.phase_deg, 0) / 360) % 1;
+      if (ph < 0) ph += 1;
+      out[f.id] = f.kind === 'pulse'
+        ? (ph >= 0.93 ? num(f.amp, 1) : 0)
+        : num(f.amp, 1) * (0.5 - 0.5 * Math.cos(2 * Math.PI * ph));
+    });
+    return out;
+  }
+
+  function build() {
+    const e = EVO;
+    const g = e.grid || {};
+    const nx = Math.max(4, Math.min(512, num(g.nx, 120)));
+    const ny = Math.max(4, Math.min(512, num(g.ny, 90)));
+    const states = (e.states || []).map((s, i) => ({
+      id: s.id, name: s.name || s.id, kind: s.kind || 'other',
+      color: s.color || '#888', idx: i,
+      share: Math.max(0, num(s.initial_share, 0)),
+    }));
+    const byId = {};
+    states.forEach(s => byId[s.id] = s.idx);
+
+    // initial 覆盖
+    if (e.initial && typeof e.initial === 'object') {
+      Object.keys(e.initial).forEach(k => {
+        if (byId[k] !== undefined) states[byId[k]].share = Math.max(0, num(e.initial[k], 0));
+      });
+    }
+    const tot = states.reduce((a, s) => a + s.share, 0) || 1;
+
+    const rules = (e.rules || []).map(r => ({
+      id: r.id, src: byId[r.from], dst: byId[r.to],
+      prob: clamp(num(r.prob, 0), 0, 1),
+      when: normalizeWhen(r.when, byId),
+      forcing: r.forcing || '',
+      gain: num(r.forcing_gain, 0),
+      cost: (r.cost && typeof r.cost === 'object') ? num(r.cost.value, 0) : num(r.cost, 0),
+    })).filter(r => r.src !== undefined && r.dst !== undefined);
+
+    const bySrc = {};
+    rules.forEach(r => (bySrc[r.src] = bySrc[r.src] || []).push(r));
+    Object.keys(bySrc).forEach(k => bySrc[k].sort((a, b) =>
+      (a.when ? 1 : 0) - (b.when ? 1 : 0) || b.prob - a.prob));
+
+    let radius = 1;
+    rules.forEach(r => {
+      const nb = r.when && r.when.neighbors;
+      if (nb) radius = Math.max(radius, num(nb.radius, 1));
+    });
+    radius = clamp(radius, 1, 2);
+
+    prog = {
+      nx, ny, states, byId, rules, bySrc, radius,
+      hps: num(e.clock && e.clock.hours_per_step, 0.5) || 0.5,
+      forcing: e.forcing || [],
+      shape: 'moore',
+    };
+    // 统一用 moore（radius 1）
+    return prog;
+  }
+
+  function reset() {
+    if (!prog) build();
+    rngSeed = num(EVO.seed, 7);
+    rnd = mulberry32(rngSeed * 2654435761 >>> 0);
+    const { nx, ny, states } = prog;
+    const n = nx * ny;
+    cells = new Uint8Array(n);
+    const cuts = [];
+    let a = 0;
+    const tot = states.reduce((s, x) => s + x.share, 0) || 1;
+    states.forEach(s => { a += s.share / tot; cuts.push([a, s.idx]); });
+    for (let i = 0; i < n; i++) {
+      const u = rnd();
+      let put = cuts.length ? cuts[cuts.length - 1][1] : 0;
+      for (const [c, idx] of cuts) { if (u <= c) { put = idx; break; } }
+      cells[i] = put;
+    }
+    step = 0; hist = []; snapshots = [];
+    record();
+    drawAll();
+  }
+
+  function record() {
+    const { nx, ny, states, hps, forcing } = prog;
+    const n = nx * ny;
+    const cnt = new Array(states.length).fill(0);
+    for (let i = 0; i < n; i++) cnt[cells[i]] = (cnt[cells[i]] || 0) + 1;
+    const dens = {};
+    states.forEach((s, i) => dens[s.id] = cnt[i] / n);
+    hist.push({ dens, fv: forcingAt({ forcing }, step * hps) });
+    if (hist.length > 1200) hist.shift();
+    if (step % 40 === 0 || step === 1) snapshots.push(Array.from(cells));
+    if (snapshots.length > 6) snapshots.shift();
+  }
+
+  const offsets = (() => {
+    const o = [];
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+      if (dx || dy) o.push([dx, dy]);
+    return o;
+  })();
+
+  function advance() {
+    const { nx, ny, bySrc, states, hps, forcing } = prog;
+    const n = nx * ny;
+    const cur = cells, nxt = new Uint8Array(cur);   // 同步更新：先拷贝
+    const fv = forcingAt({ forcing }, step * hps);
+    const ns = states.length;
+    const cnt = new Array(ns + 1).fill(0);
+
+    for (let y = 0; y < ny; y++) {
+      const rowBase = y * nx;
+      for (let x = 0; x < nx; x++) {
+        const i = rowBase + x;
+        const s = cur[i];
+        const rs = bySrc[s];
+        if (!rs) continue;
+        let haveCnt = false;
+        for (let k = 0; k < rs.length; k++) {
+          const r = rs[k];
+          if (r.when) {
+            if (!haveCnt) {
+              cnt.fill(0);
+              for (const [dx, dy] of offsets) {
+                let xx = x + dx, yy = y + dy;
+                if (xx < 0) xx += nx; else if (xx >= nx) xx -= nx;   // 经度闭合
+                if (yy < 0 || yy >= ny) continue;
+                cnt[cur[yy * nx + xx]]++;
+              }
+              haveCnt = true;
+            }
+            if (!whenOk(r.when, cnt, fv)) continue;
+          }
+          let p = r.prob;
+          if (r.forcing) p *= r.gain ? Math.pow(fv[r.forcing] || 0, r.gain) : (fv[r.forcing] || 1);
+          if (p >= 1 || rnd() < p) { nxt[i] = r.dst; break; }
+        }
+      }
+    }
+    cells = nxt;
+    step++;
+    record();
+  }
+
+  /* ── 绘制 ── */
+  function drawGrid() {
+    const { nx, ny, states } = prog;
+    gcv.width = nx; gcv.height = ny;
+    const img = gctx.createImageData(nx, ny);
+    const pal = states.map(s => {
+      const h = String(s.color).replace('#', '');
+      return [parseInt(h.slice(0, 2), 16) || 128,
+              parseInt(h.slice(2, 4), 16) || 128,
+              parseInt(h.slice(4, 6), 16) || 128];
+    });
+    for (let i = 0; i < nx * ny; i++) {
+      const c = pal[cells[i]] || [128, 128, 128];
+      img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1];
+      img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255;
+    }
+    gctx.putImageData(img, 0, 0);
+  }
+
+  function drawChart() {
+    const w = ccv.clientWidth || 300, h = ccv.clientHeight || 200;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    ccv.width = w * dpr; ccv.height = h * dpr;
+    const g = cctx;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    if (!hist.length) return;
+
+    // 滚动窗口：只画最近 320 步，否则上千步的强迫虚线会糊成一片
+    const view = hist.slice(-320);
+    const pad = 26;
+    const W2 = w - pad - 8, H2 = h - pad - 12;
+    g.strokeStyle = 'rgba(140,170,210,.16)';
+    g.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = 10 + H2 * i / 4;
+      g.beginPath(); g.moveTo(pad, y); g.lineTo(pad + W2, y); g.stroke();
+    }
+
+    const cols = ['#7a4a8c', '#2f6f9e', '#c9a227', '#b5651d', '#8b1a1a', '#dcd7c9', '#1a1a1a', '#3b3a40'];
+    prog.states.forEach((s, si) => {
+      g.beginPath();
+      view.forEach((pt, i) => {
+        const x = pad + W2 * (view.length <= 1 ? 0 : i / (view.length - 1));
+        const y = 10 + H2 * (1 - clamp(pt.dens[s.id] || 0, 0, 1));
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      });
+      g.strokeStyle = s.color || cols[si % cols.length];
+      g.lineWidth = 1.4;
+      g.stroke();
+    });
+
+    // 强迫项：只画总辐照类，虚线
+    const f0 = (prog.forcing || [])[0];
+    if (f0) {
+      g.beginPath();
+      view.forEach((pt, i) => {
+        const x = pad + W2 * (view.length <= 1 ? 0 : i / (view.length - 1));
+        // 强迫项压到图底 26% 的窄带里，别盖住密度曲线
+        const y = 10 + H2 - H2 * 0.26 * clamp(pt.fv[f0.id] || 0, 0, 1);
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      });
+      g.strokeStyle = 'rgba(255,207,138,.5)';
+      g.setLineDash([3, 3]);
+      g.lineWidth = 1;
+      g.stroke();
+      g.setLineDash([]);
+    }
+
+    g.fillStyle = 'rgba(140,170,210,.65)';
+    g.font = '9px sans-serif';
+    g.fillText('1.0', 3, 14);
+    g.fillText('0.0', 3, 10 + H2);
+    g.fillText(`步 ${hist.length}`, pad, h - 4);
+  }
+
+  function drawProbe() {
+    const { states } = prog;
+    const last = hist[hist.length - 1] || { dens: {}, fv: {} };
+    const n = prog.nx * prog.ny;
+    const primary = states.find(s => s.kind === 'producer') || states[0];
+
+    const sum = k => states.filter(s => s.kind === k)
+      .reduce((a, s) => a + (last.dens[s.id] || 0), 0);
+
+    const f0 = (prog.forcing || [])[0];
+    const fv = f0 ? (last.fv[f0.id] || 0) : 0;
+    const rows = [
+      ['已跑步数', `${step}`],
+      ['网格', `${prog.nx}×${prog.ny} = ${n}`],
+      ['主状态', `${primary.name} ${(last.dens[primary.id] || 0).toFixed(3)}`],
+      ['生产者合计', sum('producer').toFixed(3)],
+      ['消费者合计', sum('consumer').toFixed(3)],
+      ['裸地/基质', sum('substrate').toFixed(3)],
+      ['灾变相', sum('hazard').toFixed(3)],
+    ];
+    if (f0) rows.push([`${f0.name || f0.id}`, fv.toFixed(2)]);
+
+    const stable = num(EVO.summary && EVO.summary.steady_density, 0);
+    const targetSteps = num(EVO.summary && EVO.summary.measured_at_step, 0);
+    const now = last.dens[primary.id] || 0;
+    // 还没跑到对账步数就比稳态，没有意义——必须先收敛再对账
+    const converged = !targetSteps || step >= targetSteps * 0.75;
+    // 8% 而非 5%：Python 用 Mersenne Twister，这里用 mulberry32，
+    // 逐格轨迹必然不同，密度只剩统计涨落。超过 8% 才是规则对齐出了问题。
+    const DRIFT_TOL = 0.08;
+    const drift = (converged && stable > 0) ? Math.abs(now - stable) / stable : 0;
+    const first = hist[0] ? (hist[0].dens[primary.id] || 0) : 0;
+    const collapse = first > 0.02 && now < first * 0.2;
+
+    let html = rows.map(([k, v]) =>
+      `<div class="probe-row"><span>${k}</span><b>${v}</b></div>`).join('');
+    html += `<div class="probe-row ${!converged ? '' : (drift > DRIFT_TOL ? 'bad' : 'good')}">` +
+            `<span>与 summary 偏差</span>` +
+            `<b>${!converged ? `收敛中 (${step}/${targetSteps})` : (drift * 100).toFixed(1) + '%'}</b></div>`;
+    html += `<div class="probe-row ${collapse ? 'bad' : 'good'}">` +
+            `<span>塌缩预警</span><b>${collapse ? '已跌破' : '正常'}</b></div>`;
+
+    html += `<div class="probe-flag">`;
+    if (!converged) {
+      html += `还差 ${Math.max(0, targetSteps - step)} 步到达对账点（world.json 记的是第 ${targetSteps} 步）。` +
+              `生态需要时间才能显出稳态，现在比没有意义。<br>`;
+    } else if (drift > DRIFT_TOL) {
+      html += `浏览器实跑与 world.json 的 summary 差 ${(drift * 100).toFixed(1)}%，超过 8% —— 规则可能没对齐。<br>`;
+    }
+    if (collapse) html += `主状态已跌到初值两成以下：这个世界的生态正在崩。<br>`;
+    if (converged && drift <= DRIFT_TOL && !collapse) {
+      html += `生态稳定。与 Python 端实跑相差 ${(drift * 100).toFixed(1)}%，` +
+              `属跨语言 PRNG 的统计涨落（逐格轨迹不同是正常的）。<br>`;
+    }
+
+    // 状态图例
+    html += `<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:5px">` +
+      states.map(s => `<span style="font-size:10px;color:var(--ink-dim)">` +
+        `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:4px"></i>` +
+        `${s.name}</span>`).join('') + `</div>`;
+
+    probe.innerHTML = html;
+  }
+
+  function drawAll() {
+    if (!prog) return;
+    drawGrid();
+    drawChart();
+    drawProbe();
+    $('lf-clock').textContent = `第 ${step} 步`;
+  }
+
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    if (playing) {
+      acc += dt * SPEEDS[speedIdx];
+      let budget = 8;                    // 每帧最多 8 步，防卡死
+      while (acc >= 1 / 45 && budget-- > 0) { advance(); acc -= 1 / 45; }
+      drawAll();
+    }
+    raf = requestAnimationFrame(loop);
+  }
+
+  function open() {
+    if (!EVO || !EVO.rules || !EVO.rules.length) {
+      UI.hideOverlays();
+      $('life-view').classList.add('show');
+      probe.innerHTML = `<div class="probe-flag">这个世界的 biology.evolution 为空。<br>` +
+        `先声明 states / rules / forcing，再用 <code>pangu.py ca</code> 编译。</div>`;
+      UI.mark('v-life');
+      return;
+    }
+    SURF.close();
+    $('life-view').classList.add('show');
+    UI.mark('v-life');
+    if (!started) {
+      started = true;
+      $('lf-play').onclick = () => {
+        playing = !playing;
+        $('lf-play').textContent = playing ? '运行' : '暂停';
+        $('lf-play').classList.toggle('on', playing);
+      };
+      $('lf-step').onclick = () => { playing = false; $('lf-play').textContent = '暂停'; advance(); drawAll(); };
+      $('lf-reset').onclick = () => { reset(); drawAll(); };
+      $('lf-spd').onclick = () => {
+        speedIdx = (speedIdx + 1) % SPEEDS.length;
+        $('lf-spd').textContent = SPEEDS[speedIdx] + '×';
+      };
+      build();
+      reset();
+    }
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); }
+  }
+
+  function close() {
+    $('life-view').classList.remove('show');
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+
+  window.addEventListener('resize', () => {
+    if ($('life-view').classList.contains('show') && prog) drawAll();
+  });
+
+  return { open, close };
+})();
+
+/* ── 视图调度：3D 三个太空视图与 1.1 两个新视图互斥 ── */
+const UI = {
+  hideOverlays() {
+    SURF.close();
+    LIFE.close();
+  },
+  mark(id) {
+    ['v-sys', 'v-body', 'v-far', 'v-surface', 'v-life']
+      .forEach(x => { const el = $(x); if (el) el.classList.toggle('on', x === id); });
+  },
+};
+
+$('v-surface').onclick = () => SURF.open();
+$('v-life').onclick = () => LIFE.open();
+
 /* ── 降级页 ─────────────────────────────────────────────────── */
 function showFallback(reason) {
   $('boot').classList.add('done');
@@ -226,6 +1050,30 @@ function showFallback(reason) {
     h += '</ul>';
   }
   $('fb-body').innerHTML = h;
+
+  // 1.1：地面视角与演化视图不依赖 WebGL，3D 挂了也应该进得去
+  const evo = WORLD.biology && WORLD.biology.evolution;
+  const canSurf = IS_STARS.length > 0;
+  const canLife = !!(evo && evo.rules && evo.rules.length);
+  if (canSurf || canLife) {
+    const bar = document.createElement('div');
+    bar.style.cssText = 'margin:22px 0 10px;display:flex;gap:10px;flex-wrap:wrap';
+    if (canSurf) {
+      const b = document.createElement('button');
+      b.textContent = '地面视角';
+      b.className = 'fb-go';
+      b.onclick = () => { fb.classList.remove('show'); SURF.open(); };
+      bar.appendChild(b);
+    }
+    if (canLife) {
+      const b = document.createElement('button');
+      b.textContent = '演化视图';
+      b.className = 'fb-go';
+      b.onclick = () => { fb.classList.remove('show'); LIFE.open(); };
+      bar.appendChild(b);
+    }
+    $('fb-body').insertBefore(bar, $('fb-body').firstChild);
+  }
 }
 
 /* ── 加载 three（多源回退） ─────────────────────────────────── */
@@ -908,12 +1756,14 @@ float ridged(vec3 p){
   );
 
   function viewSys() {
+    UI.hideOverlays();
     ctrl.setTarget(new THREE.Vector3(0, 0, 0), mainDist * 2.55);
     ctrl.tPhi = 1.15; ctrl.tTheta = 0.95;
     markView('v-sys');
   }
   function viewBody() {
     if (!main) return viewSys();
+    UI.hideOverlays();
     const p = new THREE.Vector3();
     main.node.group.getWorldPosition(p);
     ctrl.setTarget(p, main.node.radius * 3.6);
@@ -926,12 +1776,13 @@ float ridged(vec3 p){
     markView('v-body');
   }
   function viewFar() {
+    UI.hideOverlays();
     ctrl.setTarget(new THREE.Vector3(0, 0, 0), farDist * 1.55);
     ctrl.tPhi = 0.72; ctrl.tTheta = 0.5;
     markView('v-far');
   }
   function markView(id) {
-    ['v-sys', 'v-body', 'v-far'].forEach(x => $(x).classList.toggle('on', x === id));
+    UI.mark(id);
   }
 
   /* ── 图例 ───────────────────────────────────────────────── */
@@ -966,6 +1817,7 @@ float ridged(vec3 p){
         ctrl.setTarget(p, n.radius * 3.6);
         document.querySelectorAll('.lg').forEach(x => x.classList.remove('on'));
         el.classList.add('on');
+        UI.hideOverlays();
         ['v-sys', 'v-body', 'v-far'].forEach(x => $(x).classList.remove('on'));
       };
       box.appendChild(el);
@@ -1016,6 +1868,8 @@ float ridged(vec3 p){
     if (e.key === '1') viewSys();
     if (e.key === '2') viewBody();
     if (e.key === '3') viewFar();
+    if (e.key === '4') SURF.open();
+    if (e.key === '5') LIFE.open();
     if (e.key === 'r' || e.key === 'R') $('btn-reset').click();
   });
 

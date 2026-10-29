@@ -26,6 +26,9 @@ python scripts/pangu.py validate out/world.json --fix-hint
 python scripts/pangu.py preview out/world.json -o out/preview.html
 python scripts/pangu.py export out/world.json --md out/世界档案.md
 python scripts/pangu.py axioms --domain physics --roll 3
+python scripts/pangu.py slice out/world.json      # 第一人称切片体检
+python scripts/pangu.py redteam out/world.json --check
+python scripts/pangu.py ca out/world.json --check  # 生态演化：同 seed 复算比对
 ```
 
 - 只依赖 Python 标准库（≥3.9），无需 `pip install`

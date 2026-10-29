@@ -1,16 +1,16 @@
 ---
 name: pangu
-description: 盘古 1.0 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览"等需求时使用。
+description: 盘古 1.1 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览"等需求时使用。
 license: MIT
 metadata:
-  title: 盘古 1.0 · 开天辟地造世引擎
-  version: 1.0.0
+  title: 盘古 1.1 · 开天辟地造世引擎
+  version: 1.1.0
   entrypoint: scripts/pangu.py
   runtime: python>=3.9 (仅标准库)
   install: python install.py --target all
 ---
 
-# 盘古 1.0 · 开天辟地造世引擎
+# 盘古 1.1 · 开天辟地造世引擎
 
 盘古不是"写设定"，是**立律**。区别在于：设定回答"这个世界有什么"，律回答"这个世界为什么只能长成这样"。
 
@@ -26,7 +26,7 @@ metadata:
 |---|---|---|
 | **A. 原生技能目录** | Claude Code / Claude.ai Skills、OpenAI Codex、Cline、Roo、OpenHands、以及任何支持 `SKILL.md` 约定或"把目录塞进上下文"的框架 | 整个目录，入口 `SKILL.md` |
 | **B. 指令文件指针** | Codex / Amp / Jules（`AGENTS.md`）、Cursor（`.cursor/rules/*.mdc`）、Windsurf（`.windsurf/rules/*.md`）、Gemini CLI（`GEMINI.md`） | 只写一个几十行的指针文件，告诉它去哪读 `SKILL.md` |
-| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 6 个 tool |
+| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 7 个 tool |
 
 `python install.py --target all` 会一次性把 A、B 两种入口铺好；C 只需在客户端配置里加一行命令。**三种方式共享同一套 `scripts/` 与 `references/`，不存在分叉。**
 
@@ -112,7 +112,7 @@ metadata:
 | 层 | 文件 | 说明 |
 |---|---|---|
 | 数据层 | `world.json` | **单一数据源**。改设定只改它，再重跑脚本 |
-| 呈现层 | `preview.html` | 3D 预览（多恒星系统 + 行星特写 + 双光源昼夜） |
+| 呈现层 | `preview.html` | 3D 预览（多恒星系统 + 行星特写 + 双光源昼夜）+ 地面视角 + 演化视图 |
 | 阅读层 | `世界档案.md` | 通俗版，含"三律"、常数表、生态、文明、审查报告 |
 | 审查层 | `审查报告.json` | 五维评分 + 致命项 + 修补建议（`export --json-out` 产出） |
 
@@ -142,7 +142,22 @@ python scripts/pangu.py export out/world.json --md out/世界档案.md
 # 5. 查公理库（可复用的反常识设定积木）
 python scripts/pangu.py axioms              # 列全部
 python scripts/pangu.py axioms --domain physics --roll 3   # 物理类随机抽 3 条
+
+# 6. 第一人称切片体检（两百字验尸：字数 / 定稿 / 引用 / 现象 / 时序）
+python scripts/pangu.py slice out/world.json
+
+# 7. 红队审查（让 AI 扮演敌对物理学家提问，未结案不许交付）
+python scripts/pangu.py redteam out/world.json            # 生成质疑
+python scripts/pangu.py redteam out/world.json --write    # 回写 world.json（按 id 幂等）
+python scripts/pangu.py redteam out/world.json --check    # 体检靶点与结案率
+
+# 8. 生态演化（把 biology.evolution 编译成元胞自动机）
+python scripts/pangu.py ca out/world.json                 # 只编译：看规则、代价、强迫项
+python scripts/pangu.py ca out/world.json --run           # 跑演化并出快照图
+python scripts/pangu.py ca out/world.json --check         # 同 seed 复算，与 summary 逐项比对
 ```
+
+**演化模型的铁律**：规则不能凭空写，每条必须带 `source` 指回 `world.json` 的某个字段，否则编译失败；summary 里的数字必须是真跑出来的，`ca --check` 会复算打假。
 
 ## 质量红线
 
@@ -172,13 +187,15 @@ python scripts/pangu.py axioms --domain physics --roll 3   # 物理类随机抽 
 | `references/检索与灵感策略.md` | 检索配方、query 模板、取反技巧、结果改写规范 | 每斧的"搜"环节 |
 | `references/自洽性审查协议.md` | 五维十六问、致命项清单、修补话术 | 第 7 斧 |
 | `references/world-schema.md` | `world.json` 全字段规范与最小示例 | 写 JSON 前必读 |
-| `scripts/pangu.py` | 主 CLI：init / validate / preview / export / axioms / doctor | 每次操作 |
+| `scripts/pangu.py` | 主 CLI：init / validate / preview / export / axioms / doctor / slice / redteam / ca | 每次操作 |
 | `scripts/world_schema.py` | 结构校验、单位换算、天体物理计算、打分 | 被 import，勿单独运行 |
+| `scripts/ca_engine.py` | 生态演化引擎：编译、跑、复算比对、快照出图 | `ca` 子命令调用 |
+| `scripts/png_writer.py` | 零依赖 PNG 编码器（zlib + struct） | 被 `ca_engine` import |
 | `scripts/preview_template.html` | 3D 预览前端（Three.js，单文件自包含） | 被 `preview` 子命令读取 |
 | `examples/helikon/` | 完整示例：「赫利孔」三阳世界 | 不确定标准时对照 |
 | `AGENTS.md` | 通用 agent 指令文件（Codex/Amp/Jules 等直接读） | 宿主只认 `AGENTS.md` 时 |
 | `install.py` | 一键把入口铺到各 harness | 首次安装 / 换宿主 |
-| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 6 个 tool | 客户端只支持 MCP |
+| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 7 个 tool | 客户端只支持 MCP |
 | `adapters/generic/BOOTSTRAP.md` | 纯对话版启动提示词（无文件系统也能用） | 宿主不能读文件 |
 | `docs/跨harness移植说明.md` | 兼容矩阵、各宿主配置样例、排错 | 装载失败时 |
 

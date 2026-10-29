@@ -3,7 +3,7 @@
     "id": "helikon",
     "name": "赫利孔",
     "subtitle": "三阳世界",
-    "version": "1.0",
+    "version": "1.1",
     "created": "2026-10-27",
     "author": "盘古 / 自主生成",
     "tagline": "两个太阳，两道影子，一个从不迟到的历法。",
@@ -82,7 +82,9 @@
           "parent": "AB",
           "a_au": 0.1352,
           "period_days": 44.5,
-          "eccentricity": 0.02
+          "eccentricity": 0.02,
+          "phase_deg": 0.0,
+          "arg_periapsis_deg": 0.0
         },
         "note": "主星，色温偏高，正午的天光由它主导，影子边缘锐利"
       },
@@ -99,7 +101,9 @@
           "parent": "AB",
           "a_au": 0.1648,
           "period_days": 44.5,
-          "eccentricity": 0.02
+          "eccentricity": 0.02,
+          "phase_deg": 180.0,
+          "arg_periapsis_deg": 0.0
         },
         "note": "伴星，偏橙，影子的边缘永远糊，被称作「软影」"
       },
@@ -116,7 +120,9 @@
           "parent": "AB",
           "a_au": 12.0,
           "period_days": 11243,
-          "eccentricity": 0.18
+          "eccentricity": 0.18,
+          "phase_deg": 180.0,
+          "arg_periapsis_deg": 0.0
         },
         "note": "层级伴星，30 年绕行一周，夜空里一盏不灭的橙红小灯，是唯一可靠的方位基准"
       }
@@ -195,7 +201,7 @@
         "sea_level": 0.46,
         "polar_amount": 0.62,
         "polar_color": "#E8F0F8",
-        "note": "主干天体。三倍地球半径，1.76 g，一天 31.4 小时，一年恰好八个双星周期"
+        "note": "主干天体。三倍地球半径，1.76 g，一天 31.4 小时，一年恰好八个双星周期 地壳以「重盐—石英」复合相为主：1.76 g 与 118 kPa 下重盐硬度接近石英，屈服强度比地球硅酸盐地壳高一个量级，因此 3R⊕ 的密度差不至于在百万年内塌陷。"
       },
       {
         "id": "erebos",
@@ -252,6 +258,35 @@
       "months": 8,
       "month_days": 44.49,
       "epoch": "落火元年"
+    },
+    "sky_phenomena_aliases": {
+      "双影": [
+        "两个影子",
+        "两道影子",
+        "两道影",
+        "影子",
+        "厚影"
+      ],
+      "双星合": [
+        "双星合",
+        "互食"
+      ],
+      "晨紫暮红": [
+        "晨紫暮红",
+        "铁灰",
+        "暗金属灰",
+        "蓝紫"
+      ]
+    },
+    "surface": {
+      "observer": {
+        "lat_deg": 12.0,
+        "lon_deg": 0.0,
+        "elev_m": 300
+      },
+      "horizon_deg": 0.0,
+      "ground_color": "#2a3a4a",
+      "notes": "晨昏温差带上的灰阶诸城之一。坡顶海拔 300 米，是全城少数能同时看清两道影子边界的地方。"
     }
   },
   "physics": {
@@ -371,7 +406,7 @@
     "trophic_levels": [
       {
         "name": "初级生产者",
-        "share": 0.82,
+        "share": 0.761,
         "examples": [
           "双峰藻（海洋）",
           "锈苔（陆地）",
@@ -380,7 +415,7 @@
       },
       {
         "name": "初级消费者",
-        "share": 0.13,
+        "share": 0.111,
         "examples": [
           "浮游甲壳类",
           "六足食苔兽",
@@ -389,7 +424,7 @@
       },
       {
         "name": "次级消费者",
-        "share": 0.038,
+        "share": 0.057,
         "examples": [
           "双影猎兽",
           "滑翔翼龙类"
@@ -402,8 +437,508 @@
           "灰背巨蜥",
           "渊喉（深层）"
         ]
+      },
+      {
+        "name": "分解者与腐食链",
+        "share": 0.059,
+        "examples": [
+          "嗜热菌毯",
+          "裂缝腐食螨"
+        ],
+        "note": "演化模型未建这一层；份额由「总量守恒」倒推，是 CA 暴露出来的缺口"
       }
     ],
+    "evolution": {
+      "compiler": "1.0",
+      "note": "本模型不是内置规则，而是从本世界的双峰光合、地息化能、双星合周期逐条编译出来的；每条规则的 source 都能在 world.json 里解析到出处。",
+      "grid": {
+        "nx": 120,
+        "ny": 90,
+        "cell_km": 1000.0,
+        "topology": "lon-closed"
+      },
+      "clock": {
+        "hours_per_step": 1.8,
+        "steps_per_day": 17.44
+      },
+      "states": [
+        {
+          "id": "bare",
+          "name": "空岩",
+          "kind": "substrate",
+          "color": "#3b3a40",
+          "initial_share": 0.34
+        },
+        {
+          "id": "rustmoss",
+          "name": "锈苔",
+          "kind": "producer",
+          "color": "#7a4a8c",
+          "initial_share": 0.22,
+          "source": "biology.photosynthesis.absorbs"
+        },
+        {
+          "id": "alga",
+          "name": "双峰藻",
+          "kind": "producer",
+          "color": "#2f6f9e",
+          "initial_share": 0.12,
+          "source": "biology.trophic_levels[0].examples[0]"
+        },
+        {
+          "id": "ventmat",
+          "name": "地息菌席",
+          "kind": "producer",
+          "color": "#c9a227",
+          "initial_share": 0.06,
+          "source": "chemistry.abiotic_notes"
+        },
+        {
+          "id": "grazer",
+          "name": "食苔兽",
+          "kind": "consumer",
+          "color": "#b5651d",
+          "initial_share": 0.14,
+          "source": "biology.trophic_levels[1].examples[1]"
+        },
+        {
+          "id": "hunter",
+          "name": "双影猎兽",
+          "kind": "consumer",
+          "color": "#8b1a1a",
+          "initial_share": 0.06,
+          "source": "biology.trophic_levels[2].examples[0]"
+        },
+        {
+          "id": "salt",
+          "name": "盐壳",
+          "kind": "other",
+          "color": "#dcd7c9",
+          "initial_share": 0.03,
+          "source": "chemistry.signature_materials[2]"
+        },
+        {
+          "id": "char",
+          "name": "焦土",
+          "kind": "hazard",
+          "color": "#1a1a1a",
+          "initial_share": 0.03,
+          "source": "biology.mass_extinctions[1]"
+        }
+      ],
+      "forcing": [
+        {
+          "id": "F1",
+          "name": "双星辐照",
+          "kind": "insolation",
+          "period_days": 1.308,
+          "phase_deg": 0,
+          "amp": 1.0,
+          "source": "cosmology.calendar.day_hours"
+        },
+        {
+          "id": "F2",
+          "name": "双星合冷脉冲",
+          "kind": "pulse",
+          "period_days": 44.49,
+          "phase_deg": 0,
+          "amp": 1.0,
+          "source": "cosmology.calendar.month_days"
+        },
+        {
+          "id": "F3",
+          "name": "潮汐应力",
+          "kind": "tidal",
+          "period_days": 44.49,
+          "phase_deg": 180,
+          "amp": 0.8,
+          "source": "biology.mass_extinctions[2]"
+        }
+      ],
+      "rules": [
+        {
+          "id": "R1",
+          "from": "bare",
+          "to": "rustmoss",
+          "prob": 0.15,
+          "forcing": "F1",
+          "forcing_gain": 1.0,
+          "when": {
+            "neighbors": {
+              "of": "rustmoss",
+              "count": ">=1",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.photosynthesis.absorbs",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.0
+          },
+          "note": "双峰卟啉 P-590/450 双峰吸收：光照越足，锈苔铺得越快"
+        },
+        {
+          "id": "R2",
+          "from": "rustmoss",
+          "to": "char",
+          "prob": 0.01,
+          "retrograde": true,
+          "when": {
+            "forcing_above": {
+              "id": "F1",
+              "value": 0.92
+            }
+          },
+          "source": "biology.photosynthesis.appearance",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          },
+          "note": "逆行律：地球直觉是光越强长得越好；赫利孔两星并照时双峰同时饱和，反而光抑制灼伤（“正午植被呈暗金属灰”）"
+        },
+        {
+          "id": "R3",
+          "from": "bare",
+          "to": "ventmat",
+          "prob": 0.03,
+          "forcing": "F3",
+          "forcing_gain": 1.0,
+          "when": {
+            "neighbors": {
+              "of": "ventmat",
+              "count": ">=1",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "chemistry.abiotic_notes",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.8
+          },
+          "note": "地息（H₂S）从裂缝渗漏，菌席只能在潮汐开缝时沿裂隙扩展"
+        },
+        {
+          "id": "R4",
+          "from": "rustmoss",
+          "to": "char",
+          "prob": 0.006,
+          "when": {
+            "neighbors": {
+              "of": "ventmat",
+              "count": ">=1",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "chemistry.abiotic_notes",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          },
+          "note": "地息是可燃气：菌席渗漏带的锈苔会被引燃"
+        },
+        {
+          "id": "R5",
+          "from": "char",
+          "to": "bare",
+          "prob": 0.1,
+          "when": {
+            "neighbors": {
+              "of": "char",
+              "count": "<=4",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.mass_extinctions[1]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          }
+        },
+        {
+          "id": "R6",
+          "from": "rustmoss",
+          "to": "grazer",
+          "prob": 0.022,
+          "when": {
+            "neighbors": {
+              "of": "rustmoss",
+              "count": ">=5",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.trophic_levels[1].examples[1]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.5
+          },
+          "note": "六足食苔兽在锈苔连片处取食——由食物密度驱动成核，而非依赖同类邻居"
+        },
+        {
+          "id": "R7",
+          "from": "grazer",
+          "to": "hunter",
+          "prob": 0.008,
+          "when": {
+            "neighbors": {
+              "of": "grazer",
+              "count": ">=2",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.trophic_levels[2].examples[0]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 2.0
+          },
+          "note": "双影猎兽在食苔兽成群处出现"
+        },
+        {
+          "id": "R8",
+          "from": "grazer",
+          "to": "bare",
+          "prob": 0.3,
+          "when": {
+            "none_of": [
+              {
+                "neighbors": {
+                  "of": "rustmoss",
+                  "count": ">=1",
+                  "radius": 1,
+                  "shape": "moore"
+                }
+              },
+              {
+                "neighbors": {
+                  "of": "alga",
+                  "count": ">=1",
+                  "radius": 1,
+                  "shape": "moore"
+                }
+              },
+              {
+                "neighbors": {
+                  "of": "ventmat",
+                  "count": ">=1",
+                  "radius": 1,
+                  "shape": "moore"
+                }
+              }
+            ]
+          },
+          "source": "biology.trophic_levels[1]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          }
+        },
+        {
+          "id": "R9",
+          "from": "hunter",
+          "to": "bare",
+          "prob": 0.06,
+          "when": {
+            "neighbors": {
+              "of": "grazer",
+              "count": "==0",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.trophic_levels[2]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          }
+        },
+        {
+          "id": "R10",
+          "from": "bare",
+          "to": "alga",
+          "prob": 0.06,
+          "forcing": "F1",
+          "forcing_gain": 1.0,
+          "when": {
+            "neighbors": {
+              "of": "alga",
+              "count": ">=2",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.trophic_levels[0].examples[0]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.0
+          }
+        },
+        {
+          "id": "R11",
+          "from": "bare",
+          "to": "salt",
+          "prob": 0.004,
+          "forcing": "F2",
+          "forcing_gain": 1.0,
+          "when": {
+            "neighbors": {
+              "of": "char",
+              "count": ">=3",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "chemistry.signature_materials[2]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.5
+          },
+          "note": "重盐在双星合寒夜后于烧焦带结晶——盐墙储热是灰阶诸城熬过互食 90 分钟的关键"
+        },
+        {
+          "id": "R12",
+          "from": "alga",
+          "to": "grazer",
+          "prob": 0.002,
+          "when": {
+            "neighbors": {
+              "of": "grazer",
+              "count": ">=2",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "biology.trophic_levels[0].examples[0]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.5
+          }
+        },
+        {
+          "id": "R13",
+          "from": "ventmat",
+          "to": "grazer",
+          "prob": 0.008,
+          "when": {
+            "neighbors": {
+              "of": "grazer",
+              "count": ">=2",
+              "radius": 1,
+              "shape": "moore"
+            }
+          },
+          "source": "chemistry.abiotic_notes",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.5
+          }
+        },
+        {
+          "id": "R14",
+          "from": "bare",
+          "to": "alga",
+          "prob": 2e-05,
+          "source": "biology.trophic_levels[0].examples[0]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 1.0
+          },
+          "note": "孢源：极低概率的远距离定植，防止小众生态位被吃绝后永久锁死"
+        },
+        {
+          "id": "R15",
+          "from": "bare",
+          "to": "ventmat",
+          "prob": 2e-05,
+          "source": "chemistry.abiotic_notes",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.8
+          },
+          "note": "孢源：同上，保证深层化能生态有重新点火的机会"
+        },
+        {
+          "id": "R16",
+          "from": "hunter",
+          "to": "bare",
+          "prob": 0.002,
+          "source": "biology.trophic_levels[3]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          },
+          "note": "顶级掠食者的自然死亡"
+        },
+        {
+          "id": "R17",
+          "from": "grazer",
+          "to": "bare",
+          "prob": 0.004,
+          "source": "biology.trophic_levels[1]",
+          "cost": {
+            "currency": "硫铁簇",
+            "value": 0.0
+          },
+          "note": "初级消费者的自然死亡"
+        }
+      ],
+      "steps": 800,
+      "seed": 7,
+      "summary": {
+        "steady_density": 0.335,
+        "cycle_steps": 35,
+        "collapse_prob": 0.0,
+        "measured_at_step": 800,
+        "primary_state": "rustmoss",
+        "energy_spent": 38814.7,
+        "state_density": {
+          "bare": 0.025,
+          "rustmoss": 0.335,
+          "alga": 0.242,
+          "ventmat": 0.184,
+          "grazer": 0.111,
+          "hunter": 0.057,
+          "salt": 0.031,
+          "char": 0.015
+        }
+      },
+      "figures": [
+        "out/helikon/ca-t0.png",
+        "out/helikon/ca-t400.png",
+        "out/helikon/ca-t800.png"
+      ],
+      "impacts": [
+        {
+          "target": "biology.trophic_levels[0].share",
+          "before": 0.82,
+          "after": 0.761,
+          "note": "CA 实测三个生产者稳态合计 0.761，取代纸面的 0.82"
+        },
+        {
+          "target": "biology.trophic_levels[1].share",
+          "before": 0.13,
+          "after": 0.111,
+          "note": "初级消费者由捕食转化与自然死亡共同平衡，低于原估值"
+        },
+        {
+          "target": "biology.trophic_levels[2].share",
+          "before": 0.038,
+          "after": 0.057,
+          "note": "CA 暴露：原纸面 0.038 低估了捕食效率，实测次级消费者更高"
+        },
+        {
+          "target": "biology.trophic_levels[4]",
+          "before": null,
+          "after": 0.059,
+          "note": "CA 未建模分解者，守恒差额暴露出一整层缺失的生态位"
+        }
+      ],
+      "status": "ok"
+    },
     "sentient": {
       "exists": true,
       "name": "灰民",
@@ -447,17 +982,82 @@
         "version": "1.0",
         "date": "2026-10-27",
         "change": "初版：确立 G'=0.60G、双星 0.30 AU、行星 1.20 AU、八分历法"
+      },
+      {
+        "version": "1.1",
+        "date": "2026-10-29",
+        "change": "加第一人称切片 / 地面视角 / 红队审查 / 世界原生元胞自动机（17 条规则由本世界设定编译）；营养级份额按 CA 实跑结果修正，并补出缺失的分解者层"
       }
     ]
   },
   "consistency": {
     "score": 0,
     "checks": [],
-    "open_issues": []
+    "open_issues": [],
+    "redteam": [
+      {
+        "id": "RT01",
+        "q": "表面重力 1.76 g、半径 3.0 R⊕、密度 5.391 g/cc，地壳屈服强度撑得住这个密度差吗？给一个数量级。",
+        "target": "cosmology.bodies[0].gravity_g",
+        "template": "数量级",
+        "verdict": "accepted",
+        "answer": "接受。1.76 g 下 3R⊕ 的静岩压力约为地球的 5 倍，硅酸盐地壳会进入韧性流动。赫利孔的解释是 G′=0.60G 使核内库仑排斥减弱、铁镍核占比更高（已写在 physics.constants[0].why），但原 note 没交代地壳刚度。已在 cosmology.bodies[0].note 补上重盐—石英复合相机制。",
+        "fix": "cosmology.bodies[0].note=补高重力下的地壳刚度机制"
+      },
+      {
+        "id": "RT02",
+        "q": "逃逸速度 33.19 km/s，表面温度 255.1 K——这个组合下，大气在亿年尺度上留得住吗？光致逃逸通量是多少？",
+        "target": "cosmology.bodies[0].mass_earth",
+        "template": "边界条件",
+        "verdict": "answered",
+        "answer": "33.19 km/s 的逃逸速度是地球的 2.96 倍，Jeans 逃逸参数远大于 1，热逃逸可忽略。真正的威胁是水的光解后氢逃逸，但 118 kPa 的大气柱在 10 亿年尺度上足以维持。不构成矛盾。"
+      },
+      {
+        "id": "RT03",
+        "q": "系统总光度 1.468 L☉ 摊到 26.4 M⊕，初级生产者份额 0.761，这条能量预算能撑住 5 层消费者吗？",
+        "target": "biology.trophic_levels[0].share",
+        "template": "能量收支",
+        "verdict": "accepted",
+        "answer": "接受，而且元胞自动机已经把它跑出来了。1.468 L☉ 摊到 26.4 M⊕ 的预算撑不住纸面的 0.82/0.13/0.038/0.012。实跑 800 步稳态为 0.761/0.111/0.057，并暴露出一整层缺失的分解者。营养级份额已按 CA 结果修正。",
+        "fix": "biology.trophic_levels[0].share=按 CA 实跑结果修正"
+      },
+      {
+        "id": "RT04",
+        "q": "「每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘…」从地面怎么观测？观测时刻表能不能提前预报？历法月长 44.49 天，对得上吗？",
+        "target": "cosmology.calendar.month_days",
+        "template": "观测一致性",
+        "verdict": "answered",
+        "answer": "能预报。双星互绕周期 44.49 天恰是历法月长，一年 8 个月即 8 个双星周期，这是周期比 (a/a_b)^1.5 = 8 的几何必然。祭司阶层垄断曜岩日晷正是因为他们读得懂这个相位；预报误差主要来自轨道偏心率 0.03。"
+      },
+      {
+        "id": "RT05",
+        "q": "「两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影…」在 31.4 小时的一天里，居民什么时候能看到它？看不到的那部分时间，设定靠什么成立？",
+        "target": "cosmology.sky_phenomena",
+        "template": "观测一致性",
+        "verdict": "answered",
+        "answer": "两影夹角由双星相位决定，一个自转周期（31.4 小时）内走完一轮，正午相位差最小、两影合拢。居民在每个白天都能看到夹角的连续变化——这正是痕迹律要的那种抬头可见、且随时间可读的异常。"
+      }
+    ]
   },
   "narrative": {
     "three_seconds": "天上两个太阳，一大一小，一冷一暖，绕着彼此转。地上每个人都有两道影子，一道锐利，一道模糊。一年不是十二个月，是八个「暗月」——每四十四天，小的走到大的前面，天在九十分钟里暗下去，全城停摆，祭司登塔。他们的历法从不误差，因为一年恰好是八个双星周期，这是几何的必然，不是巧合。",
     "setpiece": "双星合的那九十分钟。天空从琥珀色一层层褪到铁灰，气温骤降十一度，两道影子在广场石板上缓缓合拢成一个厚影。所有人停下手中的活，背对天空站立——不是因为敬畏，是因为直视会瞎。祭司在塔顶用曜岩日晷记录那一刻的精确角度，而城墙上的盐砖开始放出白天存下的热，白色的雾气顺着墙面升起，整座城像在呼吸。",
-    "hook": "他们从不校准历法。历法自己就是对的——因为一年正好是八个双星周期，这是开普勒第三定律替他们签好的契约。"
+    "hook": "他们从不校准历法。历法自己就是对的——因为一年正好是八个双星周期，这是开普勒第三定律替他们签好的契约。",
+    "slice": {
+      "text": "我醒在第 31 小时。天还没亮，盐墙的余温贴着后背，像一只手把我按住。睁眼第一件事不是看天，是看墙——曜岩外墙由白转橙，说明短烛已经绕到长明前面，今天有双影。我摸黑走到坡顶，两个影子已经铺在脚下了：一个边缘像刀，冷灰；一个边缘像毛边纸，泛着琥珀。我数它们之间的夹角，八指宽，比昨天窄。四色眼睛能看见那道色温差，这是灰民最古老的钟。正午两星并照，影子合成一个厚团，我低头，不敢看天——曜岩石面在那一刻会亮得发白。日落前最后一小时最难熬，光从铁灰里退出去，我缩回盐墙后面。躺下时我摸了摸影子刚才待过的地方，石头还是热的。",
+      "cites": [
+        "cosmology.calendar.day_hours",
+        "cosmology.sky_phenomena[0]",
+        "cosmology.sky_phenomena[1]",
+        "biology.sentient.note",
+        "chemistry.signature_materials[0]",
+        "chemistry.signature_materials[2]"
+      ],
+      "hours": [
+        0.0,
+        31.4
+      ],
+      "status": "ok"
+    }
   }
 }

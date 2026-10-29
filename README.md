@@ -1,8 +1,8 @@
-# 盘古 1.0 Pangu
+# 盘古 1.1 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.0.0-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.0-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
@@ -15,6 +15,21 @@
 不绑定任何平台。Claude、GPT、Gemini、本地模型，Claude Code、Codex、Cursor、Windsurf、Cline、Zed，或者你自己写的 harness —— 只要能读文件，就能用它；只要支持 MCP，就能把它当工具调。
 
 > 地球不是模板，是一个样本。
+
+---
+
+## 1.1 新增了什么
+
+1.0 能把世界**造出来**，1.1 让世界**跑起来、验得过、能反驳**：
+
+- **生态演化引擎**（`scripts/ca_engine.py`）：把 `biology.evolution` 编译成元胞自动机。每条规则必须带 `source` 指回设定字段，编译期就抓规则冲突与阈值不可达；`ca --check` 同 seed 复算，六项 summary 逐位对齐——抄来的数字会被打回。
+- **零依赖出图**（`scripts/png_writer.py`）：纯 `zlib` + `struct` 写 PNG，不引 Pillow，`ca --run` 直接出快照序列图。
+- **地面视角**：站在地表抬头，双日按球面三角真算的方位角 / 高度角走，影子方向 = 恒星方位 + 180°。
+- **演化视图**：2D 生态相 + 密度曲线 + 天文强迫场 + 环境监测面板；曲线取最近 320 步滚动窗口，长时程不再糊成一片。
+- **两个新体检**：`slice`（第一人称切片，两百字验尸）、`redteam`（红队审查，让 AI 扮演敌对物理学家提问，未结案不许交付）。
+- **校验 17 → 31 项**，新增历法一致性、地面观察点、切片、红队、演化落地与周期性灾变证据。
+
+详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -66,6 +81,12 @@ python scripts/pangu.py init --name "赫利孔" \
 python scripts/pangu.py validate out/helikon.json --fix-hint
 python scripts/pangu.py preview  out/helikon.json
 python scripts/pangu.py export   out/helikon.json --md out/世界档案.md
+
+# 1.1：体检 + 演化
+python scripts/pangu.py slice    out/helikon.json --check    # 第一人称切片体检
+python scripts/pangu.py redteam  out/helikon.json --check    # 红队体检
+python scripts/pangu.py ca       out/helikon.json --run      # 生态演化 + 快照图
+python scripts/pangu.py ca       out/helikon.json --check    # 同 seed 复算比对
 ```
 
 `preview` 生成的 HTML 双击即开，不需要服务器、不需要构建、不需要联网（首次需从 CDN 取一次 Three.js，之后走缓存；完全离线时会降级为数据视图）。
@@ -126,7 +147,8 @@ python scripts/pangu.py export   out/helikon.json --md out/世界档案.md
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
 │   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，7 个 tool）
 ├── docs/
-│   ├── 开发文档-v1.0.md         架构、算法、接口、验收矩阵、路线图
+│   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
+│   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
 │   ├── 3D预览层规范.md          渲染层技术规格
 │   └── 优化建议.md              已知短板与改进方向
@@ -138,14 +160,19 @@ python scripts/pangu.py export   out/helikon.json --md out/世界档案.md
 │   └── world-schema.md          JSON 全字段规范 + 机检清单
 ├── scripts/
 │   ├── pangu.py                 CLI：init / validate / preview / export / axioms / doctor
+│   │                                / slice / redteam / ca
 │   ├── world_schema.py          校验内核：天体物理计算、评分、公理库解析
-│   ├── preview_template.html    Three.js 单文件 3D 预览模板
+│   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对
+│   ├── png_writer.py            零依赖 PNG 编码器（zlib + struct）
+│   ├── preview_template.html    单文件预览模板（Three.js 3D + 地面视角 + 演化视图）
 │   └── selftest.py              验收自测（对齐开发文档 §9）
 └── examples/helikon/            完整示例「赫利孔」三阳世界
     ├── world.json
     ├── preview.html
     ├── 世界档案.md
-    └── 审查报告.json
+    ├── 审查报告.json
+    ├── surface.png              地面视角截图
+    └── evolution.png            演化视图截图
 ```
 
 ---
@@ -182,6 +209,7 @@ python scripts/pangu.py export   out/helikon.json --md out/世界档案.md
 - Python ≥ 3.9，**零第三方包**（安装器、CLI、MCP 服务器全都只用标准库）
 - 3D 层需要浏览器支持 WebGL；Three.js 从 CDN 加载，带四路回退与离线降级页
 - 3D 图**不表示真实比例**：轨道与天体半径采用双尺度压缩（数量级差 5 位以上，同屏无意义）
+- 浏览器端演化是延续轨迹，与 Python 端复算存在少量统计残差，面板里直接显示偏差百分比
 - 平衡温度公式忽略温室效应，实际表面温度可能高 30–50 K
 - 检索能力由宿主提供，盘古只给出检索配方；无联网时"搜"环节退化为"凭知识锚定"，仍可产出但校准变弱
 
