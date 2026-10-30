@@ -1,20 +1,22 @@
 ---
 name: pangu
-description: 盘古 1.1 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览"等需求时使用。
+description: 盘古 1.1.1 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。1.1.1 能从设定推演整颗行星的地图（板块→盆地→水量定海平面→年辐照定温度→风带与迎风坡定降水→洼地填充定河网→群系），再让元胞自动机按宜居度长生态。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案、行星地图与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览""推演一张星球地图"等需求时使用。
 license: MIT
 metadata:
-  title: 盘古 1.1 · 开天辟地造世引擎
-  version: 1.1.0
+  title: 盘古 1.1.1 · 开天辟地造世引擎
+  version: 1.1.1
   entrypoint: scripts/pangu.py
   runtime: python>=3.9 (仅标准库)
   install: python install.py --target all
 ---
 
-# 盘古 1.1 · 开天辟地造世引擎
+# 盘古 1.1.1 · 开天辟地造世引擎
 
 盘古不是"写设定"，是**立律**。区别在于：设定回答"这个世界有什么"，律回答"这个世界为什么只能长成这样"。
 
 地球不是模板，是**一个样本**。世界的引力常数可以不是 6.674e-11，光速可以不是 c，碳可以不是生命骨架，一天可以不是自转给的。本技能的任务是：让用户（或你）重写这些常数与规则，然后严格推导——推导出山怎么长、雨怎么下、生物怎么喘气、文明怎么计时——直到它**自洽到能骗过物理学家**，同时**奇诡到没人想过**。
+
+1.1.1 补上了 1.1 缺的那层：**地**。`map` 子命令从设定推演整颗行星——板块碰撞长出山脉，水量与盆地容积共同定海平面，年辐照与温室定温度，风带与迎风坡定降水，洼地填充定河网，最后用世界自己声明的群系高程带划出沙漠、森林、冰盖。地图还会喂给 `ca`：宜居度高的格子先长生产者，生长概率按宜居度缩放。
 
 ## 宿主无关：这份技能不绑定任何一家 agent
 
@@ -26,7 +28,7 @@ metadata:
 |---|---|---|
 | **A. 原生技能目录** | Claude Code / Claude.ai Skills、OpenAI Codex、Cline、Roo、OpenHands、以及任何支持 `SKILL.md` 约定或"把目录塞进上下文"的框架 | 整个目录，入口 `SKILL.md` |
 | **B. 指令文件指针** | Codex / Amp / Jules（`AGENTS.md`）、Cursor（`.cursor/rules/*.mdc`）、Windsurf（`.windsurf/rules/*.md`）、Gemini CLI（`GEMINI.md`） | 只写一个几十行的指针文件，告诉它去哪读 `SKILL.md` |
-| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 7 个 tool |
+| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 9 个 tool |
 
 `python install.py --target all` 会一次性把 A、B 两种入口铺好；C 只需在客户端配置里加一行命令。**三种方式共享同一套 `scripts/` 与 `references/`，不存在分叉。**
 
@@ -155,9 +157,17 @@ python scripts/pangu.py redteam out/world.json --check    # 体检靶点与结�
 python scripts/pangu.py ca out/world.json                 # 只编译：看规则、代价、强迫项
 python scripts/pangu.py ca out/world.json --run           # 跑演化并出快照图
 python scripts/pangu.py ca out/world.json --check         # 同 seed 复算，与 summary 逐项比对
+
+# 9. 行星地图（从设定推演地形、海平面、气候、河网、群系）
+python scripts/pangu.py map out/world.json                # 只推演：看海洋占比、山峰、均温、河流
+python scripts/pangu.py map out/world.json --run          # 出七层图 + 正射地球 + map.html
+python scripts/pangu.py map out/world.json --write --yes  # 把摘要与粗粒度场写回 world.json（喂 CA）
+python scripts/pangu.py map out/world.json --check        # 同 seed 复算 + 六项地图体检
 ```
 
-**演化模型的铁律**：规则不能凭空写，每条必须带 `source` 指回 `world.json` 的某个字段，否则编译失败；summary 里的数字必须是真跑出来的，`ca --check` 会复算打假。
+**演化模型的铁律**：规则不能凭空写，每条必须带 `source` 指回 `world.json` 的某个字段，否则编译失败；summary 里的数字必须是真跑出来的，`ca --check` 会复算打假，1.1.1 起连最终格子的 `final_hash` 都要逐位对齐。
+
+**地图的铁律**：海平面不是手填的，是水量与盆地容积解出来的；群系颜色和名字来自 `bodies[0].biomes[]`，不是引擎内置的地球群系。`map --write` 只写摘要和 72×36 的粗粒度场，**不写整张图**——图是派生文件，world.json 仍是单一数据源。
 
 ## 质量红线
 
@@ -189,13 +199,14 @@ python scripts/pangu.py ca out/world.json --check         # 同 seed 复算，�
 | `references/world-schema.md` | `world.json` 全字段规范与最小示例 | 写 JSON 前必读 |
 | `scripts/pangu.py` | 主 CLI：init / validate / preview / export / axioms / doctor / slice / redteam / ca | 每次操作 |
 | `scripts/world_schema.py` | 结构校验、单位换算、天体物理计算、打分 | 被 import，勿单独运行 |
-| `scripts/ca_engine.py` | 生态演化引擎：编译、跑、复算比对、快照出图 | `ca` 子命令调用 |
+| `scripts/ca_engine.py` | 生态演化引擎：编译、跑、复算比对、快照出图、地图耦合 | `ca` 子命令调用 |
+| `scripts/mapgen.py` | 行星地图引擎：板块、海平面、气候、河网、群系、出图与交互页 | `map` 子命令调用 |
 | `scripts/png_writer.py` | 零依赖 PNG 编码器（zlib + struct） | 被 `ca_engine` import |
 | `scripts/preview_template.html` | 3D 预览前端（Three.js，单文件自包含） | 被 `preview` 子命令读取 |
 | `examples/helikon/` | 完整示例：「赫利孔」三阳世界 | 不确定标准时对照 |
 | `AGENTS.md` | 通用 agent 指令文件（Codex/Amp/Jules 等直接读） | 宿主只认 `AGENTS.md` 时 |
 | `install.py` | 一键把入口铺到各 harness | 首次安装 / 换宿主 |
-| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 7 个 tool | 客户端只支持 MCP |
+| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 9 个 tool | 客户端只支持 MCP |
 | `adapters/generic/BOOTSTRAP.md` | 纯对话版启动提示词（无文件系统也能用） | 宿主不能读文件 |
 | `docs/跨harness移植说明.md` | 兼容矩阵、各宿主配置样例、排错 | 装载失败时 |
 

@@ -473,6 +473,56 @@ def validate(world: dict, strict: bool = False) -> Report:
         "pass" if not bio_issues else "warn",
         "；".join(bio_issues) if bio_issues else "正常")
 
+    # ── M10–M11 行星地图（1.1.1）────────────────────────────────────
+    pm_bodies = [b for b in bodies if isinstance(b, dict)
+                 and isinstance(b.get("planet_map"), dict)]
+    if not pm_bodies:
+        add("M10", "observation", "行星地图摘要可机检？", "skip",
+            "未生成地图（pangu.py map --run --write --yes 后才有）")
+    else:
+        probs = []
+        for b in pm_bodies:
+            pm = b["planet_map"]
+            st = pm.get("summary") if isinstance(pm.get("summary"), dict) else {}
+            if not st:
+                probs.append(f"{b.get('id')} 缺 summary")
+                continue
+            try:
+                of = float(st.get("ocean_fraction"))
+                mt = float(st.get("mean_temperature_k"))
+                me = float(st.get("max_elevation_km"))
+                rc = int(st.get("river_cells", 0))
+            except (TypeError, ValueError):
+                probs.append(f"{b.get('id')} summary 数值不可解析")
+                continue
+            if not (0.0 <= of <= 1.0):
+                probs.append(f"{b.get('id')} 海洋占比越界 {of}")
+            if not (50.0 <= mt <= 1000.0):
+                probs.append(f"{b.get('id')} 均温越界 {mt} K")
+            if me <= 0:
+                probs.append(f"{b.get('id')} 最高峰非正 {me}")
+            if rc <= 0:
+                probs.append(f"{b.get('id')} 没有河流（水循环断了？）")
+            if not str(pm.get("hash") or ""):
+                probs.append(f"{b.get('id')} 缺复算哈希")
+            coarse = pm.get("coarse") if isinstance(pm.get("coarse"), dict) else {}
+            cnx, cny = int(_num(coarse.get("nx"), 0)), int(_num(coarse.get("ny"), 0))
+            if cnx > 0 and cny > 0:
+                for key in ("habitat", "temperature", "elevation", "ocean"):
+                    if len(str(coarse.get(key) or "")) != cnx * cny:
+                        probs.append(f"{b.get('id')} coarse.{key} 长度不符 {cnx}×{cny}")
+        add("M10", "observation", "行星地图摘要可机检？",
+            "pass" if not probs else "warn",
+            "地图摘要自洽" if not probs else "；".join(probs[:4]))
+
+    add("M11", "observation", "地图是否喂给了生态演化？",
+        "pass" if any(isinstance(b.get("planet_map"), dict)
+                      and b["planet_map"].get("coarse") for b in bodies
+                      if isinstance(b, dict)) else "skip",
+        "有 coarse 场，CA 可按图分布" if any(
+            isinstance(b.get("planet_map"), dict) and b["planet_map"].get("coarse")
+            for b in bodies if isinstance(b, dict)) else "未生成 coarse 场")
+
     # ── S04 开普勒（恒星）────────────────────────────────────────────
     stars = cos.get("stars") or []
     kep_issues = []

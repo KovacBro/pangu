@@ -31,7 +31,7 @@
       "dim": "structure",
       "question": "meta 必填字段齐全？",
       "verdict": "pass",
-      "note": "赫利孔 v1.0"
+      "note": "赫利孔 v1.1.1"
     },
     {
       "id": "S02",
@@ -46,6 +46,20 @@
       "question": "生物群系分布合法？",
       "verdict": "pass",
       "note": "正常"
+    },
+    {
+      "id": "M10",
+      "dim": "observation",
+      "question": "行星地图摘要可机检？",
+      "verdict": "pass",
+      "note": "地图摘要自洽"
+    },
+    {
+      "id": "M11",
+      "dim": "observation",
+      "question": "地图是否喂给了生态演化？",
+      "verdict": "pass",
+      "note": "有 coarse 场，CA 可按图分布"
     },
     {
       "id": "S04",
@@ -85,9 +99,9 @@
     {
       "id": "E01",
       "dim": "energy",
-      "question": "平衡温度能否支持液态溶剂？",
+      "question": "表面温度能否支持液态溶剂？",
       "verdict": "pass",
-      "note": "helikon=255.1K"
+      "note": "helikon T_eq=255.1K+温室33→288.1K"
     },
     {
       "id": "E02",
@@ -118,6 +132,20 @@
       "note": "历法 31.4h / 自转 31.4h"
     },
     {
+      "id": "O03",
+      "dim": "observation",
+      "question": "地面观察点合法？",
+      "verdict": "pass",
+      "note": "观察点 12.0°, 0.0°"
+    },
+    {
+      "id": "O04",
+      "dim": "observation",
+      "question": "地面视角有可观测的恒星？",
+      "verdict": "pass",
+      "note": "3 颗恒星可观测"
+    },
+    {
       "id": "N01",
       "dim": "narrative",
       "question": "叙事三件套是否齐全？",
@@ -130,6 +158,69 @@
       "question": "检索依据是否充分且被使用？",
       "verdict": "pass",
       "note": "5 条"
+    },
+    {
+      "id": "N03",
+      "dim": "narrative",
+      "question": "第一人称切片是否可交付？",
+      "verdict": "pass",
+      "note": "224 字，已定稿"
+    },
+    {
+      "id": "N04",
+      "dim": "narrative",
+      "question": "切片引用能全部解析？",
+      "verdict": "pass",
+      "note": "6 条引用全部命中"
+    },
+    {
+      "id": "N05",
+      "dim": "narrative",
+      "question": "切片里出现了抬头可见的现象？",
+      "verdict": "pass",
+      "note": "命中 双影、晨紫暮红"
+    },
+    {
+      "id": "N06",
+      "dim": "narrative",
+      "question": "切片时序与历法对得上？",
+      "verdict": "pass",
+      "note": "时序与历法一致"
+    },
+    {
+      "id": "N07",
+      "dim": "narrative",
+      "question": "红队质疑是否成军？",
+      "verdict": "pass",
+      "note": "5 条，靶点全部可解析"
+    },
+    {
+      "id": "N08",
+      "dim": "narrative",
+      "question": "红队质疑是否全部有结论？",
+      "verdict": "pass",
+      "note": "全部有结论"
+    },
+    {
+      "id": "N09",
+      "dim": "evolution",
+      "question": "生态演化模型可编译？",
+      "verdict": "pass",
+      "note": "8 态 / 17 条规则 / 3 项外部强迫"
+    },
+    {
+      "id": "N10",
+      "dim": "evolution",
+      "question": "演化结果落地到设定里了吗？",
+      "verdict": "pass",
+      "note": "4 处落地：biology.trophic_levels[0].share、biology.trophic_levels[1].share、biology.trophic_levels[2].share"
+    },
+    {
+      "id": "N11",
+      "dim": "evolution",
+      "question": "周期性灾变有演化证据吗？",
+      "verdict": "pass",
+      "note": "cycle_steps=34 ≈ 2.6 天（一步 1.8 小时）"
     },
     {
       "id": "X01",
@@ -164,7 +255,9 @@
         "v_escape_km_s": 33.19,
         "radius_km_calc": 19113.0,
         "a_au": 1.2,
-        "t_eq_k": 255.1
+        "t_eq_k": 255.1,
+        "greenhouse_delta_k": 33.0,
+        "t_surface_k": 288.1
       },
       {
         "id": "erebos",
@@ -179,7 +272,9 @@
         "v_escape_km_s": 3.2,
         "radius_km_calc": 3504.1,
         "a_au": 0.008,
-        "t_eq_k": 0.0
+        "t_eq_k": 0.0,
+        "greenhouse_delta_k": 0,
+        "t_surface_k": 0.0
       }
     ]
   }

@@ -25,6 +25,7 @@ from __future__ import annotations
 import math
 import random
 import re
+import zlib
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -83,6 +84,7 @@ class RuleDef:
     retrograde: bool
     radius: int
     shape: str
+    map_gain: float = 0.0
 
 
 @dataclass
@@ -95,6 +97,7 @@ class Program:
     errors: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
     initial: dict = field(default_factory=dict)   # state_index -> share
+    map: dict = field(default_factory=dict)       # 地图耦合：字段 + 配置
 
     @property
     def ok(self) -> bool:
@@ -115,6 +118,10 @@ class Stats:
     energy_spent: float = 0.0
     snapshots: dict = field(default_factory=dict)  # step -> list of state_index
     primary: str = ""
+    final_hash: str = ""
+    max_drawdown: float = 0.0
+    resilience: float = 0.0
+    final_grid: list = field(default_factory=list)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -183,6 +190,7 @@ def compile_evolution(evo: Any, world: dict) -> Program:
     _compile_states(evo, prog, world)
     _compile_forcing(evo, prog, world)
     _compile_rules(evo, prog, world)
+    _compile_map_coupling(evo, prog, world)
     _diagnose(prog, world)
     return prog
 
@@ -208,7 +216,11 @@ def _compile_grid(evo: dict, prog: Program) -> None:
         "nx": nx, "ny": ny,
         "cell_km": _f(g.get("cell_km"), 0.0),
         "topology": topo,
+        "area_weighted": bool(g.get("area_weighted")),
     }
+    if prog.grid["area_weighted"] and topo != "lon-closed":
+        prog.warnings.append(
+            "area_weighted 只在 lon-closed（经纬网格）下有意义，当前拓扑不会按 cos(lat) 加权")
 
 
 def _compile_clock(evo: dict, prog: Program, world: dict) -> None:
@@ -371,7 +383,114 @@ def _compile_rules(evo: dict, prog: Program, world: dict) -> None:
             retrograde=bool(x.get("retrograde")),
             radius=radius,
             shape=shape,
+            map_gain=max(0.0, _f(x.get("map_gain"), 0.0)),
         ))
+
+
+def _main_body(world: dict) -> dict:
+    bodies = ws._get(world, "cosmology", "bodies", default=[]) or []
+    for b in bodies:
+        if isinstance(b, dict) and str(b.get("kind") or "") == "planet":
+            return b
+    for b in bodies:
+        if isinstance(b, dict):
+            return b
+    return {}
+
+
+def _decode_coarse(coarse: dict) -> dict:
+    digits = {c: i for i, c in enumerate("0123456789abcdefghijklmnopqrstuvwxyz")}
+    nx, ny = int(_f(coarse.get("nx"), 0)), int(_f(coarse.get("ny"), 0))
+    if nx <= 0 or ny <= 0:
+        return {}
+    out = {}
+    for k in ("habitat", "temperature", "elevation"):
+        s = str(coarse.get(k) or "")
+        if len(s) != nx * ny:
+            continue
+        out[k] = [digits.get(c, 0) / 36.0 for c in s]
+    oc = str(coarse.get("ocean") or "")
+    if len(oc) == nx * ny:
+        out["ocean"] = [1.0 if c == "1" else 0.0 for c in oc]
+    out["nx"], out["ny"] = nx, ny
+    return out
+
+
+def _sample_field(field: dict, key: str, tx: int, ty: int) -> list:
+    """把 72×36 的粗场双线性重采样到 CA 网格。经度环绕。"""
+    nx, ny = int(field.get("nx") or 0), int(field.get("ny") or 0)
+    arr = field.get(key)
+    if not arr or nx <= 0 or ny <= 0:
+        return [0.0] * (tx * ty)
+    out = [0.0] * (tx * ty)
+    for y in range(ty):
+        sy = (y + 0.5) * ny / ty - 0.5
+        y0 = max(0, min(ny - 1, int(math.floor(sy))))
+        fy = sy - y0
+        y1 = min(ny - 1, y0 + 1)
+        for x in range(tx):
+            sx = (x + 0.5) * nx / tx - 0.5
+            x0 = int(math.floor(sx)) % nx
+            fx = sx - math.floor(sx)
+            x1 = (x0 + 1) % nx
+            a = arr[y0 * nx + x0] * (1 - fx) + arr[y0 * nx + x1] * fx
+            b = arr[y1 * nx + x0] * (1 - fx) + arr[y1 * nx + x1] * fx
+            out[y * tx + x] = a * (1 - fy) + b * fy
+    return out
+
+
+def _compile_map_coupling(evo: dict, prog: Program, world: dict) -> None:
+    mc = evo.get("map_coupling")
+    if not isinstance(mc, dict):
+        return
+    if not prog.states or not prog.rules or not prog.grid:
+        return
+    body = _main_body(world)
+    pm = body.get("planet_map") if isinstance(body.get("planet_map"), dict) else {}
+    coarse = pm.get("coarse") if isinstance(pm.get("coarse"), dict) else {}
+    if not coarse:
+        prog.errors.append(
+            "map_coupling 已开启，但 world.json 没有 planet_map.coarse——"
+            "先跑 pangu.py map --run --write --yes，不然地图耦合是空转")
+        return
+    field = _decode_coarse(coarse)
+    if not field:
+        prog.errors.append("planet_map.coarse 无法解析（长度或 base36 不合法）")
+        return
+    fname = str(mc.get("field") or "habitat")
+    if fname not in field:
+        prog.errors.append(f"map_coupling.field「{fname}」不在 coarse 场里")
+        fname = "habitat"
+    if fname not in field:
+        return
+    nx, ny = prog.grid["nx"], prog.grid["ny"]
+    sampled = _sample_field(field, fname, nx, ny)
+    prog.map = {
+        "field": fname,
+        "cfg": {
+            "initial_from_map": bool(mc.get("initial_from_map", True)),
+            "initial_bias": max(0.0, min(1.0, _f(mc.get("initial_bias"), 0.8))),
+            "growth_gain": max(0.0, _f(mc.get("growth_gain"), 0.0)),
+        },
+        "fields": {fname: sampled},
+        "source_res": [field["nx"], field["ny"]],
+    }
+    # 指定要耦合的规则；不写就只耦合生产者规则
+    ids = mc.get("rules")
+    by_id = {r.id: r for r in prog.rules}
+    if isinstance(ids, list) and ids:
+        miss = [str(i) for i in ids if str(i) not in by_id]
+        if miss:
+            prog.errors.append("map_coupling.rules 引用了不存在的规则：" + "、".join(miss))
+        for i in ids:
+            r = by_id.get(str(i))
+            if r and r.map_gain <= 0:
+                r.map_gain = max(0.0, _f(mc.get("growth_gain"), 0.8))
+    elif prog.map["cfg"]["growth_gain"] > 0:
+        for r in prog.rules:
+            if any(s.index == r.dst and s.kind in ("producer", "consumer")
+                   for s in prog.states):
+                r.map_gain = prog.map["cfg"]["growth_gain"]
 
 
 def _normalize_when(when: dict, by_id: dict, prog: Program, rid: str) -> dict:
@@ -503,6 +622,29 @@ def _diagnose(prog: Program, world: dict) -> None:
                 f"强迫项「{f.id}」周期 {f.period_days * 24.0:.1f}h 短于一天 {day_h:g}h，"
                 f"时间步可能采样不到峰值")
 
+    # 9) 概率为 0 / 永远接不到的规则
+    for r in prog.rules:
+        if r.prob <= 0:
+            prog.warnings.append(f"{r.id}: prob=0，这条规则永远不会触发")
+    incoming = {r.dst for r in prog.rules}
+    initial_ids = set(prog.initial)
+    for s in prog.states:
+        if s.index not in incoming and s.index not in initial_ids:
+            prog.warnings.append(f"状态「{s.id}」只能靠初始分布出现，没有任何规则能重新产生它")
+
+    # 10) 地图耦合落点
+    if prog.map:
+        n = prog.grid.get("nx", 0) * prog.grid.get("ny", 0)
+        for k, arr in prog.map.get("fields", {}).items():
+            if len(arr) != n:
+                prog.errors.append(f"地图场「{k}」长度 {len(arr)} ≠ 网格 {n}")
+        coupled = [r.id for r in prog.rules if r.map_gain > 0]
+        if not coupled:
+            prog.warnings.append("开启 map_coupling 但没有任何规则的 map_gain > 0——"
+                                 "地图只影响初始分布，不影响生长")
+        else:
+            prog.warnings.append("地图耦合已启用：" + "、".join(coupled))
+
 
 def _sid(prog: Program, idx: int) -> str:
     for s in prog.states:
@@ -570,14 +712,45 @@ def _initial_grid(prog: Program, rnd: random.Random) -> list:
         acc += share / total
         cuts.append((acc, idx))
     grid = [0] * n
+    if not prog.map or not prog.map.get("cfg", {}).get("initial_from_map"):
+        for i in range(n):
+            u = rnd.random()
+            for c, idx in cuts:
+                if u <= c:
+                    grid[i] = idx
+                    break
+            else:
+                grid[i] = cuts[-1][1]
+        return grid
+
+    # 地图耦合：有宜居度的地方更容易先长出生产/消费者，裸岩留在贫瘠处
+    field = prog.map["fields"].get(prog.map["field"]) or []
+    bias = prog.map["cfg"].get("initial_bias", 0.8)
+    kind = {s.index: s.kind for s in prog.states}
     for i in range(n):
-        u = rnd.random()
-        for c, idx in cuts:
-            if u <= c:
+        h = field[i] if i < len(field) else 0.5
+        h = max(0.0, min(1.0, h))
+        weights = []
+        for state_idx, _share in items:
+            base = prog.initial[state_idx]
+            k = kind.get(state_idx, "other")
+            if k in ("producer", "consumer"):
+                factor = (0.12 + 0.88 * h) ** max(0.05, bias)
+            elif k == "substrate":
+                factor = (1.05 - 0.85 * h) ** max(0.05, bias)
+            else:
+                factor = 0.55 + 0.45 * h
+            weights.append(max(1e-9, base * factor))
+        s = sum(weights)
+        u = rnd.random() * s
+        acc2 = 0.0
+        for (c, idx), w in zip(cuts, weights):
+            acc2 += w
+            if u <= acc2:
                 grid[i] = idx
                 break
         else:
-            grid[i] = cuts[-1][1]
+            grid[i] = items[-1][1]
     return grid
 
 
@@ -593,15 +766,28 @@ def run(prog: Program, steps: int = None, seed: int = None,
     total = max(1, min(int(total), MAX_STEPS))
     rnd = random.Random(7 if seed is None else int(seed))
 
-    radius = max((r.radius for r in prog.rules), default=1)
-    shape = next((r.shape for r in prog.rules if r.radius == radius), SHAPE_MOORE)
-    neigh = _build_neighbors(nx, ny, radius, shape, prog.grid["topology"])
+    # 每条规则用自己的邻居半径/形状：1.1.0 用全局最大半径建表，
+    # 半径 1 的规则会偷看到半径 2 的邻居——这是错的，1.1.1 修掉。
+    combos = {(r.radius, r.shape) for r in prog.rules}
+    neigh_by = {c: _build_neighbors(nx, ny, c[0], c[1], prog.grid["topology"])
+                for c in combos}
 
     by_src = {}
     for r in prog.rules:
         by_src.setdefault(r.src, []).append(r)
     for k in by_src:
         by_src[k].sort(key=lambda r: (0 if r.when else 1, -r.prob))
+
+    # 经纬网格按 cos(lat) 加权：极区格子小，不该和赤道一格同权
+    cell_w = [1.0] * n
+    if prog.grid.get("area_weighted"):
+        row_w = []
+        for y in range(ny):
+            la = math.radians(90.0 - (y + 0.5) * 180.0 / ny)
+            row_w.append(max(0.02, math.cos(la)))
+        sw = sum(row_w) or 1.0
+        cell_w = [row_w[y] / sw for y in range(ny) for _ in range(nx)]
+    wsum = sum(cell_w) or 1.0
 
     ids = prog.state_ids()
     cur = _initial_grid(prog, rnd)
@@ -611,13 +797,15 @@ def run(prog: Program, steps: int = None, seed: int = None,
     stats.series = {sid: [] for sid in ids.values()}
     snapshots = {}
     spent = 0.0
+    map_field = (prog.map.get("fields", {}).get(prog.map.get("field"))
+                 if prog.map else None)
 
     def _record(grid):
-        counts = [0] * (max(ids) + 1)
-        for v in grid:
-            counts[v] += 1
+        counts = [0.0] * (max(ids) + 1)
+        for i, v in enumerate(grid):
+            counts[v] += cell_w[i]
         for idx, sid in ids.items():
-            stats.series[sid].append(counts[idx] / n)
+            stats.series[sid].append(counts[idx] / wsum)
 
     def _snap(step):
         if step not in snaps:
@@ -637,24 +825,29 @@ def run(prog: Program, steps: int = None, seed: int = None,
         fvals = {f.id: _forcing_value(f, t_hours) for f in prog.forcing}
         new = cur[:]
         for idx in range(n):
-            s = cur[idx]
-            rs = by_src.get(s)
+            sv = cur[idx]
+            rs = by_src.get(sv)
             if not rs:
                 continue
-            cnt = None
-            nb = neigh[idx]
+            cnt_cache = {}
             for r in rs:
                 if r.when:
+                    key = (r.radius, r.shape)
+                    cnt = cnt_cache.get(key)
                     if cnt is None:
                         cnt = {}
-                        for j in nb:
+                        for j in neigh_by[key][idx]:
                             sj = cur[j]
                             cnt[sj] = cnt.get(sj, 0) + 1
+                        cnt_cache[key] = cnt
                     if not _when_ok(r.when, cnt, fvals):
                         continue
                 p = r.prob
                 if r.forcing:
                     p *= (fvals.get(r.forcing, 0.0) ** r.gain) if r.gain else fvals.get(r.forcing, 1.0)
+                if r.map_gain and map_field:
+                    hh = map_field[idx]
+                    p *= ((0.10 + 0.90 * hh) ** r.map_gain)
                 if p >= 1.0 or rnd.random() < p:
                     new[idx] = r.dst
                     if r.cost:
@@ -667,6 +860,8 @@ def run(prog: Program, steps: int = None, seed: int = None,
             _snap(t)
 
     stats.energy_spent = spent
+    stats.final_hash = "%08x" % (zlib.crc32(bytes(cur)) & 0xFFFFFFFF)
+    stats.final_grid = cur
     stats.snapshots = snapshots
     _finish(prog, stats)
     return stats
@@ -714,6 +909,53 @@ def _finish(prog: Program, stats: Stats) -> None:
     end_d = stats.steady.get(primary, 0.0)
     stats.collapsed = bool(init_d > 0.02 and end_d < init_d * 0.2)
     stats.collapse_prob = _collapse_prob(ser, init_d)
+    stats.max_drawdown = _max_drawdown(ser)
+    stats.resilience = _resilience(ser)
+
+
+def _max_drawdown(series) -> float:
+    """从历史峰值到之后谷底的最大相对跌幅。"""
+    if not series:
+        return 0.0
+    peak = series[0]
+    worst = 0.0
+    for v in series:
+        peak = max(peak, v)
+        if peak > 0:
+            worst = max(worst, (peak - v) / peak)
+    return round(worst, 3)
+
+
+def _resilience(series, window: int = 80) -> float:
+    """
+    生态韧性：跌掉两成之后，在 window 步内回到原峰值 80% 的事件比例。
+    低于初值但稳在新平台不算“恢复”，所以用局部峰值当基准。
+    """
+    if len(series) < 20:
+        return 0.0
+    peak = series[0]
+    events = recovered = 0
+    i = 0
+    while i < len(series):
+        v = series[i]
+        if v >= peak:
+            peak = v
+            i += 1
+            continue
+        if peak > 0 and v < peak * 0.8:
+            events += 1
+            target = peak * 0.8
+            j = i + 1
+            while j < min(len(series), i + window):
+                if series[j] >= target:
+                    recovered += 1
+                    break
+                j += 1
+            i = j + 1
+            peak = max(series[max(0, i - 1)], 0.0)
+        else:
+            i += 1
+    return round(recovered / events, 3) if events else 0.0
 
 
 def _primary_state(prog: Program) -> str:
@@ -784,6 +1026,11 @@ def summarize(prog: Program, stats: Stats) -> dict:
         "primary_state": stats.primary,
         "state_density": {k: round(v, 3) for k, v in stats.steady.items()},
         "energy_spent": round(stats.energy_spent, 1),
+        "max_drawdown": stats.max_drawdown,
+        "resilience": stats.resilience,
+        "area_weighted": bool(prog.grid.get("area_weighted")),
+        "map_coupled": bool(prog.map),
+        "final_hash": stats.final_hash,
     }
 
 
@@ -820,6 +1067,10 @@ def check_evolution(evo: dict, world: dict, steps=None, seed=None) -> dict:
         base = max(abs(a), abs(d), 1e-9)
         if abs(a - d) / base > tol:
             diffs.append(f"{key}: 声明 {d:g} ≠ 复算 {a:g}（容差 {tol:.1%}）")
+    if "final_hash" in declared:
+        if str(declared.get("final_hash")) != str(actual.get("final_hash")):
+            diffs.append(f"final_hash: 声明 {declared.get('final_hash')} ≠ "
+                         f"复算 {actual.get('final_hash')}（逐格不一致）")
     out["diffs"] = diffs
     out["ok"] = not diffs
     return out

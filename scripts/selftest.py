@@ -134,6 +134,58 @@ def test_engine(tmp):
     check("E7", "export 生成世界档案与报告", r.returncode == 0 and mlen > 2000, f"{mlen} 字节")
 
 
+def test_map(tmp):
+    print("\n§1.1.1 行星地图")
+
+    outdir = os.path.join(tmp, "map")
+    r = run([CLI, "map", EXAMPLE, "--res", "120x60", "--render", "480x240",
+             "--run", "--out", outdir], timeout=300)
+    need = ["map-elevation.png", "map-biome.png", "map-temperature.png",
+            "map-precipitation.png", "map-tectonics.png", "map-habitat.png",
+            "map-relief.png", "map-globe.png", "map.html", "map-data.json"]
+    miss = [f for f in need if not os.path.exists(os.path.join(outdir, f))]
+    sizes = [os.path.getsize(os.path.join(outdir, f)) for f in need
+             if os.path.exists(os.path.join(outdir, f))]
+    check("M1", "map --run 出齐七层图 + 地球 + 交互页",
+          r.returncode == 0 and not miss and min(sizes or [0]) > 500,
+          f"缺 {miss}")
+
+    r = run([CLI, "map", EXAMPLE, "--check", "--res", "120x60"], timeout=300)
+    check("M2", "map --check 同 seed 复算一致且六项体检通过",
+          r.returncode == 0 and "地图可复算" in r.stdout, (r.stdout + r.stderr)[-160:])
+
+    # 地图必须真被喂进 world.json（coarse 场），否则 CA 耦合是空转
+    data = jload(os.path.join(outdir, "map-data.json"))
+    wcopy = os.path.join(tmp, "map-world.json")
+    shutil.copy(EXAMPLE, wcopy)
+    r = run([CLI, "map", wcopy, "--res", "120x60", "--write", "--yes",
+             "--out", outdir], timeout=300)
+    pm = jload(wcopy)["cosmology"]["bodies"][0].get("planet_map") or {}
+    coarse = pm.get("coarse") or {}
+    ok = bool(coarse.get("habitat")) and data.get("hash") == pm.get("hash")
+    check("M3", "world.json 带 coarse 场与地图哈希", ok,
+          f"hash={data.get('hash')} / pm={pm.get('hash')}")
+
+
+def test_ca(tmp):
+    print("\n§1.1.1 生态自动机")
+
+    r = run([CLI, "ca", EXAMPLE, "--check"], timeout=600)
+    check("C1", "ca --check 逐格 final_hash 与 summary 对齐",
+          r.returncode == 0 and "final_hash" in r.stdout and "一致" in r.stdout,
+          (r.stdout + r.stderr)[-200:])
+
+    # 逐规则邻居半径：半径 1 的 Moore 邻居最多 8 个，不能被半径 2 的表污染
+    sys.path.insert(0, HERE)
+    import ca_engine as ca
+    n1 = ca._build_neighbors(9, 7, 1, ca.SHAPE_MOORE, "lon-closed")
+    n2 = ca._build_neighbors(9, 7, 2, ca.SHAPE_MOORE, "lon-closed")
+    check("C2", "逐规则邻居表：半径 1 / 2 分开建",
+          max(len(x) for x in n1) <= 8 and max(len(x) for x in n2) <= 24
+          and max(len(x) for x in n2) > max(len(x) for x in n1),
+          f"r1={max(len(x) for x in n1)} r2={max(len(x) for x in n2)}")
+
+
 # ════════════════════════════════════════════════════════════════════
 # §10.5 跨 harness 用例
 # ════════════════════════════════════════════════════════════════════
@@ -220,10 +272,11 @@ def test_mcp():
     tools = by_id.get(2, {}).get("result", {}).get("tools", [])
     names = {t["name"] for t in tools}
     need = {"pangu_guide", "pangu_doctor", "pangu_init",
-            "pangu_validate", "pangu_preview", "pangu_export", "pangu_axioms"}
+            "pangu_validate", "pangu_preview", "pangu_export", "pangu_axioms",
+            "pangu_map", "pangu_ca"}
     schema_ok = all(t.get("inputSchema", {}).get("type") == "object" for t in tools)
-    check("P7", "tools/list 返回 7 个工具且 schema 合法",
-          len(tools) == 7 and need.issubset(names) and schema_ok,
+    check("P7", "tools/list 返回 9 个工具且 schema 合法",
+          len(tools) == 9 and need.issubset(names) and schema_ok,
           f"{len(tools)} 个，缺 {need - names}")
 
     reps, _ = rpc([
@@ -262,6 +315,8 @@ def main() -> int:
     tmp = tempfile.mkdtemp(prefix="pangu_selftest_")
     try:
         test_engine(tmp)
+        test_map(tmp)
+        test_ca(tmp)
         test_install(tmp)
         test_mcp()
     finally:

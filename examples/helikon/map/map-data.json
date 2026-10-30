@@ -1,0 +1,152 @@
+{
+  "version": "1.1.1",
+  "meta": {
+    "name": "赫利孔",
+    "version": "1.1.1",
+    "generator": "mapgen",
+    "seed": 7,
+    "res": [
+      360,
+      180
+    ],
+    "sea_level_km": 1.423,
+    "relief_total_km": 11.48,
+    "inventory_km3": 7750000000.0,
+    "mean_depth_target_km": 3.36,
+    "mean_precip_target_mm": 978.7,
+    "t_mean_k": 288.1,
+    "tidal_locked": false,
+    "plates": 12,
+    "hotspots": 5,
+    "ocean_fraction": 0.7729,
+    "hash": "d544bcfd"
+  },
+  "stats": {
+    "ocean_fraction": 0.7729,
+    "land_fraction": 0.2271,
+    "mean_elevation_km": 0.813,
+    "max_elevation_km": 5.6,
+    "mean_ocean_depth_km": 2.184,
+    "max_ocean_depth_km": 9.895,
+    "mean_temperature_k": 287.79,
+    "min_temperature_k": 243.56,
+    "max_temperature_k": 304.04,
+    "mean_land_temperature_k": 275.01,
+    "mean_sea_temperature_k": 279.44,
+    "mean_precip_mm": 978.7,
+    "max_precip_mm": 11560.3,
+    "ice_fraction": 0.113,
+    "river_cells": 229,
+    "lake_fraction": 0.0052,
+    "habitat_mean": 0.3645,
+    "habitat_p50": 0.2008,
+    "plates": 12,
+    "convergent_cells": 791,
+    "divergent_cells": 786,
+    "transform_cells": 539,
+    "hotspot_cells": 200,
+    "biome_shares": {
+      "深钴海": 0.14059517022377024,
+      "浅青滩": 0.543789421266115,
+      "灰烬平原": 0.12783829212905065,
+      "锈林": 0.06430288292482825,
+      "高地岩": 0.01019903786711194,
+      "峰脊": 0.000306474323788092,
+      "极冰": 0.024489881628493308,
+      "海冰": 0.08847883963665445
+    }
+  },
+  "checks": [
+    {
+      "id": "M01",
+      "ok": true,
+      "note": "海洋占比 77.3%（水量 7.75e+09 km³）"
+    },
+    {
+      "id": "M02",
+      "ok": true,
+      "note": "最高峰 5.60 km / 重力上限 5.60 km"
+    },
+    {
+      "id": "M03",
+      "ok": true,
+      "note": "均温 287.8 K / 派生 288.1 K"
+    },
+    {
+      "id": "M04",
+      "ok": true,
+      "note": "河流格 229"
+    },
+    {
+      "id": "M05",
+      "ok": true,
+      "note": "群系覆盖 100%"
+    },
+    {
+      "id": "M06",
+      "ok": true,
+      "note": "平均宜居度 0.36"
+    }
+  ],
+  "hash": "d544bcfd",
+  "biomes": [
+    {
+      "id": "deep_sea",
+      "name": "深钴海",
+      "color": "#1E4058",
+      "elevation": 0.0
+    },
+    {
+      "id": "shallow",
+      "name": "浅青滩",
+      "color": "#356C8C",
+      "elevation": 0.34
+    },
+    {
+      "id": "ash_plain",
+      "name": "灰烬平原",
+      "color": "#8C7B63",
+      "elevation": 0.46
+    },
+    {
+      "id": "rust_wood",
+      "name": "锈林",
+      "color": "#A85A2E",
+      "elevation": 0.6
+    },
+    {
+      "id": "high_rock",
+      "name": "高地岩",
+      "color": "#6E6659",
+      "elevation": 0.78
+    },
+    {
+      "id": "summit",
+      "name": "峰脊",
+      "color": "#B9C4CE",
+      "elevation": 0.955
+    },
+    {
+      "id": "ice",
+      "name": "极冰",
+      "color": "#E8F0F8",
+      "elevation": 0.0
+    },
+    {
+      "id": "sea_ice",
+      "name": "海冰",
+      "color": "#E8F0F8",
+      "elevation": 0.0
+    }
+  ],
+  "figures": [
+    "map-elevation.png",
+    "map-biome.png",
+    "map-temperature.png",
+    "map-precipitation.png",
+    "map-tectonics.png",
+    "map-habitat.png",
+    "map-relief.png",
+    "map-globe.png"
+  ]
+}

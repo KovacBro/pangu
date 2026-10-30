@@ -46,7 +46,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 CLI = os.path.join(ROOT, "scripts", "pangu.py")
 
 SERVER_NAME = "pangu"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.1"
 DEFAULT_PROTOCOL = "2024-11-05"
 SUPPORTED_PROTOCOLS = ("2024-11-05", "2024-10-07", "2025-03-26", "2025-06-18")
 
@@ -174,6 +174,48 @@ TOOLS = [
             "roll": {"type": "integer", "description": "随机抽 N 条"},
             "json": {"type": "boolean", "description": "返回结构化 JSON"},
         }),
+    },
+    {
+        "name": "pangu_map",
+        "title": "推演行星地图",
+        "description": (
+            "从 world.json 推演整颗行星的地图：板块构造 → 盆地 → 水量定海平面 → "
+            "年辐照/温室定温度 → 风带与迎风坡定降水 → 洼地填充定河网 → "
+            "高程带 × 湿度定群系。输出高程/群系/温度/降水/构造/宜居度/正射地球图，"
+            "外加可交互 map.html。--check 同 seed 复算，--write 才写回摘要。"
+        ),
+        "inputSchema": _schema({
+            "world": {"type": "string", "description": "world.json 路径"},
+            "run": {"type": "boolean", "description": "出图与交互页"},
+            "check": {"type": "boolean", "description": "同 seed 复算体检"},
+            "write": {"type": "boolean", "description": "把摘要与粗粒度场写回 world.json"},
+            "yes": {"type": "boolean", "description": "确认写回（write 时必须为 true）"},
+            "res": {"type": "string", "description": "推演网格，如 360x180"},
+            "render": {"type": "string", "description": "出图分辨率，如 1440x720"},
+            "seed": {"type": "integer", "description": "覆盖随机种子"},
+            "out": {"type": "string", "description": "图输出目录"},
+        }, ["world"]),
+    },
+    {
+        "name": "pangu_ca",
+        "title": "生态演化：编译 / 跑 / 复算",
+        "description": (
+            "把 biology.evolution 编译成元胞自动机并运行。每条规则必须带 source 指回设定；"
+            "1.1.1 支持逐规则邻居半径、cos(lat) 面积加权、planet_map 宜居度耦合"
+            "（初始分布 + 生长概率）、逐格 final_hash 复算。--check 同 seed 复算，"
+            "--write 才回写 summary。"
+        ),
+        "inputSchema": _schema({
+            "world": {"type": "string", "description": "world.json 路径"},
+            "run": {"type": "boolean", "description": "跑演化并出快照图"},
+            "check": {"type": "boolean", "description": "复算并与 summary 比对"},
+            "write": {"type": "boolean", "description": "把结果写回 summary"},
+            "yes": {"type": "boolean", "description": "确认写回（write 时必须为 true）"},
+            "steps": {"type": "integer", "description": "覆盖步数"},
+            "frames": {"type": "integer", "description": "出 N 张等距快照"},
+            "seed": {"type": "integer", "description": "覆盖随机种子"},
+            "out": {"type": "string", "description": "快照图输出目录"},
+        }, ["world"]),
     },
 ]
 
@@ -321,6 +363,44 @@ def _call_tool(name: str, a: dict) -> dict:
         code, out, err = _run_cli(args)
         return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
 
+    # ── 行星地图 ──────────────────────────────────────────────
+    if name == "pangu_map":
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["map", str(w)]
+        for k in ("run", "check", "write"):
+            if a.get(k):
+                args.append("--" + k)
+        if a.get("write") and a.get("yes"):
+            args.append("--yes")
+        for k in ("res", "render", "out"):
+            if a.get(k):
+                args += ["--" + k, str(a[k])]
+        if a.get("seed") is not None:
+            args += ["--seed", str(int(a["seed"]))]
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+
+    # ── 生态演化 ──────────────────────────────────────────────
+    if name == "pangu_ca":
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["ca", str(w)]
+        for k in ("run", "check", "write"):
+            if a.get(k):
+                args.append("--" + k)
+        if a.get("write") and a.get("yes"):
+            args.append("--yes")
+        for k in ("steps", "frames", "seed"):
+            if a.get(k) is not None:
+                args += ["--" + k, str(int(a[k]))]
+        if a.get("out"):
+            args += ["--out", str(a["out"])]
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+
     return _result(f"未知工具：{name}", True)
 
 
@@ -361,8 +441,9 @@ def _handle(msg: dict) -> None:
             "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
             "instructions": (
                 "盘古造世引擎。造世界前先调用 pangu_guide 读方法论；"
-                "然后用 pangu_init 建骨架、逐步填充 world.json、"
-                "pangu_validate 审查、pangu_preview 出 3D、pangu_export 出档案。"
+                "然后用 pangu_init 建骨架、逐步填充 world.json、pangu_validate 审查、"
+                "pangu_map 推演行星地图、pangu_ca 跑生态演化、pangu_preview 出 3D、"
+                "pangu_export 出档案。"
             ),
         })
         return

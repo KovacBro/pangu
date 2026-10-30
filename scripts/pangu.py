@@ -11,6 +11,8 @@
     preview  <world.json> [-o <html>]          生成 3D 预览页
     export   <world.json> [--md <md>]          生成世界档案
     axioms   [--domain <d>] [--roll N]         查公理库
+    map      <world.json> [--run|--check]      行星地图：板块/海平面/气候/河网/群系
+    ca       <world.json> [--run|--check]      生态演化：编译/跑/复算比对
 """
 
 from __future__ import annotations
@@ -79,6 +81,7 @@ def cmd_doctor(args) -> int:
         ("references/七斧创世法.md", "七斧流程"),
         ("references/world-schema.md", "字段规范"),
         ("scripts/preview_template.html", "3D 模板"),
+        ("scripts/mapgen.py", "地图引擎"),
     ]:
         p = os.path.join(ROOT, rel)
         exist = os.path.exists(p)
@@ -575,18 +578,83 @@ def cmd_export(args) -> int:
             ("禁忌", civ.get("taboo", "—")),
         ]))
 
-    # 八、历史
+    # 八、行星地图
+    A(_h(2, "八 · 行星地图"))
+    b0 = next((b for b in (cos.get("bodies") or [])
+               if isinstance(b, dict) and isinstance(b.get("planet_map"), dict)), None)
+    if b0:
+        pm = b0.get("planet_map") or {}
+        st = pm.get("summary") if isinstance(pm.get("summary"), dict) else {}
+        if st:
+            A(_kv_table([
+                ("海洋 / 陆地", f"{st.get('ocean_fraction', 0) * 100:.1f}% / "
+                              f"{st.get('land_fraction', 0) * 100:.1f}%"),
+                ("海平面", f"{pm.get('sea_level_km', '—')} km ｜ 水量 "
+                          f"{ws._num(pm.get('inventory_km3'), 0):.2e} km³"),
+                ("最高峰 / 最深海", f"{st.get('max_elevation_km', '—')} km / "
+                                  f"{st.get('max_ocean_depth_km', '—')} km"),
+                ("均温 / 年降水", f"{st.get('mean_temperature_k', '—')} K / "
+                                f"{st.get('mean_precip_mm', '—')} mm"),
+                ("河流 / 湖泊", f"{st.get('river_cells', '—')} 格 / "
+                              f"{st.get('lake_fraction', 0) * 100:.1f}% 面积"),
+                ("宜居度", f"均值 {st.get('habitat_mean', '—')} ｜ "
+                          f"中位 {st.get('habitat_p50', '—')}"),
+                ("构造", f"{st.get('plates', '—')} 块板 ｜ 汇聚 "
+                        f"{st.get('convergent_cells', '—')} ｜ 张裂 "
+                        f"{st.get('divergent_cells', '—')} ｜ 热点 "
+                        f"{st.get('hotspot_cells', '—')}"),
+            ], ("项", "推演结果")))
+            A("**推演链**：板块 → 盆地 → 水量定海平面 → 年辐照定温度 → "
+              "风带与迎风坡定降水 → 洼地填充定河网 → 高程带 × 湿度定群系。"
+              f" 摘要哈希 `{pm.get('hash', '—')}`（同 seed 可复算）。\n")
+            checks = pm.get("checks") or []
+            if checks:
+                A("**地图体检**：" + "；".join(
+                    f"{'✓' if c.get('ok') else '!'} {c.get('id')} {c.get('note')}"
+                    for c in checks if isinstance(c, dict)) + "\n")
+            figs = [f for f in (pm.get("figures") or [])
+                    if isinstance(f, str) and os.path.exists(os.path.join(base_dir, f))]
+            if figs:
+                caps = {
+                    "map-elevation.png": "高程与海平面 · 晕渲 + 海岸线 + 河网",
+                    "map-biome.png": "群系 · 世界自己声明的生物群系 + 极冰 + 河网",
+                    "map-temperature.png": "年平均温度 · 年辐照、温室与海拔递减",
+                    "map-precipitation.png": "年降水量 · 风带、海陆分布与雨影",
+                    "map-tectonics.png": "构造 · 板块、汇聚/张裂/转换边界与热点",
+                    "map-habitat.png": "宜居度 · 温度、溶剂、光照、海拔的乘积",
+                    "map-relief.png": "晕渲地形 · 不带群系色的纯地貌",
+                    "map-globe.png": "正射球面 · 从太空看这颗行星",
+                }
+                for f in figs:
+                    fn = os.path.basename(f)
+                    cap = caps.get(fn, fn)
+                    try:
+                        rel = os.path.relpath(os.path.join(base_dir, f), md_dir)
+                    except ValueError:
+                        rel = os.path.join(base_dir, f)
+                    A(f"![{cap}]({rel.replace(os.sep, '/')})")
+                    A("")
+                    A(f"*{cap}*")
+                    A("")
+        else:
+            A("尚未生成行星地图。运行 "
+              f"`pangu.py map \"{path}\" --run --write --yes` 后重跑 export。\n")
+    else:
+        A("尚未生成行星地图。运行 "
+          f"`pangu.py map \"{path}\" --run --write --yes` 后重跑 export。\n")
+
+    # 九、历史
     eras = hist.get("eras") or []
     if eras:
-        A(_h(2, "八 · 历史"))
+        A(_h(2, "九 · 历史"))
         for e in eras:
             if not isinstance(e, dict):
                 continue
             A(f"- **{e.get('name')}**（{e.get('span', '—')}）{e.get('summary', '')}")
         A("")
 
-    # 九、审查
-    A(_h(2, "九 · 自洽性审查"))
+    # 十、审查
+    A(_h(2, "十 · 自洽性审查"))
     A(f"**{rep.score}/100**（{rep.grade}）｜ fatal {rep.fatal} ｜ warn {rep.warn}")
     A("")
     rows = [(c.id, ws.DIM_CN.get(c.dim, c.dim), c.question,
@@ -611,7 +679,7 @@ def cmd_export(args) -> int:
     # 十、参考
     refs = seed.get("references") or []
     if refs:
-        A(_h(2, "十 · 灵感来源"))
+        A(_h(2, "十一 · 灵感来源"))
         for r in refs:
             if not isinstance(r, dict):
                 continue
@@ -631,7 +699,7 @@ def cmd_export(args) -> int:
     plates = [(fn, cap) for fn, cap in plates
               if os.path.exists(os.path.join(base_dir, fn))]
     if plates:
-        A(_h(2, "十一 · 图版"))
+        A(_h(2, "十二 · 图版"))
         for fn, cap in plates:
             img = os.path.join(base_dir, fn)
             try:
@@ -992,6 +1060,115 @@ def _save_world(path: str, world: dict) -> None:
 
 
 # ════════════════════════════════════════════════════════════════════
+# map
+# ════════════════════════════════════════════════════════════════════
+
+def _parse_wh(s, default):
+    if not s:
+        return default
+    m = re.match(r"^\s*(\d+)\s*[x×]\s*(\d+)\s*$", str(s))
+    if not m:
+        return default
+    return int(m.group(1)), int(m.group(2))
+
+
+def cmd_map(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    try:
+        import mapgen
+    except Exception as e:  # noqa: BLE001
+        err(f"地图引擎加载失败：{e}")
+        return 3
+
+    res = _parse_wh(args.res, mapgen.DEFAULT_RES)
+    render = _parse_wh(args.render, mapgen.RENDER_RES)
+
+    if args.check:
+        say("盘古 · 行星地图复算体检")
+        say("-" * 56)
+        got = mapgen.check(world, res=res, seed=args.seed)
+        say(f"  同 seed 复算：{got['hash_a']} / {got['hash_b']}")
+        for c in got["checks"]:
+            say(f"  {'✓' if c['ok'] else '✗'} {c['id']} {c['note']}")
+        if got["diffs"]:
+            for d in got["diffs"]:
+                say(f"  ✗ {d}")
+        say("-" * 56)
+        say("  结论：地图可复算。" if got["ok"] else "  结论：复算不一致，必须重跑后再交付。")
+        return 0 if got["ok"] else 1
+
+    r = mapgen.build(world, res=res, seed=args.seed)
+    st = r.stats
+    say("盘古 · 行星地图推演")
+    say("-" * 56)
+    say(f"  网格 {r.nx}×{r.ny} ｜ 半径 {r.radius_km:.0f} km ｜ "
+        f"{'潮汐锁定' if r.meta['tidal_locked'] else '自转'} ｜ 板块 {r.meta['plates']}")
+    say(f"  海平面 {r.sea_level:.2f} km（水量 {r.meta['inventory_km3']:.2e} km³）")
+    say(f"  海洋 {st['ocean_fraction']:.1%} ｜ 陆地 {st['land_fraction']:.1%} ｜ "
+        f"冰 {st['ice_fraction']:.1%}")
+    say(f"  最高峰 {st['max_elevation_km']:.2f} km ｜ 最深海 {st['max_ocean_depth_km']:.2f} km ｜ "
+        f"陆均温 {st['mean_land_temperature_k']:.0f} K")
+    say(f"  年降水 {st['mean_precip_mm']:.0f} mm ｜ 河流格 {st['river_cells']} ｜ "
+        f"宜居度 {st['habitat_mean']:.2f}")
+    say(f"  构造：汇聚 {st['convergent_cells']} ｜ 张裂 {st['divergent_cells']} ｜ "
+        f"转换 {st['transform_cells']} ｜ 热点 {st['hotspot_cells']}")
+    for c in r.checks:
+        if not c["ok"]:
+            warn(f"{c['id']} {c['note']}")
+    say("-" * 56)
+
+    if not (args.run or args.write):
+        say("  只做了推演。加 --run 出图与交互页，--write 回写摘要，--check 复算。")
+        return 0
+
+    wid = str(ws._get(world, "meta", "id", default="world"))
+    world_dir = os.path.dirname(os.path.abspath(args.world))
+    outdir = args.out or os.path.join(world_dir, "map")
+    info = None
+    if args.run:
+        info = mapgen.write_outputs(r, outdir, render=render)
+        say(f"✓ 图已出到 {outdir}")
+        for fn in info["figures"]:
+            say(f"    {fn}")
+        if info.get("html"):
+            say(f"    map.html（双击打开，可切图层、悬停读数）")
+
+    if args.write:
+        if not args.yes:
+            err("回写地图摘要需要显式确认", "加 --yes")
+            return 2
+        body = mapgen.main_body(world)
+        pm = body.get("planet_map") if isinstance(body.get("planet_map"), dict) else {}
+        pm["seed"] = r.meta["seed"]
+        pm["summary"] = st
+        pm["checks"] = r.checks
+        pm["hash"] = r.hash
+        pm["generated"] = _dt.date.today().isoformat()
+        pm["generator"] = f"mapgen/{mapgen.MAP_VERSION}"
+        for k in ("res", "sea_level_km", "relief_total_km", "inventory_km3",
+                  "mean_depth_target_km", "mean_precip_target_mm", "t_mean_k",
+                  "tidal_locked", "plates", "hotspots"):
+            if k in r.meta:
+                pm[k] = r.meta[k]
+        try:
+            rel_dir = os.path.relpath(outdir, world_dir).replace(os.sep, "/")
+        except ValueError:
+            rel_dir = outdir.replace(os.sep, "/")
+        figs = []
+        for fn in (info["figures"] if info else ["map-" + k + ".png" for k, _ in mapgen.LAYERS]):
+            figs.append(fn if rel_dir in ("", ".") else f"{rel_dir}/{fn}")
+        pm["figures"] = figs
+        pm["coarse"] = mapgen.coarse_fields(r)
+        body["planet_map"] = pm
+        _save_world(args.world, world)
+        say(f"✓ 地图摘要与粗粒度场已写回 {args.world}")
+        say("  （summary 是真跑出来的；换 seed / 换水量后必须重跑 --write）")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
 # ca
 # ════════════════════════════════════════════════════════════════════
 
@@ -1031,8 +1208,10 @@ def cmd_ca(args) -> int:
     nx, ny = prog.grid["nx"], prog.grid["ny"]
     say(f"  ✓ 编译通过：{len(prog.states)} 态 × {nx}×{ny} 格 "
         f"× {len(prog.rules)} 规则 × {len(prog.forcing)} 强迫项")
-    say(f"    拓扑 {prog.grid['topology']} ｜ 一步 "
-        f"{prog.clock['hours_per_step']:g} 小时")
+    say(f"    拓扑 {prog.grid['topology']}"
+        + (" ｜ 面积加权 cos(lat)" if prog.grid.get("area_weighted") else "")
+        + f" ｜ 一步 {prog.clock['hours_per_step']:g} 小时"
+        + (f" ｜ 地图耦合 {prog.map.get('field')}" if prog.map else ""))
     for s in prog.states:
         say(f"    · {s.id:<10} {s.name:<8} [{s.kind}] 初始 {prog.initial.get(s.index, 0):.0%}"
             + (f"  ← {s.source}" if s.source else ""))
@@ -1077,28 +1256,36 @@ def cmd_ca(args) -> int:
 
     # ── 跑演化 + 出图 ───────────────────────────────────────────────
     if args.run or args.write:
-        snaps = sorted({0, steps // 2, steps})
+        if args.frames and args.frames >= 2:
+            n = min(120, int(args.frames))
+            snaps = sorted({int(round(k * steps / (n - 1))) for k in range(n)})
+        else:
+            snaps = sorted({0, steps // 2, steps})
         stats = ca.run(prog, steps=steps, seed=seed, snapshot_steps=snaps)
         summ = ca.summarize(prog, stats)
         say(f"✓ 跑完 {steps} 步：主状态「{stats.primary}」"
             f" 稳态密度 {summ['steady_density']} ｜ 周期 {summ['cycle_steps']} 步"
             f" ｜ 塌缩概率 {summ['collapse_prob']} ｜ 能量支出 {summ['energy_spent']}")
+        say(f"  逐格哈希 {summ['final_hash']} ｜ 最大回撤 {summ['max_drawdown']:.1%}"
+            f" ｜ 韧性 {summ['resilience']:.0%}")
 
         outdir = args.out or os.path.join("out", str(ws._get(world, "meta", "id", default="world")))
         if args.run:
             os.makedirs(outdir, exist_ok=True)
             figs = []
-            for st in snaps:
+            for k, st in enumerate(snaps):
                 got = stats.snapshots.get(st)
                 if not got:
                     continue
                 cells, scale = got
                 w, h, px = ca.render_snapshot(prog, cells, scale)
-                fp = os.path.join(outdir, f"ca-t{st}.png")
+                fn = f"ca-frame-{k:02d}.png" if args.frames else f"ca-t{st}.png"
+                fp = os.path.join(outdir, fn)
                 pw.write_rgb(fp, w, h, px)
                 figs.append(fp.replace("\\", "/"))
-                say(f"  图 {fp}  ({w}×{h})")
-            if figs:
+                if not args.frames:
+                    say(f"  图 {fp}  ({w}×{h})")
+            if figs and (not args.frames or len(figs) <= 12):
                 if not isinstance(evo.get("figures"), list):
                     evo["figures"] = []
                 for f in figs:
@@ -1194,9 +1381,22 @@ def build_parser() -> argparse.ArgumentParser:
     ca_.add_argument("--write", action="store_true", help="把复算结果写回 summary")
     ca_.add_argument("--yes", action="store_true", help="确认回写")
     ca_.add_argument("--steps", type=int, help="覆盖步数")
+    ca_.add_argument("--frames", type=int, help="出 N 张等距快照（默认 3 张）")
     ca_.add_argument("--seed", type=int, help="覆盖随机种子")
     ca_.add_argument("--out", help="快照图输出目录（默认 out/<世界id>）")
     ca_.set_defaults(func=cmd_ca)
+
+    mp = sub.add_parser("map", help="行星地图：推演 / 出图 / 复算比对")
+    mp.add_argument("world")
+    mp.add_argument("--run", action="store_true", help="出高程/群系/气候/构造/宜居度图与交互页")
+    mp.add_argument("--check", action="store_true", help="同 seed 复算并体检")
+    mp.add_argument("--write", action="store_true", help="把摘要与粗粒度场写回 world.json")
+    mp.add_argument("--yes", action="store_true", help="确认回写")
+    mp.add_argument("--res", help="推演网格，如 480x240（默认 360x180）")
+    mp.add_argument("--render", help="出图分辨率，如 1920x960（默认 1440x720）")
+    mp.add_argument("--seed", type=int, help="覆盖随机种子")
+    mp.add_argument("--out", help="图输出目录（默认 world.json 同级 map/）")
+    mp.set_defaults(func=cmd_map)
 
     return p
 

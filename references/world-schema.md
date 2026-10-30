@@ -117,6 +117,41 @@
 | `visual_radius` | num | | 3D 显示半径（夸张值，非真实比例），缺省按 `radius_earth` 映射 |
 | `note` | str | | 一句话特征 |
 
+### 3.3.1 `bodies[].planet_map`（1.1.1，可选）
+
+行星地图的输入与派生摘要。作者只写 `tectonics/hydrosphere/climate`；`summary/checks/hash/figures/coarse` 由 `pangu.py map --write --yes` 生成，不要手填。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `seed` | int | 地图随机种子 |
+| `tidal_locked` | bool | 强制潮汐锁定（`rotation_hours: null` 也会判锁定） |
+| `tectonics.plates` | int | 板块数，缺省 6 + 2.2×R⊕，夹在 6–16 |
+| `tectonics.hotspots` | int | 热点数，缺省 2 + R⊕，夹在 2–7 |
+| `tectonics.relief_km` | num | 总起伏上限，缺省 8.8/g^0.8 |
+| `hydrosphere.solvent` | str | 溶剂名（水、氨、甲烷……） |
+| `hydrosphere.mean_depth_km` | num | 平均海深目标，缺省 0.30×2×relief |
+| `hydrosphere.inventory_km3` | num | 水体积，缺省 area×0.50×mean_depth |
+| `climate.mean_precip_mm` | num | 年降水目标，缺省由气压推 |
+| `climate.temp_optimum_k` / `temp_tolerance_k` | num | 宜居度温度窗 |
+| `summary` | obj | 派生：海洋/陆地占比、最高峰、最深海、均温、年降水、河流格、湖泊、冰、宜居度、构造统计 |
+| `checks` | obj[] | 六项地图体检（M01–M06） |
+| `hash` | str | 八位字段哈希，同 seed 可复算 |
+| `sea_level_km` / `inventory_km3` / `relief_total_km` | num | 解出的海平面与水量、总起伏 |
+| `figures` | str[] | 相对 `world.json` 的图路径（`map/*.png`） |
+| `coarse` | obj | 72×36 的 `habitat/temperature/elevation` base36 + `ocean` 01 串；喂 CA |
+
+### 3.3.2 `biology.evolution.map_coupling`（1.1.1，可选）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `field` | str | `habitat` / `temperature` / `elevation` |
+| `initial_from_map` | bool | 初始分布按地图偏置 |
+| `initial_bias` | num | 0–1，越大越偏向宜居处 |
+| `growth_gain` | num | 生长概率随地图缩放的指数 |
+| `rules` | str[] | 只耦合这些规则；缺省耦合所有产生产者/消费者的规则 |
+
+`grid.area_weighted: true` 时密度按 cos(lat) 加权（仅 `lon-closed` 有意义）。
+
 ### 3.4 `physics`
 
 | 字段 | 类型 | 说明 |
@@ -304,6 +339,8 @@ gravity_g   = mass_earth / (radius_earth ** 2) * (G_world / G_earth)
 | O02 | 观测 | `calendar.day_hours` 与 `rotation_hours` 一致（±10%，潮汐锁定除外） | warn |
 | N01 | 叙事 | `narrative` 三项非空 | warn |
 | N02 | 叙事 | `seed.references` ≥ 4 条 | warn |
+| M10 | 观测 | 有 `planet_map.summary` 时：占比/温度/峰值范围合法、`hash` 存在、`coarse` 长度对 | warn |
+| M11 | 观测 | 地图是否喂给 CA（`coarse` 场存在） | skip |
 | X01 | 通用 | `consistency.open_issues` 非空 | warn |
 | X02 | 通用 | `physics` 缺失或 `constants` 为空 | fatal |
 

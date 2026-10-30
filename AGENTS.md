@@ -5,7 +5,7 @@
 
 ## 这是什么
 
-一套把「架空世界」当工程项目来做的工具：先立宇宙底层法则（数学/物理/化学/生物），再严格推导出星体、生态与文明，最后输出结构化数据、自洽性审查报告和可交互 3D 预览。
+一套把「架空世界」当工程项目来做的工具：先立宇宙底层法则（数学/物理/化学/生物），再严格推导出星体、地形、气候、生态与文明，最后输出结构化数据、自洽性审查报告、行星地图和可交互 3D 预览。
 
 ## 何时触发
 
@@ -28,6 +28,7 @@ python scripts/pangu.py export out/world.json --md out/世界档案.md
 python scripts/pangu.py axioms --domain physics --roll 3
 python scripts/pangu.py slice out/world.json      # 第一人称切片体检
 python scripts/pangu.py redteam out/world.json --check
+python scripts/pangu.py map out/world.json --run --write --yes   # 行星地图：板块/海平面/气候/河网/群系
 python scripts/pangu.py ca out/world.json --check  # 生态演化：同 seed 复算比对
 ```
 
