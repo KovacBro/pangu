@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -165,6 +166,55 @@ def test_map(tmp):
     ok = bool(coarse.get("habitat")) and data.get("hash") == pm.get("hash")
     check("M3", "world.json 带 coarse 场与地图哈希", ok,
           f"hash={data.get('hash')} / pm={pm.get('hash')}")
+
+
+def test_organism(tmp):
+    print("\n§1.1.2 生物视角与元素")
+
+    d = jload(EXAMPLE)
+    chem = d.get("chemistry") or {}
+    bio = d.get("biology") or {}
+    comp = chem.get("composition") or {}
+    sums = {}
+    for k in ("planet", "atmosphere"):
+        mix = comp.get(k) or {}
+        sums[k] = round(sum(v for v in mix.values() if isinstance(v, (int, float))), 4)
+    base = (bio.get("biochemistry") or {}).get("composition") or {}
+    sums["creature"] = round(sum(v for v in base.values() if isinstance(v, (int, float))), 4)
+    check("B1", "行星 / 大气 / 生命配比均归一",
+          bool(sums) and all(abs(s - 1) <= 0.02 for s in sums.values()), str(sums))
+
+    els = [e for e in (chem.get("fictional_elements") or []) if isinstance(e, dict)]
+    naming_ok = bool(els)
+    for e in els:
+        g = str(e.get("glyph") or "")
+        m = re.match(r"^⿸气⿰钅([\u4e00-\u9fff])$", g)
+        if not m or m.group(1) != str(e.get("component") or ""):
+            naming_ok = False
+    syms = [str(e.get("symbol") or "") for e in els]
+    check("B2", "虚构元素为「气+钅+单字」且符号唯一",
+          naming_ok and len(set(syms)) == len(syms),
+          f"{len(els)} 个：{'、'.join(syms)}")
+
+    r = run([CLI, "validate", EXAMPLE, "--json"])
+    try:
+        rep = json.loads(r.stdout)
+    except Exception:
+        rep = {}
+    kmap = {c["id"]: c["verdict"] for c in rep.get("checks", []) if str(c["id"]).startswith("K")}
+    check("B3", "K01–K03 元素/命名/基座三项全部通过",
+          all(kmap.get(k) == "pass" for k in ("K01", "K02", "K03")), str(kmap))
+
+    ph = os.path.join(tmp, "preview-creature.html")
+    r = run([CLI, "preview", EXAMPLE, "-o", ph])
+    html = ""
+    if os.path.exists(ph):
+        with open(ph, "r", encoding="utf-8") as f:
+            html = f.read()
+    need = ['id="creature-view"', "makeCreature", "双影猎兽", "⿸气⿰钅辰", "cr-species"]
+    miss = [n for n in need if n not in html]
+    check("B4", "预览页含可操控生物视角与新元素字形",
+          r.returncode == 0 and not miss, f"缺 {miss}")
 
 
 def test_tuning(tmp):
@@ -403,6 +453,7 @@ def main() -> int:
     tmp = tempfile.mkdtemp(prefix="pangu_selftest_")
     try:
         test_engine(tmp)
+        test_organism(tmp)
         test_tuning(tmp)
         test_map(tmp)
         test_ca(tmp)

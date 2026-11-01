@@ -338,18 +338,20 @@ def weirdness(world: dict) -> dict:
     """
     反常识度指数（0–100）。
 
-    改太少是地球换皮，改太多是噪声。本函数把「偏离地球」拆成七类可数项，
+    改太少是地球换皮，改太多是噪声。本函数把「偏离地球」拆成八类可数项，
     每类封顶，加总后与 WEIRD_BAND 比较：
 
         常数改写 ≤32（每条 8）｜ 新相互作用 ≤18（每条 6）
         定律偏离 ≤16（每条 4）｜ 守恒破缺 ≤16（每条 8）
-        另类生化 ≤12（每项 6）｜ 时空尺度 ≤18（每项 6）｜ 天体构型 ≤12（每项 6）
+        另类生化 ≤18（每项 6）｜ 虚构元素 ≤12（每条 4）
+        时空尺度 ≤18（每项 6）｜ 天体构型 ≤12（每项 6）
 
     这是**信息量指标，不是质量指标**：100 分不代表好，40 以下才代表没改动。
     """
     phys = world.get("physics") or {}
     bio = world.get("biology") or {}
     cos = world.get("cosmology") or {}
+    chem = world.get("chemistry") or {}
     items = []
 
     def add(name: str, points: float, detail: str) -> None:
@@ -392,14 +394,23 @@ def weirdness(world: dict) -> dict:
         add("守恒破缺", min(16, 8 * len(bs)),
             "；".join(str(x)[:24] for x in bs[:3]))
 
-    # 5. 另类生化
+    # 5. 另类生化（能量货币 / 遗传载体 / 生命基座）
     alt = []
     for key, label in (("energy_currency", "能量货币"), ("genetic_carrier", "遗传载体")):
         v = bio.get(key)
         nm = (v.get("name") if isinstance(v, dict) else str(v or "")).strip()
         if nm and not re.search(r"(?i)\b(ATP|DNA|RNA)\b|碳基|水基", nm):
             alt.append(f"{label}：{nm}")
-    add("另类生化", min(12, 6 * len(alt)), "；".join(alt))
+    bic = bio.get("biochemistry") if isinstance(bio.get("biochemistry"), dict) else {}
+    base = str(bic.get("base") or "").strip()
+    if base and not re.fullmatch(r"碳基|碳", base):
+        alt.append(f"基座：{base}")
+    add("另类生化", min(18, 6 * len(alt)), "；".join(alt))
+
+    # 5b. 虚构元素
+    els = [e for e in (chem.get("fictional_elements") or []) if isinstance(e, dict)]
+    add("虚构元素", min(12, 4 * len(els)),
+        "、".join(str(e.get("symbol") or e.get("name") or "?") for e in els[:4]))
 
     # 6. 时空尺度（日长 / 年长 / 表面重力）
     cal = cos.get("calendar") or {}
@@ -798,6 +809,127 @@ def validate(world: dict, strict: bool = False) -> Report:
         "pass" if not p_bad else "warn",
         "；".join(p_bad) + "（超出 20–500 kPa）" if p_bad else "正常")
 
+    # ── K01 元素配比 ────────────────────────────────────────────────
+    chem = world.get("chemistry") if isinstance(world.get("chemistry"), dict) else {}
+    comp = chem.get("composition") if isinstance(chem.get("composition"), dict) else {}
+    mix_issues, mix_fatal = [], False
+
+    def _mix_check(label: str, mix: Any) -> None:
+        nonlocal mix_fatal
+        if not isinstance(mix, dict) or not mix:
+            return
+        vals = []
+        for k, v in mix.items():
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                mix_issues.append(f"{label}.{k} 不是数值")
+                mix_fatal = True
+                continue
+            if v < 0:
+                mix_issues.append(f"{label}.{k} 为负")
+                mix_fatal = True
+                continue
+            vals.append(v)
+        if not vals:
+            return
+        s = sum(vals)
+        if s <= 0:
+            mix_issues.append(f"{label} 合计为 0")
+            mix_fatal = True
+            return
+        dev = abs(s - 1.0)
+        if dev > 0.05:
+            mix_issues.append(f"{label} 合计 {s:.3f}（偏离 >5%）")
+            mix_fatal = True
+        elif dev > 0.02:
+            mix_issues.append(f"{label} 合计 {s:.3f}（偏离 >2%）")
+
+    _mix_check("行星本体", comp.get("planet"))
+    _mix_check("大气", comp.get("atmosphere"))
+    _mix_check("海洋", comp.get("ocean"))
+
+    bic = bio.get("biochemistry") if isinstance(bio.get("biochemistry"), dict) else {}
+    _mix_check("生命基座", bic.get("composition"))
+    for o in bio.get("organisms") or []:
+        if isinstance(o, dict):
+            _mix_check(f"{o.get('name') or o.get('id') or '物种'}", o.get("composition"))
+    add("K01", "structure", "元素配比之和为 1？",
+        "fatal" if mix_fatal else ("warn" if mix_issues else "pass"),
+        "；".join(mix_issues) if mix_issues else "行星 / 大气 / 生命配比均归一")
+
+    # ── K02 虚构元素命名 ────────────────────────────────────────────
+    els = [e for e in (chem.get("fictional_elements") or []) if isinstance(e, dict)]
+    el_issues, el_fatal = [], False
+    seen_ids, seen_syms = set(), set()
+    for i, e in enumerate(els):
+        eid = str(e.get("id") or "").strip()
+        sym = str(e.get("symbol") or "").strip()
+        glyph = str(e.get("glyph") or "").strip()
+        comp_ch = str(e.get("component") or "").strip()
+        if not eid:
+            el_issues.append(f"第 {i + 1} 条缺 id")
+        elif eid in seen_ids:
+            el_issues.append(f"id 重复：{eid}")
+            el_fatal = True
+        seen_ids.add(eid)
+        if not sym:
+            el_issues.append(f"{eid or i} 缺 symbol")
+        elif sym in seen_syms:
+            el_issues.append(f"symbol 重复：{sym}")
+            el_fatal = True
+        seen_syms.add(sym)
+        m = GLYPH_RE.match(glyph)
+        if not m:
+            el_issues.append(f"{eid or i} 字形「{glyph}」不符合 气+钅+单字")
+            el_fatal = True
+        else:
+            ch = m.group(1)
+            if comp_ch and comp_ch != ch:
+                el_issues.append(f"{eid} component={comp_ch} 与字形 {glyph} 不一致")
+                el_fatal = True
+        phase = str(e.get("phase_at_surface") or "").strip()
+        if phase and phase not in ("气", "液", "固", "等离子", "超临界"):
+            el_issues.append(f"{eid} 相态「{phase}」不在 气/液/固/等离子/超临界")
+        ab = e.get("abundance_ppm")
+        if ab is None or not isinstance(ab, (int, float)) or ab < 0:
+            el_issues.append(f"{eid} 缺 abundance_ppm 或为负")
+        if not str(e.get("role") or "").strip():
+            el_issues.append(f"{eid} 缺 role（它在生态里干什么）")
+    add("K02", "structure", "虚构元素按「气+钅+单字」命名且唯一？",
+        "skip" if not els else ("fatal" if el_fatal else ("warn" if el_issues else "pass")),
+        "；".join(el_issues) if el_issues else (f"{len(els)} 个新元素，字形合法" if els else "未定义虚构元素"))
+
+    # ── K03 生命基座 ────────────────────────────────────────────────
+    base_issues = []
+    if bic:
+        base = str(bic.get("base") or "").strip()
+        primary = str(bic.get("primary_element") or "").strip()
+        if not base:
+            base_issues.append("缺 base（碳基 / 硅基 / 其他基）")
+        if not primary:
+            base_issues.append("缺 primary_element")
+        else:
+            planet_mix = comp.get("planet") if isinstance(comp.get("planet"), dict) else {}
+            if planet_mix and primary not in planet_mix:
+                base_issues.append(f"行星配比里没有主元素「{primary}」")
+            mix = bic.get("composition") if isinstance(bic.get("composition"), dict) else {}
+            if mix and _num(mix.get(primary), 0) < 0.01:
+                base_issues.append(f"生命配比中「{primary}」不足 1%")
+        if not str(bic.get("solvent") or "").strip():
+            base_issues.append("缺 solvent")
+        for o in bio.get("organisms") or []:
+            if not isinstance(o, dict) or not o.get("playable"):
+                continue
+            name = o.get("name") or o.get("id") or "物种"
+            if _num(o.get("height_m"), 0) <= 0:
+                base_issues.append(f"{name} 缺 height_m（第一人称眼高无法定）")
+            loco = o.get("locomotion")
+            if not isinstance(loco, dict) or _num(loco.get("speed_ms"), 0) <= 0:
+                base_issues.append(f"{name} 缺 locomotion.speed_ms（无法操控行走）")
+    add("K03", "evolution", "生命基座与可操控物种声明完整？",
+        "skip" if not bic else ("warn" if base_issues else "pass"),
+        "；".join(base_issues) if base_issues else
+        (f"基座：{bic.get('base')}；主元素：{bic.get('primary_element')}" if bic else "未定义 biochemistry"))
+
     # ── O01 年长一致 ────────────────────────────────────────────────
     cal = cos.get("calendar") or {}
     y_days = _num(cal.get("year_days"), 0)
@@ -1131,6 +1263,33 @@ def cost_tags(text: str) -> list:
     """按代价类型给一条积木打标签（0–4 个，按 COST_TAGS 顺序）。"""
     blob = str(text or "")
     return [tag for tag, pat in COST_TAGS if re.search(pat, blob)]
+
+
+# ── 虚构元素的命名文法（1.1.2）──────────────────────────────────────
+# 「气」半包围（左上包围）+ 「钅」+ 一个自选单字。
+# 这样造出来的字既不是气体也不是金属，而是两者的夹缝——正是新元素该在的位置。
+GLYPH_PREFIX = "⿸气⿰钅"
+GLYPH_RE = re.compile(r"^⿸气⿰钅([\u4e00-\u9fff])$")
+COMPONENT_POOL = ("辰", "昷", "参", "离", "玄", "敄", "玆", "咢", "肃", "既")
+
+
+def fictional_glyph(component: str) -> str:
+    """
+    把一个单字包成虚构元素字：'辰' → '⿸气⿰钅辰'。
+
+    返回值是 Unicode 表意文字描述序列（IDS），能在任何文本里无损传递字形结构：
+    ⿸ = 左上包围，气 = 外层偏旁，⿰ = 左右并置，钅 + 单字 = 内层。
+    """
+    ch = str(component or "").strip()
+    if len(ch) != 1:
+        raise ValueError("component 必须是单个汉字")
+    return GLYPH_PREFIX + ch
+
+
+def glyph_component(glyph: str) -> str:
+    """从 IDS 字形里取回内嵌单字；不合法返回空串。"""
+    m = GLYPH_RE.match(str(glyph or ""))
+    return m.group(1) if m else ""
 
 
 def axiom_library(skill_root: str) -> list:

@@ -6,7 +6,7 @@
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-30%2F30-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-34%2F34-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -26,8 +26,11 @@
 - **`sweep` — 参数敏感度扫描**：沿一个数值参数扫出连续谱，每步完整校验，标出安全窗与**第一个崩点**。`--recalc` 会在每步重算天体的密度 / 重力 / 半径，让扫描探索物理自洽的邻近世界——否则质量一动就先撞 P01 的四数自洽，满屏 fatal 看不出真正的临界点。
 - **`diff` — 版本对比**：逐字段列出改动 / 新增 / 删除，给出评分、致命项、表面重力、温度、反常识度的变化，并推断必须重跑的下游产物（export / preview / map / ca / slice / redteam）。改设定不再是黑箱。
 - **公理库按代价类型二次索引**：创作时想的往往不是「哪个学科」，而是「我想让世界付出什么代价」。`axioms --cost 空间` 直接捞「远行变得不可能」这类积木。
-- **反常识度指数**：`validate` 新增 0–100 的偏离度（常数改写 / 新相互作用 / 定律偏离 / 守恒破缺 / 另类生化 / 时空尺度 / 天体构型），推荐区间 40–70。低于 40 提示「仍是地球换皮」，高于 70 提示「读者会放弃」。示例赫利孔为 48。
-- **校验 33 项不变、selftest 22 → 30 项、MCP 9 → 12 个 tool**（新增 `pangu_patch`、`pangu_sweep`、`pangu_diff`）。
+- **反常识度指数**：`validate` 新增 0–100 的偏离度（常数改写 / 新相互作用 / 定律偏离 / 守恒破缺 / 另类生化 / 虚构元素 / 时空尺度 / 天体构型），推荐区间 40–70。低于 40 提示「仍是地球换皮」，高于 70 提示「读者会放弃」。示例赫利孔为 66。
+- **生物视角（可操控第一人称）**：预览页新增「生物」页签。选一个物种寄宿进去，用它的眼高、步速与表面重力在 72×36 粗场放大的地表行走：WASD / 方向键移动，Shift 疾走，空格跳跃，拖动转头，F 切第一/第三人称，R 重生。生物是低多边形方块模型（Minecraft / 罪恶都市那一档），走动时四肢摆动、尾巴摇摆；HUD 实时显示基座、主元素、体成分与新元素。
+- **元素配比与生命基座**：`chemistry.composition` 声明行星 / 大气 / 海洋的元素含量（三项各自归一），`biology.biochemistry` 声明碳基 / 硅基 / 碳硅杂合、主元素、结构元素、溶剂与代价，`biochemistry.composition` 与每个物种的 `composition` 给体成分，`biology.organisms[]` 给可操控物种的体高、步速、感官与配色。
+- **世界独有的新元素**：`chemistry.fictional_elements[]`，命名文法固定为 `⿸气⿰钅X` —— 半包围的「气」包住「钅」与一个自选单字。字形用 Unicode 表意描述序列无损传递，预览页把它画成一枚拼合字；每个元素还要交代相态、丰度、生态作用、代价与痕迹。`validate` 新增 K01–K03 三项机检，示例赫利孔造了「气钅辰 / 气钅昷 / 气钅参」三个。
+- **校验 33 → 36 项、selftest 22 → 34 项、MCP 9 → 12 个 tool**（新增 `pangu_patch`、`pangu_sweep`、`pangu_diff`）。
 
 详见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -204,12 +207,12 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 ├── scripts/
 │   ├── pangu.py                 CLI：init / validate / preview / export / axioms / doctor
 │   │                                / slice / redteam / ca / map / patch / sweep / diff
-│   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、公理库解析
+│   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、元素与基座检验、公理库解析
 │   ├── world_tuning.py          调参层：点路径读写、参数扫描、版本对比、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合
 │   ├── mapgen.py                行星地图引擎：板块、海平面、气候、河网、群系、出图
 │   ├── png_writer.py            零依赖 PNG 编码器（zlib + struct）
-│   ├── preview_template.html    单文件预览模板（Three.js 3D + 地面视角 + 演化视图）
+│   ├── preview_template.html    单文件预览模板（3D + 地面视角 + 演化视图 + 可操控生物视角）
 │   └── selftest.py              验收自测（对齐开发文档 §9）
 └── examples/helikon/            完整示例「赫利孔」三阳世界
     ├── world.json

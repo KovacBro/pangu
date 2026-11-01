@@ -545,6 +545,39 @@ def cmd_export(args) -> int:
                   + (f"｜用途：{m['use']}" if m.get("use") else ""))
             A("")
 
+        comp = chem.get("composition") if isinstance(chem.get("composition"), dict) else {}
+        for key, label in (("planet", "行星本体"), ("atmosphere", "大气"), ("ocean", "海洋")):
+            mix = comp.get(key)
+            if not isinstance(mix, dict) or not mix:
+                continue
+            rows = []
+            for name, share in sorted(mix.items(), key=lambda kv: -float(kv[1] or 0)):
+                try:
+                    rows.append((name, f"{float(share) * 100:.2f}%"))
+                except (TypeError, ValueError):
+                    rows.append((name, str(share)))
+            A(_h(3, f"元素配比 · {label}"))
+            A(_kv_table(rows))
+            A("")
+
+        els = [e for e in (chem.get("fictional_elements") or []) if isinstance(e, dict)]
+        if els:
+            A(_h(3, "虚构元素"))
+            A("命名文法：`⿸气⿰钅X` —— 半包围的「气」包住「钅」与一个自选单字。"
+              "这些元素既不是气体也不是金属，而是两者之间的夹缝。\n")
+            A("| 元素字 | 符号 | Z | 相态 | 丰度 | 在生态里做什么 |")
+            A("|---|---|---|---|---|---|")
+            for e in els:
+                A(f"| {e.get('glyph', '—')} {e.get('name', '')} | {e.get('symbol', '—')} | "
+                  f"{e.get('atomic_number', '—')} | {e.get('phase_at_surface', '—')} | "
+                  f"{e.get('abundance_ppm', '—')} ppm | {e.get('role', '—')} |")
+            A("")
+            for e in els:
+                A(f"- **{e.get('name', '')}**（{e.get('symbol', '—')}）：{e.get('reactivity', '')}"
+                  + (f"｜**代价**：{e['hazard']}" if e.get("hazard") else "")
+                  + (f"｜**痕迹**：{e['trace']}" if e.get("trace") else ""))
+            A("")
+
     # 六、生物
     if bio:
         A(_h(2, "六 · 生命"))
@@ -555,6 +588,53 @@ def cmd_export(args) -> int:
             ("代谢", bio.get("metabolism_summary", "—")),
             ("遗传载体", gc.get("name", "—")),
         ]))
+
+        bic = bio.get("biochemistry") if isinstance(bio.get("biochemistry"), dict) else {}
+        if bic:
+            A(_h(3, "生命基座"))
+            A(_kv_table([
+                ("基座", bic.get("base", "—")),
+                ("主元素", bic.get("primary_element", "—")),
+                ("结构元素", bic.get("structural_element", "—")),
+                ("溶剂", bic.get("solvent", "—")),
+                ("限制", bic.get("limits", "—")),
+            ]))
+            if bic.get("note"):
+                A(bic["note"] + "\n")
+            mix = bic.get("composition")
+            if isinstance(mix, dict) and mix:
+                rows = []
+                for name, share in sorted(mix.items(), key=lambda kv: -float(kv[1] or 0))[:8]:
+                    try:
+                        rows.append((name, f"{float(share) * 100:.1f}%"))
+                    except (TypeError, ValueError):
+                        rows.append((name, str(share)))
+                A(_kv_table(rows))
+                A("")
+
+        orgs = [o for o in (bio.get("organisms") or []) if isinstance(o, dict)]
+        if orgs:
+            A(_h(3, "物种与可操控性"))
+            A("| 物种 | 营养级 | 体高 / 体长 | 质量 | 速度 | 第一人称 |")
+            A("|---|---|---|---|---|---|")
+            for o in orgs:
+                loco = o.get("locomotion") or {}
+                eye = ""
+                if o.get("playable"):
+                    eye = f"可操控（眼高 {float(o.get('height_m', 0)) * 0.92:.2f} m）"
+                else:
+                    eye = "不可操控"
+                A(f"| {o.get('name', '—')} | {o.get('role', '—')} | "
+                  f"{o.get('height_m', '—')} / {o.get('length_m', '—')} m | "
+                  f"{o.get('mass_kg', '—')} kg | {loco.get('speed_ms', '—')} m/s | {eye} |")
+            A("")
+            for o in orgs:
+                if not o.get("playable"):
+                    continue
+                s = o.get("senses") or {}
+                A(f"- **{o.get('name')}** 的感官：视觉 {s.get('vision', '—')}；"
+                  f"听觉 {s.get('hearing', '—')}；嗅觉 {s.get('smell', '—')}")
+            A("")
         ps = bio.get("photosynthesis")
         if isinstance(ps, dict):
             A(f"**光合**：色素「{ps.get('pigment', '—')}」，吸收 "

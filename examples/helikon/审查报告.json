@@ -31,7 +31,7 @@
       "dim": "structure",
       "question": "meta 必填字段齐全？",
       "verdict": "pass",
-      "note": "赫利孔 v1.1.1"
+      "note": "赫利孔 v1.1.2"
     },
     {
       "id": "S02",
@@ -116,6 +116,27 @@
       "question": "表面气压在可呼吸/可存活区间？",
       "verdict": "pass",
       "note": "正常"
+    },
+    {
+      "id": "K01",
+      "dim": "structure",
+      "question": "元素配比之和为 1？",
+      "verdict": "pass",
+      "note": "行星 / 大气 / 生命配比均归一"
+    },
+    {
+      "id": "K02",
+      "dim": "structure",
+      "question": "虚构元素按「气+钅+单字」命名且唯一？",
+      "verdict": "pass",
+      "note": "3 个新元素，字形合法"
+    },
+    {
+      "id": "K03",
+      "dim": "evolution",
+      "question": "生命基座与可操控物种声明完整？",
+      "verdict": "pass",
+      "note": "基座：碳硅杂合；主元素：碳"
     },
     {
       "id": "O01",
@@ -276,6 +297,51 @@
         "greenhouse_delta_k": 0,
         "t_surface_k": 0.0
       }
-    ]
+    ],
+    "weirdness": {
+      "score": 66,
+      "band": [
+        40,
+        70
+      ],
+      "label": "推荐区间",
+      "items": [
+        {
+          "name": "常数改写",
+          "points": 8,
+          "detail": "G=0.6×"
+        },
+        {
+          "name": "新相互作用",
+          "points": 6,
+          "detail": "双星潮汐耦合场"
+        },
+        {
+          "name": "定律偏离",
+          "points": 4,
+          "detail": "角动量守恒：缓慢泄漏"
+        },
+        {
+          "name": "另类生化",
+          "points": 18,
+          "detail": "能量货币：硫铁簇；遗传载体：六碱基核酸（HNA）；基座：碳硅杂合"
+        },
+        {
+          "name": "虚构元素",
+          "points": 12,
+          "detail": "Qm、Qw、Qs"
+        },
+        {
+          "name": "时空尺度",
+          "points": 12,
+          "detail": "一天 31.4 小时；表面 1.76 g"
+        },
+        {
+          "name": "天体构型",
+          "points": 6,
+          "detail": "3 颗恒星"
+        }
+      ]
+    }
   }
 }

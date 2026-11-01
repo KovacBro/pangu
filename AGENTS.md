@@ -58,6 +58,13 @@ python scripts/pangu.py ca out/world.json --check  # 生态演化：同 seed 复
 
 没有代价的奇观是意淫，有代价的奇观才是世界。
 
+## 生物与元素（1.1.2）
+
+- **可操控视角**从 `biology.organisms[]` 读：`playable: true` 的物种必须有 `height_m` 与 `locomotion.speed_ms`；`preview` 的「生物」页签用它的眼高、步速、重力在 `planet_map.coarse` 上行走。
+- **生命基座**写在 `biology.biochemistry`：`base`（碳基 / 硅基 / 碳硅杂合 / 其他）、`primary_element`、`structural_element`、`solvent`、`limits`；体成分写在 `composition`，合计必须为 1。
+- **元素配比**写在 `chemistry.composition.planet / atmosphere / ocean`，按质量或体积分数，合计必须为 1。
+- **新元素**写在 `chemistry.fictional_elements[]`，字形必须是 `⿸气⿰钅X`（半包围的「气」+「钅」+ 一个自选单字，如 `⿸气⿰钅辰`），并给出相态、丰度、生态作用与代价。`validate` 的 K01–K03 会检查这些。
+
 ## 更多
 
 - 七斧流程与提问脚本：`references/七斧创世法.md`

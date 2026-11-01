@@ -148,9 +148,39 @@
   .probe-flag{margin-top:9px;font-size:11px;line-height:1.75;color:#ffb26b}
   #life-ctrl{grid-column:1/-1;position:static;transform:none;justify-self:center}
 
+  /* ══ 1.1.2 · 生物视角 / 虚构元素字形 ══ */
+  #creature-canvas{display:block;width:100%;height:100%}
+  #cr-card{position:absolute;right:24px;top:22px;width:min(330px,44vw);padding:14px 16px;
+           border:1px solid var(--line);border-radius:14px;background:rgba(6,10,18,.74);
+           backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);pointer-events:none}
+  #cr-card h3{margin:0 0 3px;font-size:15px;letter-spacing:.1em;color:var(--ink);font-weight:600}
+  #cr-card .cr-sub{font-size:10.5px;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:9px}
+  .cr-row{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--ink-dim);
+          padding:2px 0;font-variant-numeric:tabular-nums}
+  .cr-row b{color:var(--accent);font-weight:500}
+  .cr-cap{font-size:9.5px;letter-spacing:.2em;color:#5a6a80;margin:10px 0 3px}
+  .cr-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:2px 0 6px;overflow:hidden}
+  .cr-bar i{display:block;height:100%;background:linear-gradient(90deg,#7fb2ff,#ffcf8a)}
+  .cr-els{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .fe{display:inline-flex;align-items:center;gap:6px;padding:4px 8px 4px 5px;border-radius:9px;
+      background:rgba(255,255,255,.05);border:1px solid rgba(140,170,210,.16);
+      font-size:10.5px;color:var(--ink-dim)}
+  .fe b{color:var(--ink);font-weight:500}
+  .feglyph{position:relative;display:inline-block;width:1.55em;height:1.55em;line-height:1;
+           font-size:14px;color:#ffdca8;flex:0 0 auto}
+  .feglyph .gqi{position:absolute;left:-.02em;top:.04em;font-size:1.12em;line-height:1}
+  .feglyph .gin{position:absolute;left:.44em;top:.34em;font-size:.6em;line-height:1;
+                display:flex;align-items:baseline;letter-spacing:-.04em}
+  .feglyph .gin .gjin{font-size:.94em}
+  .sp-select{appearance:none;background:rgba(255,255,255,.06);border:1px solid var(--line);
+             color:var(--ink);border-radius:8px;padding:6px 9px;
+             font-family:var(--font);font-size:11px;letter-spacing:.04em}
+
   @media (max-width:900px){
     #life-view{grid-template-columns:1fr;grid-template-rows:1.3fr 1fr auto auto;overflow-y:auto}
     .ov-hint{font-size:10px}
+    #cr-card{left:12px;right:12px;top:auto;bottom:74px;width:auto;padding:10px 12px}
+    #cr-card .cr-cap,#cr-card .cr-els{display:none}
   }
 </style>
 </head>
@@ -182,6 +212,7 @@
   <div class="sep"></div>
   <button id="v-surface">地面</button>
   <button id="v-life">演化</button>
+  <button id="v-creature">生物</button>
   <div class="sep"></div>
   <button id="btn-reset" title="R">复位</button>
 </div>
@@ -220,6 +251,23 @@
 <div id="boot">
   <div class="ring"></div>
   <div class="t" id="boot-t">正在开天</div>
+</div>
+
+<!-- 1.1.2 · 生物视角：以某一物种的眼睛站在地表，可操控 -->
+<div id="creature-view" class="overlay">
+  <canvas id="creature-canvas"></canvas>
+  <div id="cr-card">
+    <h3 id="cr-name">—</h3>
+    <div class="cr-sub" id="cr-sub">—</div>
+    <div id="cr-body"></div>
+  </div>
+  <div class="ov-hint" id="cr-hint"></div>
+  <div class="ov-ctrl">
+    <select class="sp-select" id="cr-species" title="寄宿物种"></select>
+    <button id="cr-pov" class="on">第一人称</button>
+    <button id="cr-reset">重生</button>
+    <span class="read" id="cr-read">—</span>
+  </div>
 </div>
 
 <div id="fallback">
@@ -527,6 +575,7 @@ const SURF = (() => {
       return;
     }
     LIFE.close();
+    if (CREATURE) CREATURE.close();
     $('surface-view').classList.add('show');
     UI.mark('v-surface');
     resize();
@@ -974,6 +1023,7 @@ const LIFE = (() => {
       return;
     }
     SURF.close();
+    if (CREATURE) CREATURE.close();
     $('life-view').classList.add('show');
     UI.mark('v-life');
     if (!started) {
@@ -1007,20 +1057,740 @@ const LIFE = (() => {
   return { open, close };
 })();
 
+/* ════════════════════════════════════════════════════════════════
+   1.1.2 · 生物视角：寄宿一个物种，用它的眼睛走一段
+   低多边形（Minecraft / 罪恶都市那一档）：方块躯干、四条腿、
+   尾部两节、眼睛是两块自发光小方块。地形从 planet_map.coarse
+   的 72×36 高程场双线性放大，海平面按海域格子的最高高程解出。
+   ════════════════════════════════════════════════════════════════ */
+let CREATURE = null;
+
+function makeCreature(THREE) {
+  const view = $('creature-view');
+  const cvs = $('creature-canvas');
+  const hint = $('cr-hint');
+  const readout = $('cr-read');
+  const sel = $('cr-species');
+
+  const BIO = (WORLD.biology && typeof WORLD.biology === 'object') ? WORLD.biology : {};
+  const BIC = (BIO.biochemistry && typeof BIO.biochemistry === 'object') ? BIO.biochemistry : {};
+  const CHEM = (WORLD.chemistry && typeof WORLD.chemistry === 'object') ? WORLD.chemistry : {};
+  const COMP = (CHEM.composition && typeof CHEM.composition === 'object') ? CHEM.composition : {};
+  const ELS = (CHEM.fictional_elements || []).filter(e => e && typeof e === 'object');
+  const ORGS = (BIO.organisms || []).filter(o => o && typeof o === 'object');
+  const BODY = IS_BODIES[0] || {};
+  const PM = (BODY.planet_map && typeof BODY.planet_map === 'object') ? BODY.planet_map : {};
+  const COARSE = (PM.coarse && typeof PM.coarse === 'object') ? PM.coarse : {};
+  const BIOMES = (BODY.biomes || []).filter(b => b && typeof b === 'object');
+
+  const DEFAULT_ORG = {
+    id: 'observer', name: '无名观察者', role: '未定义物种', playable: true,
+    height_m: 1.7, length_m: 1.7, mass_kg: 70,
+    body: { legs: 2, arms: 2, tail_segments: 0, head_scale: 1, torso: [0.8, 1.0, 0.6], stride: 0.9 },
+    palette: ['#8a7a64', '#2b2320', '#e8dcc8'],
+    locomotion: { speed_ms: 3.2, sprint_ms: 5.6, jump_m: 0.9 },
+    senses: {},
+  };
+  const PLAYABLE = ORGS.filter(o => o.playable !== false);
+  const LIST = PLAYABLE.length ? PLAYABLE : [DEFAULT_ORG];
+
+  const W = 900;                       // 可视地形边长（米）
+  const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let NX = Math.round(num(COARSE.nx, 0)) || 72;
+  let NY = Math.round(num(COARSE.ny, 0)) || 36;
+
+  function decodeArr(s, n) {
+    s = String(s || '');
+    if (!n || s.length !== n) return null;
+    const a = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const k = DIGITS.indexOf(s[i]);
+      a[i] = (k < 0 ? 0 : k) / 36;
+    }
+    return a;
+  }
+  function decodeOcean(s, n) {
+    s = String(s || '');
+    if (!n || s.length !== n) return null;
+    const a = new Uint8Array(n);
+    for (let i = 0; i < n; i++) a[i] = s[i] === '1' ? 1 : 0;
+    return a;
+  }
+
+  let elevArr = decodeArr(COARSE.elevation, NX * NY);
+  const oceanArr = decodeOcean(COARSE.ocean, NX * NY);
+
+  if (!elevArr) {
+    elevArr = new Float32Array(NX * NY);
+    const sd = (META.id || META.name || 'pangu').length * 0.37;
+    for (let j = 0; j < NY; j++) {
+      for (let i = 0; i < NX; i++) {
+        const u = i / NX * Math.PI * 2, v = j / NY * Math.PI;
+        elevArr[j * NX + i] = 0.5
+          + 0.22 * Math.sin(u * 2 + sd) * Math.cos(v * 1.7)
+          + 0.10 * Math.sin(u * 5.3 + v * 2.1 + sd);
+      }
+    }
+  }
+
+  const SEA = (() => {
+    if (oceanArr) {
+      // 海域格子的最高高程就是海平面；0 也是合法值，不能再兜底成 0.45，
+      // 否则整块大陆都会被判到水下（赫利孔这种 0–0.36 的高程场尤其明显）。
+      let m = 0;
+      for (let i = 0; i < elevArr.length; i++) if (oceanArr[i]) m = Math.max(m, elevArr[i]);
+      return m;
+    }
+    return 0.45;
+  })();
+
+  function sample(arr, u, v) {
+    const fx = clamp(u, 0, 0.999999) * (NX - 1);
+    const fy = clamp(v, 0, 0.999999) * (NY - 1);
+    const i0 = Math.floor(fx), j0 = Math.floor(fy);
+    const i1 = Math.min(NX - 1, i0 + 1), j1 = Math.min(NY - 1, j0 + 1);
+    const tx = fx - i0, ty = fy - j0;
+    const a = arr[j0 * NX + i0] * (1 - tx) + arr[j0 * NX + i1] * tx;
+    const b = arr[j1 * NX + i0] * (1 - tx) + arr[j1 * NX + i1] * tx;
+    return a * (1 - ty) + b * ty;
+  }
+  const elevAt = (x, z) => sample(elevArr, x / W + 0.5, z / W + 0.5);
+  const heightAt = (x, z) => (elevAt(x, z) - SEA) * 150;
+
+  // 粗场的高程单位不一定归一到 0–1（赫利孔只到 0.36），所以群系不能按绝对值取，
+  // 得先把陆地高程拉回 0–1 再分带；否则整块大陆都会被认成浅海。
+  const LAND_BIOMES = BIOMES.filter(b => num(b.elevation, 0) > 0.4);
+  const SEA_BIOMES = BIOMES.filter(b => num(b.elevation, 0) <= 0.4);
+  let landMin = 0, landMax = 1;
+  (() => {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < elevArr.length; i++) {
+      const land = oceanArr ? !oceanArr[i] : elevArr[i] > SEA;
+      if (!land) continue;
+      lo = Math.min(lo, elevArr[i]); hi = Math.max(hi, elevArr[i]);
+    }
+    if (isFinite(lo) && isFinite(hi) && hi > lo) { landMin = lo; landMax = hi; }
+    else { landMin = SEA; landMax = SEA + 0.1; }
+  })();
+
+  function biomeAt(e) {
+    const land = e > SEA + 1e-9;
+    if (!BIOMES.length) return { color: land ? '#6f6a5a' : '#2a4b63' };
+    if (land) {
+      const list = LAND_BIOMES.length ? LAND_BIOMES : BIOMES;
+      const ln = clamp((e - landMin) / Math.max(1e-6, landMax - landMin), 0, 0.999);
+      return list[clamp(Math.floor(ln * list.length), 0, list.length - 1)];
+    }
+    const list = SEA_BIOMES.length ? SEA_BIOMES : BIOMES;
+    const dn = clamp(e / Math.max(1e-6, SEA), 0, 0.999);
+    return list[clamp(Math.floor(dn * list.length), 0, list.length - 1)];
+  }
+
+  function mulberry(a) {
+    a = (a | 0) || 1;
+    return function () {
+      a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function spawnPoint() {
+    const target = SEA + (landMax - SEA) * 0.22;   // 低地，不是山脊
+    let best = null;
+    for (let j = 0; j < NY; j++) {
+      for (let i = 0; i < NX; i++) {
+        const e = elevArr[j * NX + i];
+        const land = oceanArr ? !oceanArr[j * NX + i] : e > SEA;
+        if (!land) continue;
+        // 挑「离海不远、且脚下够平」的格子：第一人称不该出生在悬崖上
+        let slope = 0;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ii = (i + di + NX) % NX;
+          const jj = clamp(j + dj, 0, NY - 1);
+          slope = Math.max(slope, Math.abs(elevArr[jj * NX + ii] - e));
+        }
+        const score = Math.abs(e - target) + slope * 3.2;
+        if (!best || score < best.score) best = { i, j, score, e };
+      }
+    }
+    if (!best) return { x: 0, z: 0 };
+    return {
+      x: ((best.i + 0.5) / NX - 0.5) * W,
+      z: ((best.j + 0.5) / NY - 0.5) * W,
+    };
+  }
+
+  function starHue(s) { return starColor(s || { temp_k: 5800 }); }
+
+  let renderer = null, scene = null, camera = null;
+  let raf = 0, started = false, last = 0;
+  let model = null, hands = null, parts = null;
+  let npcs = [];
+  let species = LIST[0];
+  let pos = null, vel = null, yaw = 0, pitch = 0, onGround = true;
+  let third = false, moveT = 0, clock = 0;
+  const keys = Object.create(null);
+  let drag = null;
+
+  function gauge(org) {
+    const loco = org.locomotion || {};
+    const g = Math.max(0.05, num(BODY.gravity_g, 1)) * 9.81;
+    return {
+      eyeH: Math.max(0.35, num(org.height_m, 1.7) * 0.92),
+      walk: Math.max(0.2, num(loco.speed_ms, 3.2)),
+      run: Math.max(0.4, num(loco.sprint_ms, num(loco.speed_ms, 3.2) * 1.7)),
+      jump: Math.max(0.1, num(loco.jump_m, 0.9)),
+      g,
+    };
+  }
+
+  function buildModel(org) {
+    const g = new THREE.Group();
+    const b = (org.body && typeof org.body === 'object') ? org.body : {};
+    const pal = (org.palette || []).filter(Boolean);
+    const C = [pal[0] || '#8b1a1a', pal[1] || '#2b2320', pal[2] || '#d9c7a3'];
+    const mats = C.map(c => new THREE.MeshLambertMaterial({ color: c, flatShading: true }));
+    const H = Math.max(0.4, num(org.height_m, 1.8));
+    const torso = (Array.isArray(b.torso) && b.torso.length === 3) ? b.torso : [0.9, 0.8, 1.8];
+    const tw = torso[0] * H * 0.38;
+    const th = torso[1] * H * 0.34;
+    const tl = torso[2] * H * 0.38;
+    const legs = clamp(Math.round(num(b.legs, num(org.legs, 4))), 0, 6);
+    const tails = clamp(Math.round(num(b.tail_segments, num(org.tail, 0))), 0, 5);
+    const headS = Math.max(0.12, num(b.head_scale, 1) * H * 0.25);
+    const legL = Math.max(0.1, H * 0.40 - th * 0.4);
+
+    const torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(tw, th, tl), mats[1]);
+    torsoMesh.position.set(0, legL + th / 2, 0);
+    g.add(torsoMesh);
+
+    const headZ = -(tl / 2 + headS * 0.42);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(headS * 0.86, headS * 0.8, headS), mats[0]);
+    head.position.set(0, legL + th + headS * 0.36, headZ);
+    g.add(head);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffd27a });
+    for (const s of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.BoxGeometry(headS * 0.16, headS * 0.12, headS * 0.06), eyeMat);
+      eye.position.set(s * headS * 0.26, headS * 0.12, -headS * 0.52);
+      head.add(eye);
+    }
+    const jaw = new THREE.Mesh(new THREE.BoxGeometry(headS * 0.66, headS * 0.16, headS * 0.72), mats[2]);
+    jaw.position.set(0, -headS * 0.36, -headS * 0.06);
+    head.add(jaw);
+
+    // 背脊棘刺：硅质骨架的外显
+    for (let i = 0; i < 3; i++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(tw * 0.16, H * 0.16, 4), mats[2]);
+      spike.position.set(0, legL + th + H * 0.06, -tl * 0.22 + i * tl * 0.22);
+      g.add(spike);
+    }
+
+    const legPivots = [];
+    const rows = legs === 6 ? [-tl * 0.32, 0, tl * 0.32]
+      : (legs >= 4 ? [-tl * 0.3, tl * 0.3] : [0]);
+    const cols = legs >= 4 ? [-tw * 0.36, tw * 0.36]
+      : (legs === 2 ? [-tw * 0.3, tw * 0.3] : [0]);
+    for (const rz of rows) {
+      for (const cx of cols) {
+        if (!legs) break;
+        const pivot = new THREE.Group();
+        pivot.position.set(cx, legL, rz);
+        const limb = new THREE.Mesh(new THREE.BoxGeometry(H * 0.1, legL, H * 0.1), mats[0]);
+        limb.position.y = -legL / 2;
+        pivot.add(limb);
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(H * 0.12, H * 0.05, H * 0.16), mats[2]);
+        foot.position.set(0, -legL + H * 0.02, -H * 0.03);
+        pivot.add(foot);
+        pivot.userData.moving = true;
+        g.add(pivot);
+        legPivots.push(pivot);
+      }
+    }
+
+    const tailPivots = [];
+    let parent = g;
+    for (let i = 0; i < tails; i++) {
+      const seg = new THREE.Group();
+      seg.position.set(0, legL + th * 0.62, i === 0 ? tl / 2 : H * 0.2);
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(tw * (0.3 - i * 0.03), th * (0.24 - i * 0.02), H * 0.22),
+        mats[0]);
+      mesh.position.z = H * 0.11;
+      seg.add(mesh);
+      parent.add(seg);
+      tailPivots.push(seg);
+      parent = seg;
+    }
+
+    // 接地暗影：没有阴影的方块生物会像浮在空中
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(H * 0.42, 16),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.26, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.02;
+    g.add(shadow);
+
+    g.userData.parts = { legs: legPivots, tail: tailPivots, head };
+    return g;
+  }
+
+  function buildHands(org) {
+    const pal = (org.palette || []).filter(Boolean);
+    const dark = new THREE.MeshLambertMaterial({ color: pal[1] || '#2b2320' });
+    const claw = new THREE.MeshLambertMaterial({ color: pal[2] || '#d9c7a3' });
+    const g = new THREE.Group();
+
+    // 第一人称的「自己的身体」：两只前肢的末端从画面下缘探进来，
+    // 走动时会跟着步伐轻摆。四足与两足通用，不做人手/兽爪的分叉。
+    for (const s of [-1, 1]) {
+      const paw = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.07, 0.26), dark);
+      paw.position.set(0.46 * s, -0.6, -0.88);
+      paw.rotation.x = -0.15;
+      paw.rotation.y = 0.26 * s;
+      g.add(paw);
+      const tip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.06), claw);
+      tip.position.set(0.5 * s, -0.62, -1.0);
+      g.add(tip);
+    }
+    g.visible = false;
+    return g;
+  }
+
+  function buildSky() {
+    IS_STARS.slice(0, 3).forEach((s, i) => {
+      const az = 0.7 + i * 2.1, el = 0.62 - i * 0.18, R = 280;
+      const p = new THREE.Vector3(
+        Math.cos(az) * Math.cos(el) * R, Math.sin(el) * R, Math.sin(az) * Math.cos(el) * R);
+      const c = new THREE.Color(starHue(s));
+      const core = new THREE.Mesh(new THREE.SphereGeometry(5 + i * 1.5, 12, 12),
+        new THREE.MeshBasicMaterial({ color: c }));
+      core.position.copy(p);
+      scene.add(core);
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(15 + i * 4, 16, 16),
+        new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16 }));
+      halo.position.copy(p);
+      scene.add(halo);
+    });
+  }
+
+  function buildTerrain() {
+    const seg = 96;
+    const geo = new THREE.PlaneGeometry(W, W, seg, seg);
+    geo.rotateX(-Math.PI / 2);
+    const p = geo.attributes.position;
+    const colors = new Float32Array(p.count * 3);
+    const col = new THREE.Color();
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), z = p.getZ(i);
+      const e = elevAt(x, z);
+      p.setY(i, (e - SEA) * 150);
+      col.set(biomeAt(e).color || '#3a4a3a');
+      const k = 0.86 + ((i * 37) % 23) / 100;
+      colors[i * 3] = col.r * k;
+      colors[i * 3 + 1] = col.g * k;
+      colors[i * 3 + 2] = col.b * k;
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    scene.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+      vertexColors: true, flatShading: true,
+    })));
+
+    const wgeo = new THREE.PlaneGeometry(W, W);
+    wgeo.rotateX(-Math.PI / 2);
+    const wcol = (BIOMES[0] && BIOMES[0].color) || '#1E4058';
+    const water = new THREE.Mesh(wgeo, new THREE.MeshLambertMaterial({
+      color: new THREE.Color(wcol), transparent: true, opacity: 0.76,
+    }));
+    water.position.y = 0.02;
+    scene.add(water);
+  }
+
+  function buildProps() {
+    const rnd = mulberry((META.id || 'pangu').split('').reduce((a, c) => a + c.charCodeAt(0), 7));
+    const hub = spawnPoint();
+    const spread = 260;                 // 道具围着出生点铺，免得 900 m 里空得看不见
+    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x6b6155, flatShading: true });
+    for (let i = 0; i < 180; i++) {
+      const x = clamp(hub.x + (rnd() - 0.5) * spread, -W / 2 + 6, W / 2 - 6);
+      const z = clamp(hub.z + (rnd() - 0.5) * spread, -W / 2 + 6, W / 2 - 6);
+      const h = heightAt(x, z);
+      if (h < 0.8 || Math.hypot(x - hub.x, z - hub.z) < 8) continue;
+      if (Math.abs(heightAt(x + 4, z) - h) + Math.abs(heightAt(x, z + 4) - h) > 3) continue;
+      const s = 0.5 + rnd() * 1.7;
+      const m = new THREE.Mesh(rockGeo, rockMat);
+      m.position.set(x, h + s * 0.2, z);
+      m.scale.set(s, s * (0.55 + rnd() * 0.6), s);
+      m.rotation.set(rnd() * 3, rnd() * 6, rnd() * 3);
+      scene.add(m);
+    }
+    for (let i = 0; i < 420; i++) {
+      const x = clamp(hub.x + (rnd() - 0.5) * spread, -W / 2 + 6, W / 2 - 6);
+      const z = clamp(hub.z + (rnd() - 0.5) * spread, -W / 2 + 6, W / 2 - 6);
+      const h = heightAt(x, z);
+      if (h < 0.6 || Math.hypot(x - hub.x, z - hub.z) < 7) continue;
+      if (Math.abs(heightAt(x + 4, z) - h) + Math.abs(heightAt(x, z + 4) - h) > 2.5) continue;
+      const e = elevAt(x, z);
+      const c = new THREE.Color(biomeAt(e).color || '#4c5a33');
+      c.offsetHSL(0, 0.05, 0.04);
+      const hgt = 0.45 + rnd() * 1.1;
+      const w = 0.16 + rnd() * 0.22;
+      const stem = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, hgt, w * 0.3),
+        new THREE.MeshLambertMaterial({ color: c.clone().offsetHSL(0, 0, -0.12), flatShading: true }));
+      stem.position.set(x, h + hgt / 2 - 0.05, z);
+      scene.add(stem);
+      const canopy = new THREE.Mesh(new THREE.BoxGeometry(w, w * 1.5, w),
+        new THREE.MeshLambertMaterial({ color: c, flatShading: true }));
+      canopy.position.set(x, h + hgt + w * 0.55, z);
+      canopy.rotation.y = rnd() * 6.28;
+      scene.add(canopy);
+    }
+  }
+
+  function buildNpcs() {
+    npcs.forEach(n => scene.remove(n.obj));
+    npcs = [];
+    if (ORGS.length < 2) return;
+    const others = ORGS.filter(o => o.playable !== false && o !== species).slice(0, 3);
+    others.forEach((o, i) => {
+      const obj = buildModel(o);
+      scene.add(obj);
+      const sp = spawnPoint();
+      npcs.push({
+        org: o, obj, pos: new THREE.Vector3(sp.x + (i - 1) * 6, 0, sp.z + (i - 1) * 5),
+        dir: i * 2.1, next: 0, t: Math.random() * 5,
+      });
+    });
+  }
+
+  function resize() {
+    if (!renderer) return;
+    const w = cvs.clientWidth || view.clientWidth || window.innerWidth;
+    const h = cvs.clientHeight || (window.innerHeight - 76);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / Math.max(1, h);
+    camera.updateProjectionMatrix();
+  }
+
+  function respawn() {
+    if (!pos) { pos = new THREE.Vector3(); vel = new THREE.Vector3(); }
+    const sp = spawnPoint();
+    pos.set(sp.x, heightAt(sp.x, sp.z) + 0.05, sp.z);
+    vel.set(0, 0, 0);
+    yaw = 0.6; pitch = -0.05; onGround = true; moveT = 0;
+  }
+
+  function rebuild() {
+    if (!scene) return;
+    if (model) scene.remove(model);
+    model = buildModel(species);
+    scene.add(model);
+    parts = model.userData.parts;
+    if (hands) camera.remove(hands);
+    hands = buildHands(species);
+    camera.add(hands);
+    buildNpcs();
+    respawn();
+    renderCard();
+  }
+
+  function init() {
+    if (!THREE) return false;
+    if (renderer) return true;
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias: true });
+    } catch (e) { renderer = null; return false; }
+    scene = new THREE.Scene();
+    const skyC = new THREE.Color(starHue(IS_STARS[0]));
+    skyC.lerp(new THREE.Color(0x9fc0e8), 0.68);
+    scene.background = skyC;
+    scene.fog = new THREE.Fog(skyC, 150, 430);
+    camera = new THREE.PerspectiveCamera(72, 1.5, 0.08, 1400);
+    camera.rotation.order = 'YXZ';
+    scene.add(camera);
+
+    scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x241a12, 0.9));
+    const l1 = new THREE.DirectionalLight(new THREE.Color(starHue(IS_STARS[0])), 1.1);
+    l1.position.set(70, 110, 40);
+    scene.add(l1);
+    if (IS_STARS[1]) {
+      const l2 = new THREE.DirectionalLight(new THREE.Color(starHue(IS_STARS[1])), 0.45);
+      l2.position.set(-80, 60, -50);
+      scene.add(l2);
+    }
+    buildSky();
+    buildTerrain();
+    buildProps();
+    camera.add(new THREE.PointLight(0xffffff, 0.15, 8));
+    resize();
+    return true;
+  }
+
+  function togglePov() {
+    third = !third;
+    $('cr-pov').classList.toggle('on', !third);
+    $('cr-pov').textContent = third ? '第三人称' : '第一人称';
+    if (model) model.visible = third;
+    if (hands) hands.visible = !third;
+  }
+
+  function glyphBox(e) {
+    const m = String(e.glyph || '').match(/⿸气⿰钅([\u4e00-\u9fa5])$/);
+    const ch = m ? m[1] : '?';
+    return `<span class="feglyph" title="${e.glyph || ''}">` +
+      `<span class="gqi">气</span>` +
+      `<span class="gin"><span class="gjin">钅</span><span>${ch}</span></span></span>`;
+  }
+
+  function renderCard() {
+    const org = species;
+    $('cr-name').textContent = org.name || '未命名物种';
+    const subs = [org.role, BIC.base ? ('基座 ' + BIC.base) : ''].filter(Boolean);
+    $('cr-sub').textContent = subs.join(' · ') || '未声明生化基座';
+
+    const g = gauge(org);
+    const rows = [
+      ['主元素', BIC.primary_element || '—'],
+      ['结构元素', BIC.structural_element || '—'],
+      ['体高', num(org.height_m, 0) ? num(org.height_m).toFixed(2) + ' m' : '—'],
+      ['眼高', g.eyeH.toFixed(2) + ' m'],
+      ['步速 / 疾走', g.walk.toFixed(1) + ' / ' + g.run.toFixed(1) + ' m/s'],
+      ['表面重力', num(BODY.gravity_g, 1).toFixed(2) + ' g'],
+    ].map(([k, v]) => `<div class="cr-row"><span>${k}</span><b>${v}</b></div>`).join('');
+
+    const mix = (org.composition && typeof org.composition === 'object')
+      ? org.composition : (BIC.composition || {});
+    const entries = Object.entries(mix)
+      .filter(([, v]) => typeof v === 'number')
+      .sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const bars = entries.map(([k, v]) =>
+      `<div class="cr-row"><span>${k}</span><b>${(v * 100).toFixed(1)}%</b></div>` +
+      `<div class="cr-bar"><i style="width:${Math.max(0, Math.min(100, v * 100))}%"></i></div>`).join('');
+
+    const chips = ELS.map(e =>
+      `<span class="fe" title="${(e.role || '').replace(/"/g, '')}">${glyphBox(e)}` +
+      `<b>${e.symbol || ''}</b><span style="opacity:.55">` +
+      `${e.phase_at_surface ? '· ' + e.phase_at_surface : ''}</span></span>`).join('');
+
+    $('cr-body').innerHTML = rows +
+      (bars ? `<div class="cr-cap">体成分</div>${bars}` : '') +
+      (chips ? `<div class="cr-cap">本地新元素</div><div class="cr-els">${chips}</div>` : '');
+  }
+
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now; clock += dt;
+    update(dt);
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function update(dt) {
+    const org = species;
+    const g = gauge(org);
+    const sprint = !!keys['shift'];
+    const speed = sprint ? g.run : g.walk;
+
+    let ix = 0, iz = 0;
+    if (keys['w'] || keys['arrowup']) iz -= 1;
+    if (keys['s'] || keys['arrowdown']) iz += 1;
+    if (keys['a'] || keys['arrowleft']) ix -= 1;
+    if (keys['d'] || keys['arrowright']) ix += 1;
+    const moving = (ix !== 0 || iz !== 0);
+
+    if (moving) {
+      const len = Math.hypot(ix, iz); ix /= len; iz /= len;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+      const dx = fx * (-iz) + rx * ix;
+      const dz = fz * (-iz) + rz * ix;
+      pos.x = clamp(pos.x + dx * speed * dt, -W / 2 + 3, W / 2 - 3);
+      pos.z = clamp(pos.z + dz * speed * dt, -W / 2 + 3, W / 2 - 3);
+      moveT += dt * (sprint ? 1.5 : 1);
+    }
+
+    vel.y -= g.g * dt;
+    pos.y += vel.y * dt;
+    const gy = heightAt(pos.x, pos.z);
+    if (pos.y <= gy) { pos.y = gy; vel.y = 0; onGround = true; } else { onGround = false; }
+
+    const bob = (moving && onGround) ? Math.sin(moveT * 9) * 0.04 : 0;
+    if (!third) {
+      camera.position.set(pos.x, pos.y + g.eyeH + bob, pos.z);
+      camera.rotation.set(pitch, yaw, 0);
+      if (model) model.visible = false;
+      if (hands) {
+        hands.visible = true;
+        hands.position.y = moving ? Math.sin(moveT * 9) * 0.02 : 0;
+      }
+    } else {
+      const dist = 3.4 + g.eyeH * 1.35;
+      const cp = Math.cos(pitch);
+      const cx = pos.x + Math.sin(yaw) * dist * cp;
+      const cz = pos.z + Math.cos(yaw) * dist * cp;
+      let cy = pos.y + g.eyeH + Math.sin(-pitch) * dist * 0.8 + 0.55;
+      // 相机不许埋进山脊：沿玩家到相机的连线逐步抬到地面之上
+      for (let k = 1; k <= 8; k++) {
+        const t = k / 8;
+        const tx = pos.x + (cx - pos.x) * t;
+        const tz = pos.z + (cz - pos.z) * t;
+        cy = Math.max(cy, heightAt(tx, tz) + 0.85);
+      }
+      cy = Math.max(cy, pos.y + 0.7);
+      camera.position.set(cx, cy, cz);
+      camera.lookAt(pos.x, pos.y + g.eyeH * 0.85, pos.z);
+      if (model) model.visible = true;
+      if (hands) hands.visible = false;
+    }
+
+    if (model) {
+      model.position.set(pos.x, pos.y + (moving ? Math.abs(Math.sin(moveT * 7)) * 0.045 : 0), pos.z);
+      model.rotation.y = yaw;
+      animate(model, clock, moving, speed);
+    }
+    npcs.forEach(n => {
+      n.t += dt;
+      if (n.t > n.next) { n.dir = Math.random() * 6.283; n.next = n.t + 2 + Math.random() * 3; }
+      n.pos.x = clamp(n.pos.x + Math.cos(n.dir) * 0.9 * dt, -W / 2 + 3, W / 2 - 3);
+      n.pos.z = clamp(n.pos.z + Math.sin(n.dir) * 0.9 * dt, -W / 2 + 3, W / 2 - 3);
+      const y = heightAt(n.pos.x, n.pos.z);
+      n.obj.position.set(n.pos.x, y, n.pos.z);
+      n.obj.rotation.y = Math.atan2(-Math.cos(n.dir), -Math.sin(n.dir));
+      animate(n.obj, clock + n.t, true, 1.2);
+    });
+
+    if (Math.floor(clock * 5) !== Math.floor((clock - dt) * 5)) {
+      readout.textContent =
+        `${heightAt(pos.x, pos.z).toFixed(1)} m · ${(sprint ? speed : speed).toFixed(1)} m/s` +
+        ` · ${third ? '第三人称' : '第一人称'}`;
+    }
+  }
+
+  function animate(g, t, moving, speed) {
+    const p = g.userData && g.userData.parts;
+    if (!p) return;
+    const amp = moving ? 0.55 : 0.05;
+    const w = t * (moving ? 5.2 + Math.min(speed, 12) * 0.45 : 1.2);
+    p.legs.forEach((leg, i) => {
+      leg.rotation.x = Math.sin(w + (i % 2 ? Math.PI : 0) + Math.floor(i / 2) * 0.9) * amp;
+    });
+    p.tail.forEach((seg, i) => { seg.rotation.y = Math.sin(t * 1.6 + i * 0.8) * 0.2; });
+    if (p.head) p.head.rotation.x = Math.sin(w * 0.5) * 0.04;
+  }
+
+  function bindOnce() {
+    window.addEventListener('keydown', e => {
+      if (!view.classList.contains('show')) return;
+      const k = e.key.toLowerCase();
+      keys[k] = true;
+      if (['w', 'a', 's', 'd', ' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+        e.preventDefault();
+      }
+      if (k === 'f') togglePov();
+      if (k === 'r') respawn();
+      if (k === ' ' && onGround) {
+        const g = gauge(species);
+        vel.y = Math.sqrt(2 * g.g * g.jump);
+        onGround = false;
+      }
+    });
+    window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+    cvs.addEventListener('pointerdown', e => {
+      drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      try { cvs.setPointerCapture(e.pointerId); } catch (_) { }
+    });
+    cvs.addEventListener('pointermove', e => {
+      if (!drag || drag.id !== e.pointerId) return;
+      yaw -= (e.clientX - drag.x) * 0.0042;
+      pitch = clamp(pitch - (e.clientY - drag.y) * 0.0032, -1.15, 0.85);
+      drag.x = e.clientX; drag.y = e.clientY;
+    });
+    const stop = () => { drag = null; };
+    cvs.addEventListener('pointerup', stop);
+    cvs.addEventListener('pointercancel', stop);
+
+    $('cr-reset').onclick = () => respawn();
+    $('cr-pov').onclick = () => togglePov();
+    sel.onchange = () => {
+      const i = Math.max(0, sel.selectedIndex);
+      species = LIST[i] || LIST[0];
+      third = false;
+      $('cr-pov').textContent = '第一人称';
+      $('cr-pov').classList.add('on');
+      rebuild();
+    };
+  }
+
+  function fillSelect() {
+    sel.innerHTML = LIST.map((o, i) =>
+      `<option value="${i}">${o.name || ('物种 ' + (i + 1))}</option>`).join('');
+    sel.selectedIndex = Math.max(0, LIST.indexOf(species));
+  }
+
+  function open() {
+    if (!init()) {
+      view.classList.add('show');
+      UI.mark('v-creature');
+      hint.innerHTML = '<span class="warn">3D 未加载（离线或 WebGL 不可用）——这一页只剩物种卡。</span>';
+      renderCard();
+      return;
+    }
+    SURF.close();
+    LIFE.close();
+    view.classList.add('show');
+    UI.mark('v-creature');
+    if (!started) {
+      started = true;
+      fillSelect();
+      bindOnce();
+      rebuild();
+    } else {
+      resize();
+      renderCard();
+    }
+    hint.innerHTML =
+      'WASD / 方向键移动 · Shift 疾走 · 空格跳跃 · 拖动转头 · <b>F</b> 切视角 · <b>R</b> 重生' +
+      '<br><span style="opacity:.6">地形由 72×36 粗场放大，非真实比例；物种眼高与步速来自 world.json</span>';
+    if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
+  }
+
+  function close() {
+    view.classList.remove('show');
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    drag = null;
+  }
+
+  function canOpen() {
+    return LIST.length > 0 || !!BIC.base;
+  }
+
+  window.addEventListener('resize', () => {
+    if (view.classList.contains('show')) resize();
+  });
+
+  return { open, close, canOpen, get ready() { return !!renderer; } };
+}
+
 /* ── 视图调度：3D 三个太空视图与 1.1 两个新视图互斥 ── */
 const UI = {
   hideOverlays() {
     SURF.close();
     LIFE.close();
+    if (CREATURE) CREATURE.close();
   },
   mark(id) {
-    ['v-sys', 'v-body', 'v-far', 'v-surface', 'v-life']
+    ['v-sys', 'v-body', 'v-far', 'v-surface', 'v-life', 'v-creature']
       .forEach(x => { const el = $(x); if (el) el.classList.toggle('on', x === id); });
   },
 };
 
 $('v-surface').onclick = () => SURF.open();
 $('v-life').onclick = () => LIFE.open();
+$('v-creature').onclick = () => { if (CREATURE) CREATURE.open(); };
 
 /* ── 降级页 ─────────────────────────────────────────────────── */
 function showFallback(reason) {
@@ -1055,7 +1825,8 @@ function showFallback(reason) {
   const evo = WORLD.biology && WORLD.biology.evolution;
   const canSurf = IS_STARS.length > 0;
   const canLife = !!(evo && evo.rules && evo.rules.length);
-  if (canSurf || canLife) {
+  const canCreature = !!(CREATURE && CREATURE.canOpen());
+  if (canSurf || canLife || canCreature) {
     const bar = document.createElement('div');
     bar.style.cssText = 'margin:22px 0 10px;display:flex;gap:10px;flex-wrap:wrap';
     if (canSurf) {
@@ -1070,6 +1841,13 @@ function showFallback(reason) {
       b.textContent = '演化视图';
       b.className = 'fb-go';
       b.onclick = () => { fb.classList.remove('show'); LIFE.open(); };
+      bar.appendChild(b);
+    }
+    if (canCreature) {
+      const b = document.createElement('button');
+      b.textContent = '生物视角';
+      b.className = 'fb-go';
+      b.onclick = () => { fb.classList.remove('show'); CREATURE.open(); };
       bar.appendChild(b);
     }
     $('fb-body').insertBefore(bar, $('fb-body').firstChild);
@@ -1101,6 +1879,7 @@ async function loadThree() {
    主流程
    ══════════════════════════════════════════════════════════════ */
 let THREE = await loadThree();
+CREATURE = makeCreature(THREE);
 if (!THREE) {
   showFallback('所有 CDN 均不可达（可能处于离线环境）。');
 } else {

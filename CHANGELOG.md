@@ -4,7 +4,7 @@
 
 ## 1.1.2 - 2026-11-01
 
-补的是**改动本身**。1.1.1 让世界有了地，但改一个数仍然靠手改 JSON、靠肉眼判断崩没崩、靠记忆决定哪些产物要重跑。这一版把「改 → 扫 → 比」做成可复算的操作。
+补的是**改动本身**，以及住在世界里的人。1.1.1 让世界有了地，但改一个数仍然靠手改 JSON、靠肉眼判断崩没崩、靠记忆决定哪些产物要重跑；地表也还只能「站着抬头看」，没有一具能走路的身体。这一版把「改 → 扫 → 比」做成可复算的操作，同时给出第一人称的可操控生物、元素配比与生命基座、以及按「气 + 钅」造字的世界独有元素。
 
 ### 新命令
 
@@ -25,6 +25,23 @@
   - 审查变化：新增 fatal / 已解除 / 新增 warn。
   - 下游重跑清单：按改动路径推断 `export` / `preview` / `map` / `ca` / `slice` / `redteam`，每项附理由。
 
+### 生物视角：可操控的第一人称（`preview.html`）
+
+- 预览页新增第四个视图「生物」：从 `biology.organisms[]` 里选一个 `playable` 物种寄宿，用它的眼高、步速、跳跃高度与行星表面重力在地表行走。
+- 操作：WASD / 方向键移动，Shift 疾走，空格跳跃（初速由 `locomotion.jump_m` 与 `gravity_g` 反推），拖动转头，F 切第一/第三人称，R 重生。
+- 地形是 `planet_map.coarse` 的 72×36 高程场双线性插值后铺成 900 m 见方，高程按 (e − 海平面) × 150 m 抬起；海平面取「海域格子的最高高程」解出（0 也是合法值，不兜底成 0.45），群系按陆地相对高程分带（不是按地球植被）。含水面、岩石、植株、接地暗影，以及最多 3 个由同世界其他可操控物种扮的游荡 NPC。
+- 生物模型是低多边形方块（Minecraft / 罪恶都市那一档）：躯干、头、四肢、尾节、眼睛、背脊棘刺；四肢按步速摆动，尾巴按节摇摆。第一人称下画面下缘探出两只前肢末端。
+- HUD 显示物种名、营养级、基座、主元素、结构元素、体高 / 眼高 / 步速 / 重力、体成分条（前 5 项）与新元素拼合字。
+- 没有 `biology.organisms` 时回落到「无名观察者」（1.7 m 人形默认值）；Three.js 从 CDN 加载失败时仍出静态卡片与验尸表，不白屏。
+
+### 元素配比、生命基座与新元素
+
+- `chemistry.composition`：`planet`（质量分数）/ `atmosphere`（体积分数）/ `ocean`，三项独立归一，偏差 >2% 记 warn、>5% 记 fatal。
+- `biology.biochemistry`：`base`（碳基 / 硅基 / 碳硅杂合 / 其他）、`primary_element`、`structural_element`、`solvent`、`limits`、`composition`。K03 检查 `base` / `primary_element` / `solvent` 是否齐、主元素是否真的出现在行星配比与生命配比里（后者须 ≥1%），以及所有 `playable` 物种是否给了 `height_m` 与 `locomotion.speed_ms`；没写 `biochemistry` 时记 skip，不拖评分。
+- `chemistry.fictional_elements[]`：命名文法固定为 `⿸气⿰钅X` —— 半包围的「气」（U+2FF8 左上包围）包住「钅」与一个自选单字。字形用 Unicode 表意描述序列存储，不依赖字体能否渲染；预览页把「气」与「钅 X」叠成一枚拼合字。每个元素需带 `symbol / atomic_number / phase_at_surface / density_gcc / melting_k / boiling_k / abundance_ppm / reactivity / role / hazard / trace / discovered`。K02 校验 `id` / `symbol` 唯一、字形与 `component` 一致、相态在 气 / 液 / 固 / 等离子 / 超临界 之内、`abundance_ppm` 为不小于 0 的数值、`role` 非空；字形不合记 fatal，其余记 warn。
+- 新增 `world_schema.fictional_glyph()` / `glyph_component()` / `GLYPH_RE`，供校验与后续工具复用。
+- `export` 档案新增四节：「元素配比 · 行星本体 / 大气 / 海洋」（按占比降序）、「虚构元素」（表格 + 每个元素的代价与痕迹）、「生命基座」（含体成分前 8 项）、「物种与可操控性」（眼高由体高 × 0.92 推、标出可操控与否与感官）。
+
 ### 调参内核（`scripts/world_tuning.py`）
 
 - 路径文法与 `ws.resolve_path` 同源：`world_schema` 抽出公开的 `parse_path()`，切片 `cites`、红队 `target`、CA `source`、`patch/sweep/diff` 共用一套解析，不再各写一份。
@@ -39,16 +56,16 @@
 
 ### 反常识度指数
 
-- `world_schema.weirdness()`：0–100，七类加权、各自封顶——常数改写 ≤32、新相互作用 ≤18、定律偏离 ≤16、守恒破缺 ≤16、另类生化 ≤12、时空尺度 ≤18、天体构型 ≤12。
+- `world_schema.weirdness()`：0–100，八类加权、各自封顶——常数改写 ≤32（每条 8）、新相互作用 ≤18（每条 6）、定律偏离 ≤16（每条 4）、守恒破缺 ≤16（每条 8）、另类生化 ≤18（每项 6）、虚构元素 ≤12（每条 4）、时空尺度 ≤18（每项 6）、天体构型 ≤12（每项 6）。
 - 推荐区间 40–70：低于 40 提示「仍是地球换皮」，高于 70 提示「超出可理解范围」。**这是信息量指标，不是质量指标。**
-- 进入 `validate` 派生量、`--json` 的 `derived.weirdness`、`export` 档案的头部与审查章节。示例「赫利孔」为 48（常数 8 + 相互作用 6 + 定律 4 + 生化 12 + 尺度 12 + 构型 6）。
+- 进入 `validate` 派生量、`--json` 的 `derived.weirdness`、`export` 档案的头部与审查章节。示例「赫利孔」为 66（常数 8 + 相互作用 6 + 定律 4 + 另类生化 18 + 虚构元素 12 + 尺度 12 + 构型 6）：新增的生化基座与三种虚构元素各推高一档，仍落在推荐带内。
 
 ### 验收与示例
 
-- `selftest.py` 22 → 30 项：新增 T1–T8（get / 写盘与版本修订 / `--create` 门禁 / sweep 连续谱 / `--list` / diff 下游清单 / 代价索引 / 反常识度）。
+- `selftest.py` 22 → 34 项：新增 B1–B4（配比归一 / 虚构元素字形与符号唯一 / K01–K03 全通过 / 预览页含可操控生物视角与新元素字形）与 T1–T8（get / 写盘与版本修订 / `--create` 门禁 / sweep 连续谱 / `--list` / diff 下游清单 / 代价索引 / 反常识度）。
 - MCP 9 → 12 个 tool：新增 `pangu_patch`、`pangu_sweep`、`pangu_diff`；`pangu_axioms` 增加 `cost` / `cost_list`。
-- 校验项数保持 33 项不变（1.1.2 不新增检查项，反常识度只进派生量，避免改变既有世界的评分基线）。
-- 示例 `world.json` 数据未改，`map --check` / `ca --check` 结果与 1.1.1 一致。
+- 校验 33 → 36 项：新增 K01（元素配比之和为 1，偏差 >2% warn、>5% fatal）、K02（虚构元素按「气+钅+单字」命名且 id / 符号唯一）、K03（生命基座与可操控物种声明完整）。评分不看反常识度（它只进派生量与报告），赫利孔补完数据仍是 100 分。
+- 示例 `world.json` 补了元素与物种数据：`chemistry.composition`、`chemistry.fictional_elements`（气钅辰 / 气钅昷 / 气钅参）、`biology.biochemistry` 与 `biology.organisms[]`。补完评分仍 100 / 0 fatal，`map --check` / `ca --check` 复算一致。
 
 ### 已知限制
 
