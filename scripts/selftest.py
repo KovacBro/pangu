@@ -167,6 +167,94 @@ def test_map(tmp):
           f"hash={data.get('hash')} / pm={pm.get('hash')}")
 
 
+def test_tuning(tmp):
+    print("\n§1.1.2 调参层")
+
+    # T1 查：--get 能取到带单位字符串
+    r = run([CLI, "patch", EXAMPLE, "--get", "physics.constants[0].world_value"])
+    check("T1", "patch --get 取到常数原值", r.returncode == 0 and "4.004e-11" in r.stdout,
+          (r.stdout + r.stderr)[-160:])
+
+    # T2 改：写盘后版本 +1、修订记录 +1、值真的变了
+    w = os.path.join(tmp, "tune.json")
+    shutil.copy(EXAMPLE, w)
+    before = jload(w)
+    n_rev = len((before.get("history") or {}).get("revisions") or [])
+    r = run([CLI, "patch", w, "--set", "cosmology.bodies[0].albedo=0.40",
+             "--note", "自测：反照率", "--json"])
+    after = jload(w)
+    ver_ok = (after["meta"]["version"] != before["meta"]["version"])
+    rev_ok = len(after["history"]["revisions"]) == n_rev + 1
+    val_ok = abs(float(after["cosmology"]["bodies"][0]["albedo"]) - 0.40) < 1e-9
+    check("T2", "patch 写盘：值变更 + 版本推进 + 记修订",
+          r.returncode == 0 and ver_ok and rev_ok and val_ok,
+          f"ver={after['meta']['version']} rev={len(after['history']['revisions'])}")
+
+    # T3 增：默认拒绝写不存在的字段，--create 才允许
+    r1 = run([CLI, "patch", w, "--set", "physics.selftest_field=1"])
+    r2 = run([CLI, "patch", w, "--set", "physics.selftest_field=1", "--create"])
+    check("T3", "patch 默认拒绝孤儿字段，--create 放行",
+          r1.returncode == 2 and r2.returncode == 0
+          and jload(w)["physics"].get("selftest_field") == 1,
+          f"r1={r1.returncode} r2={r2.returncode}")
+
+    # T4 扫：JSON 出 3 行，基线分可读
+    r = run([CLI, "sweep", w, "--param", "cosmology.bodies[0].mass_earth",
+             "--percent", "20", "--steps", "3", "--json"])
+    try:
+        sw = json.loads(r.stdout)
+    except Exception:
+        sw = {}
+    check("T4", "sweep 出连续谱并给出安全窗",
+          r.returncode == 0 and len(sw.get("rows") or []) == 3
+          and sw.get("baseline", {}).get("score") == 100,
+          (r.stdout + r.stderr)[-160:])
+
+    # T5 扫：--list 能列出可扫参数
+    r = run([CLI, "sweep", EXAMPLE, "--list"])
+    check("T5", "sweep --list 列出可扫参数",
+          r.returncode == 0 and "physics.constants[0].world_value" in r.stdout,
+          (r.stdout + r.stderr)[-160:])
+
+    # T6 比：diff 抓到改动并给下游清单
+    r = run([CLI, "diff", EXAMPLE, w, "--json"])
+    try:
+        df = json.loads(r.stdout)
+    except Exception:
+        df = {}
+    tasks = {t.get("task") for t in (df.get("downstream") or [])}
+    changed = {c.get("path") for c in (df.get("changes") or [])}
+    check("T6", "diff 抓到 albedo / 版本变化并给出重跑清单",
+          r.returncode == 0 and "cosmology.bodies[0].albedo" in changed
+          and {"export", "preview"} <= tasks,
+          f"changed={list(changed)[:4]} tasks={tasks}")
+
+    # T7 索引：代价类型二次索引覆盖全部积木
+    r = run([CLI, "axioms", "--cost-list"])
+    tags = ["时间", "空间", "能量", "物质", "感知", "社会", "生命", "结构"]
+    r2 = run([CLI, "axioms", "--cost", "空间", "--json"])
+    try:
+        pool = json.loads(r2.stdout)
+    except Exception:
+        pool = []
+    check("T7", "公理库按代价类型可索引且过滤结果带标签",
+          r.returncode == 0 and all(t in r.stdout for t in tags)
+          and bool(pool) and all("空间" in a.get("cost_tags", []) for a in pool),
+          f"{len(pool)} 条")
+
+    # T8 指数：反常识度进入校验输出与 JSON 派生量
+    r = run([CLI, "validate", EXAMPLE, "--json"])
+    try:
+        rep = json.loads(r.stdout)
+    except Exception:
+        rep = {}
+    wd = (rep.get("derived") or {}).get("weirdness") or {}
+    r2 = run([CLI, "validate", EXAMPLE])
+    check("T8", "反常识度指数进入派生量与报告",
+          0 <= int(wd.get("score", -1)) <= 100 and "反常识度" in r2.stdout,
+          f"score={wd.get('score')}")
+
+
 def test_ca(tmp):
     print("\n§1.1.1 生态自动机")
 
@@ -273,10 +361,10 @@ def test_mcp():
     names = {t["name"] for t in tools}
     need = {"pangu_guide", "pangu_doctor", "pangu_init",
             "pangu_validate", "pangu_preview", "pangu_export", "pangu_axioms",
-            "pangu_map", "pangu_ca"}
+            "pangu_map", "pangu_ca", "pangu_patch", "pangu_sweep", "pangu_diff"}
     schema_ok = all(t.get("inputSchema", {}).get("type") == "object" for t in tools)
-    check("P7", "tools/list 返回 9 个工具且 schema 合法",
-          len(tools) == 9 and need.issubset(names) and schema_ok,
+    check("P7", "tools/list 返回 12 个工具且 schema 合法",
+          len(tools) == 12 and need.issubset(names) and schema_ok,
           f"{len(tools)} 个，缺 {need - names}")
 
     reps, _ = rpc([
@@ -315,6 +403,7 @@ def main() -> int:
     tmp = tempfile.mkdtemp(prefix="pangu_selftest_")
     try:
         test_engine(tmp)
+        test_tuning(tmp)
         test_map(tmp)
         test_ca(tmp)
         test_install(tmp)

@@ -1,12 +1,12 @@
-# 盘古 1.1.1 Pangu
+# 盘古 1.1.2 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.1.1-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.2-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-22%2F22-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-30%2F30-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -15,6 +15,21 @@
 不绑定任何平台。Claude、GPT、Gemini、本地模型，Claude Code、Codex、Cursor、Windsurf、Cline、Zed，或者你自己写的 harness —— 只要能读文件，就能用它；只要支持 MCP，就能把它当工具调。
 
 > 地球不是模板，是一个样本。
+
+---
+
+## 1.1.2 新增了什么
+
+1.1.1 让世界有了**地**，1.1.2 让改动本身**可验证**。世界不是一次写完的，是在「改一个数 → 看它崩不崩 → 对比上一版」里长出来的。
+
+- **`patch` — 定点改 / 增 / 查**（`scripts/world_tuning.py`）：按点路径读写任意字段，替代手改 JSON。写盘即把 `meta.version` 补丁位 +1、往 `history.revisions[]` 追一条修订，并立刻报评分 / fatal 的增减。默认拒绝写不存在的字段（防手滑写出孤儿字段），`--create` 才放行；`--dry-run` 只看不写。
+- **`sweep` — 参数敏感度扫描**：沿一个数值参数扫出连续谱，每步完整校验，标出安全窗与**第一个崩点**。`--recalc` 会在每步重算天体的密度 / 重力 / 半径，让扫描探索物理自洽的邻近世界——否则质量一动就先撞 P01 的四数自洽，满屏 fatal 看不出真正的临界点。
+- **`diff` — 版本对比**：逐字段列出改动 / 新增 / 删除，给出评分、致命项、表面重力、温度、反常识度的变化，并推断必须重跑的下游产物（export / preview / map / ca / slice / redteam）。改设定不再是黑箱。
+- **公理库按代价类型二次索引**：创作时想的往往不是「哪个学科」，而是「我想让世界付出什么代价」。`axioms --cost 空间` 直接捞「远行变得不可能」这类积木。
+- **反常识度指数**：`validate` 新增 0–100 的偏离度（常数改写 / 新相互作用 / 定律偏离 / 守恒破缺 / 另类生化 / 时空尺度 / 天体构型），推荐区间 40–70。低于 40 提示「仍是地球换皮」，高于 70 提示「读者会放弃」。示例赫利孔为 48。
+- **校验 33 项不变、selftest 22 → 30 项、MCP 9 → 12 个 tool**（新增 `pangu_patch`、`pangu_sweep`、`pangu_diff`）。
+
+详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ---
 
@@ -77,7 +92,7 @@ python install.py --print-mcp                          # 打印配置片段
 | Windsurf | `adapters/windsurf/pangu.md` | `model_decision` 触发 |
 | Gemini CLI | `adapters/gemini/GEMINI.md` | 项目根自动读取 |
 | Cline / Roo / Kilo | `AGENTS.md` | 工作区规则 |
-| Zed / Continue / Cherry Studio | `adapters/mcp/pangu_mcp.py` | MCP tool，9 个 |
+| Zed / Continue / Cherry Studio | `adapters/mcp/pangu_mcp.py` | MCP tool，12 个 |
 | 任意纯对话模型 | `adapters/generic/BOOTSTRAP.md` | 粘贴即用 |
 
 细节见 `adapters/README.md`，排错见 `docs/跨harness移植说明.md`。
@@ -107,6 +122,12 @@ python scripts/pangu.py ca       out/helikon.json --check    # 同 seed 复算�
 python scripts/pangu.py map      out/helikon.json --run      # 七层图 + 正射地球 + map.html
 python scripts/pangu.py map      out/helikon.json --check    # 同 seed 复算 + 六项体检
 python scripts/pangu.py map      out/helikon.json --write --yes  # 写回摘要与 CA 粗场
+
+# 1.1.2：改设定 / 扫参数 / 比版本
+python scripts/pangu.py patch    out/helikon.json --set "cosmology.bodies[0].albedo=0.35"
+python scripts/pangu.py patch    out/helikon.json --get "physics.constants[0].world_value"
+python scripts/pangu.py sweep    out/helikon.json --param "cosmology.bodies[0].mass_earth" --percent 30 --recalc
+python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 ```
 
 `preview` 生成的 HTML 双击即开，不需要服务器、不需要构建、不需要联网（首次需从 CDN 取一次 Three.js，之后走缓存；完全离线时会降级为数据视图）。
@@ -165,11 +186,12 @@ python scripts/pangu.py map      out/helikon.json --write --yes  # 写回摘要�
 │   ├── windsurf/pangu.md       Windsurf 规则
 │   ├── gemini/GEMINI.md        Gemini CLI 入口
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
-│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，9 个 tool）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，12 个 tool）
 ├── docs/
 │   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
 │   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
 │   ├── 开发文档-v1.1.1.md       1.1.1 行星地图与 CA 强化：数据契约、算法、验收
+│   ├── 开发文档-v1.1.2.md       1.1.2 调参层：patch / sweep / diff 的契约与判定
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
 │   ├── 3D预览层规范.md          渲染层技术规格
 │   └── 优化建议.md              已知短板与改进方向
@@ -181,8 +203,9 @@ python scripts/pangu.py map      out/helikon.json --write --yes  # 写回摘要�
 │   └── world-schema.md          JSON 全字段规范 + 机检清单
 ├── scripts/
 │   ├── pangu.py                 CLI：init / validate / preview / export / axioms / doctor
-│   │                                / slice / redteam / ca / map
-│   ├── world_schema.py          校验内核：天体物理计算、评分、公理库解析
+│   │                                / slice / redteam / ca / map / patch / sweep / diff
+│   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、公理库解析
+│   ├── world_tuning.py          调参层：点路径读写、参数扫描、版本对比、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合
 │   ├── mapgen.py                行星地图引擎：板块、海平面、气候、河网、群系、出图
 │   ├── png_writer.py            零依赖 PNG 编码器（zlib + struct）

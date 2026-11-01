@@ -29,7 +29,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = HERE
-VERSION = "1.0.0"
+VERSION = "1.1.2"
 
 BEGIN = "<!-- pangu:begin -->"
 END = "<!-- pangu:end -->"

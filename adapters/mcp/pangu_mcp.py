@@ -46,7 +46,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 CLI = os.path.join(ROOT, "scripts", "pangu.py")
 
 SERVER_NAME = "pangu"
-SERVER_VERSION = "1.1.1"
+SERVER_VERSION = "1.1.2"
 DEFAULT_PROTOCOL = "2024-11-05"
 SUPPORTED_PROTOCOLS = ("2024-11-05", "2024-10-07", "2025-03-26", "2025-06-18")
 
@@ -163,7 +163,8 @@ TOOLS = [
         "title": "抽取反常识积木",
         "description": (
             "从 60+ 条公理积木里查询或随机抽取可复用的反常识设定，每条含："
-            "设定、代价、痕迹、适用尺度。卡住时用它打破地球直觉。"
+            "设定、代价、痕迹、适用尺度、代价类型标签。卡住时用它打破地球直觉。"
+            "可按代价类型过滤（时间/空间/能量/物质/感知/社会/生命/结构）。"
         ),
         "inputSchema": _schema({
             "domain": {
@@ -171,6 +172,9 @@ TOOLS = [
                 "enum": ["physics", "cosmos", "math", "chemistry", "biology", "civilization"],
                 "description": "领域过滤",
             },
+            "cost": {"type": "string",
+                     "description": "代价类型过滤，如「空间」「时间」「生命」"},
+            "cost_list": {"type": "boolean", "description": "列出代价类型索引与条数"},
             "roll": {"type": "integer", "description": "随机抽 N 条"},
             "json": {"type": "boolean", "description": "返回结构化 JSON"},
         }),
@@ -216,6 +220,63 @@ TOOLS = [
             "seed": {"type": "integer", "description": "覆盖随机种子"},
             "out": {"type": "string", "description": "快照图输出目录"},
         }, ["world"]),
+    },
+    {
+        "name": "pangu_patch",
+        "title": "定点改 / 增 / 查字段",
+        "description": (
+            "按点路径读写 world.json，替代手改 JSON。--set 改或增字段（值先按 JSON 解析，"
+            "失败当字符串），--get 查值；成功写入会自动把 meta.version 补丁位 +1，"
+            "并在 history.revisions[] 追加一条修订记录。改完立刻返回评分/fatal 变化。"
+            "默认拒绝写不存在的字段，加 create=true 才允许新建或追加数组。"
+        ),
+        "inputSchema": _schema({
+            "world": {"type": "string", "description": "world.json 路径"},
+            "set": {"type": "array", "items": {"type": "string"},
+                    "description": "要写入的 '路径=值'，如 physics.constants[0].world_value=4.0e-11"},
+            "get": {"type": "array", "items": {"type": "string"},
+                    "description": "要查询的路径，如 cosmology.bodies[0].mass_earth"},
+            "create": {"type": "boolean", "description": "允许新建字段 / 追加数组"},
+            "note": {"type": "string", "description": "修订说明"},
+            "version": {"type": "string", "description": "显式指定新版本号"},
+            "no_bump": {"type": "boolean", "description": "不改版本、不记修订"},
+            "dry_run": {"type": "boolean", "description": "只显示改动，不写盘"},
+        }, ["world"]),
+    },
+    {
+        "name": "pangu_sweep",
+        "title": "参数敏感度扫描",
+        "description": (
+            "沿一个数值参数扫出连续谱，每步完整校验，标出评分/fatal 的变化，"
+            "并给出安全窗与第一个崩点。recalc=true 会同时重算天体的密度/重力/半径，"
+            "让扫描探索物理自洽的邻近世界（否则质量一动就撞 P01）。"
+            "list=true 列出可扫描的参数路径。"
+        ),
+        "inputSchema": _schema({
+            "world": {"type": "string", "description": "world.json 路径"},
+            "param": {"type": "string", "description": "要扫的点路径"},
+            "from": {"type": "number", "description": "起始值"},
+            "to": {"type": "number", "description": "终止值"},
+            "percent": {"type": "number", "description": "以当前值为中心 ±N%（默认 20）"},
+            "steps": {"type": "integer", "description": "采样点数 3–31，默认 7"},
+            "body": {"type": "integer", "description": "看第几个天体的派生量，默认 0"},
+            "recalc": {"type": "boolean", "description": "每步重算密度/重力/半径"},
+            "list": {"type": "boolean", "description": "列出可扫描参数"},
+        }, ["world"]),
+    },
+    {
+        "name": "pangu_diff",
+        "title": "世界版本对比",
+        "description": (
+            "深度对比两份 world.json：逐字段列出改动/新增/删除，给出评分、致命项、"
+            "表面重力、温度、反常识度的变化，并推断必须重跑的下游产物"
+            "（export / preview / map / ca / slice / redteam）。"
+        ),
+        "inputSchema": _schema({
+            "a": {"type": "string", "description": "旧版 world.json"},
+            "b": {"type": "string", "description": "新版 world.json"},
+            "limit": {"type": "integer", "description": "最多记录多少处改动，默认 200"},
+        }, ["a", "b"]),
     },
 ]
 
@@ -356,6 +417,10 @@ def _call_tool(name: str, a: dict) -> dict:
         args = ["axioms"]
         if a.get("domain"):
             args += ["--domain", str(a["domain"])]
+        if a.get("cost"):
+            args += ["--cost", str(a["cost"])]
+        if a.get("cost_list"):
+            args.append("--cost-list")
         if a.get("roll"):
             args += ["--roll", str(int(a["roll"]))]
         if a.get("json"):
@@ -401,6 +466,64 @@ def _call_tool(name: str, a: dict) -> dict:
         code, out, err = _run_cli(args)
         return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
 
+    # ── 定点改字段 ────────────────────────────────────────────
+    if name == "pangu_patch":
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["patch", str(w)]
+        for s in (a.get("set") or []):
+            args += ["--set", str(s)]
+        for g in (a.get("get") or []):
+            args += ["--get", str(g)]
+        if a.get("create"):
+            args.append("--create")
+        if a.get("note"):
+            args += ["--note", str(a["note"])]
+        if a.get("version"):
+            args += ["--version", str(a["version"])]
+        if a.get("no_bump"):
+            args.append("--no-bump")
+        if a.get("dry_run"):
+            args.append("--dry-run")
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+
+    # ── 参数扫描 ──────────────────────────────────────────────
+    if name == "pangu_sweep":
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["sweep", str(w)]
+        if a.get("list"):
+            args.append("--list")
+        if a.get("param"):
+            args += ["--param", str(a["param"])]
+        if a.get("from") is not None:
+            args += ["--from", str(a["from"])]
+        if a.get("to") is not None:
+            args += ["--to", str(a["to"])]
+        if a.get("percent") is not None:
+            args += ["--percent", str(a["percent"])]
+        if a.get("steps") is not None:
+            args += ["--steps", str(int(a["steps"]))]
+        if a.get("body") is not None:
+            args += ["--body", str(int(a["body"]))]
+        if a.get("recalc"):
+            args.append("--recalc")
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+
+    # ── 版本对比 ──────────────────────────────────────────────
+    if name == "pangu_diff":
+        if not a.get("a") or not a.get("b"):
+            return _result("缺少参数 a / b", True)
+        args = ["diff", str(a["a"]), str(a["b"])]
+        if a.get("limit") is not None:
+            args += ["--limit", str(int(a["limit"]))]
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
+
     return _result(f"未知工具：{name}", True)
 
 
@@ -443,7 +566,8 @@ def _handle(msg: dict) -> None:
                 "盘古造世引擎。造世界前先调用 pangu_guide 读方法论；"
                 "然后用 pangu_init 建骨架、逐步填充 world.json、pangu_validate 审查、"
                 "pangu_map 推演行星地图、pangu_ca 跑生态演化、pangu_preview 出 3D、"
-                "pangu_export 出档案。"
+                "pangu_export 出档案。改设定用 pangu_patch（自动升版本记修订），"
+                "扫参数用 pangu_sweep，比版本用 pangu_diff。"
             ),
         })
         return

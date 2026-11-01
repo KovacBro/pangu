@@ -149,19 +149,24 @@ python install.py --print-mcp
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python adapters/mcp/pangu_mcp.py
 ```
 
-应返回 7 个 tool 的 JSON。若无输出，先看 stderr（日志只走 stderr，不会污染协议）。
+应返回 12 个 tool 的 JSON。若无输出，先看 stderr（日志只走 stderr，不会污染协议）。
 
-**七个工具**：
+**十二个工具**：
 
 | tool | 用途 |
 |---|---|
 | `pangu_guide` | 读方法论（`section` 可分段：skill / axes / axioms / search / audit / schema） |
 | `pangu_doctor` | 环境自检 |
 | `pangu_init` | 生成 world.json 骨架 |
-| `pangu_validate` | 自洽性校验与打分 |
+| `pangu_validate` | 自洽性校验与打分（含反常识度） |
 | `pangu_preview` | 生成 3D 预览页 |
 | `pangu_export` | 导出世界档案 |
-| `pangu_axioms` | 抽取反常识积木 |
+| `pangu_axioms` | 抽取反常识积木（可按 `cost` 代价类型过滤） |
+| `pangu_map` | 推演行星地图 / 复算体检 / 回写粗场 |
+| `pangu_ca` | 编译并运行生态演化 / 复算比对 |
+| `pangu_patch` | 定点改 / 增 / 查字段，自动升版本记修订 |
+| `pangu_sweep` | 参数敏感度扫描，找安全窗与崩点 |
+| `pangu_diff` | 版本对比 + 下游重跑清单 |
 
 ### 3.7 纯对话（无文件、无工具）
 

@@ -96,6 +96,29 @@ def _get(d: Any, *keys, default=None):
 _SEG_RE = re.compile(r"^([^\[\]\.]+)((?:\[\d+\])*)$")
 
 
+def parse_path(path: Any) -> list:
+    """
+    把 'cosmology.bodies[0].mass_earth' 拆成 ['cosmology', 'bodies', 0, 'mass_earth']。
+
+    路径非法时抛 ValueError。1.1.2 起对外公开：patch / sweep / diff 与三处引用
+    （切片 cites、红队 target、CA source）共用同一套路径文法，避免各写一份。
+    """
+    if not isinstance(path, str) or not path.strip():
+        return []
+    tokens = []
+    for seg in path.strip().split("."):
+        seg = seg.strip()
+        if not seg:
+            continue
+        m = _SEG_RE.match(seg)
+        if not m:
+            raise ValueError(f"路径段无法解析：{seg}")
+        tokens.append(m.group(1))
+        for idx in re.findall(r"\[(\d+)\]", m.group(2) or ""):
+            tokens.append(int(idx))
+    return tokens
+
+
 def resolve_path(root: Any, path: Any):
     """
     解析 'cosmology.sky_phenomena[0]' 形式的点路径（支持下标）。
@@ -112,17 +135,10 @@ def resolve_path(root: Any, path: Any):
     if root is None:
         return False, None, "数据源为空"
 
-    tokens = []
-    for seg in path.strip().split("."):
-        seg = seg.strip()
-        if not seg:
-            continue
-        m = _SEG_RE.match(seg)
-        if not m:
-            return False, None, f"路径段无法解析：{seg}"
-        tokens.append(m.group(1))
-        for idx in re.findall(r"\[(\d+)\]", m.group(2) or ""):
-            tokens.append(int(idx))
+    try:
+        tokens = parse_path(path)
+    except ValueError as e:
+        return False, None, str(e)
     if not tokens:
         return False, None, "路径无有效段"
 
@@ -314,12 +330,121 @@ def binary_separation(world: dict) -> Optional[float]:
     return star_hierarchy(world)["sep"]
 
 
+# 推荐偏离带：低于下限 = 换皮，高于上限 = 读者放弃。
+WEIRD_BAND = (40, 70)
+
+
+def weirdness(world: dict) -> dict:
+    """
+    反常识度指数（0–100）。
+
+    改太少是地球换皮，改太多是噪声。本函数把「偏离地球」拆成七类可数项，
+    每类封顶，加总后与 WEIRD_BAND 比较：
+
+        常数改写 ≤32（每条 8）｜ 新相互作用 ≤18（每条 6）
+        定律偏离 ≤16（每条 4）｜ 守恒破缺 ≤16（每条 8）
+        另类生化 ≤12（每项 6）｜ 时空尺度 ≤18（每项 6）｜ 天体构型 ≤12（每项 6）
+
+    这是**信息量指标，不是质量指标**：100 分不代表好，40 以下才代表没改动。
+    """
+    phys = world.get("physics") or {}
+    bio = world.get("biology") or {}
+    cos = world.get("cosmology") or {}
+    items = []
+
+    def add(name: str, points: float, detail: str) -> None:
+        if points > 0:
+            items.append({"name": name, "points": round(points, 1),
+                          "detail": detail or "—"})
+
+    # 1. 常数改写
+    changed = []
+    for c in phys.get("constants") or []:
+        if not isinstance(c, dict):
+            continue
+        wv = _parse_first(c.get("world_value"))
+        ev = _parse_first(c.get("earth_value"))
+        if wv is None or not ev:
+            continue
+        ratio = wv / ev
+        if abs(ratio - 1) > 1e-3:
+            changed.append(f"{c.get('symbol', '?')}={ratio:.3g}×")
+    add("常数改写", min(32, 8 * len(changed)), "、".join(changed))
+
+    # 2. 新相互作用
+    ni = [i for i in (phys.get("new_interactions") or []) if isinstance(i, dict)]
+    add("新相互作用", min(18, 6 * len(ni)),
+        "、".join(str(i.get("name", "?")) for i in ni[:4]))
+
+    # 3. 定律偏离（"标准/未改"不算）
+    devs = []
+    for l in phys.get("laws") or []:
+        if not isinstance(l, dict):
+            continue
+        dev = str(l.get("deviation") or "").strip()
+        if dev and not re.match(r"^(标准|未改|无改动|无$|完整保留)", dev):
+            devs.append(f"{l.get('name', '?')}：{dev}")
+    add("定律偏离", min(16, 4 * len(devs)), "；".join(devs[:3]))
+
+    # 4. 守恒 / 对称性破缺
+    bs = phys.get("broken_symmetries")
+    if isinstance(bs, list) and bs:
+        add("守恒破缺", min(16, 8 * len(bs)),
+            "；".join(str(x)[:24] for x in bs[:3]))
+
+    # 5. 另类生化
+    alt = []
+    for key, label in (("energy_currency", "能量货币"), ("genetic_carrier", "遗传载体")):
+        v = bio.get(key)
+        nm = (v.get("name") if isinstance(v, dict) else str(v or "")).strip()
+        if nm and not re.search(r"(?i)\b(ATP|DNA|RNA)\b|碳基|水基", nm):
+            alt.append(f"{label}：{nm}")
+    add("另类生化", min(12, 6 * len(alt)), "；".join(alt))
+
+    # 6. 时空尺度（日长 / 年长 / 表面重力）
+    cal = cos.get("calendar") or {}
+    anom = []
+    day = _num(cal.get("day_hours"), 0)
+    if day and abs(day - 24) / 24 > 0.10:
+        anom.append(f"一天 {day:g} 小时")
+    year = _num(cal.get("year_days"), 0)
+    if year and abs(year - 365.25) / 365.25 > 0.10:
+        anom.append(f"一年 {year:g} 天")
+    bodies = [b for b in (cos.get("bodies") or []) if isinstance(b, dict)]
+    body_ids = {b.get("id") for b in bodies}
+    planets = [b for b in bodies if str(_get(b, "orbit", "parent", default="")) not in body_ids]
+    if planets:
+        g = _num(planets[0].get("gravity_g"), 0)
+        if g and abs(g - 1) > 0.10:
+            anom.append(f"表面 {g:g} g")
+    add("时空尺度", min(18, 6 * len(anom)), "；".join(anom))
+
+    # 7. 天体构型
+    stars = [s for s in (cos.get("stars") or []) if isinstance(s, dict)]
+    struct = []
+    if not stars:
+        struct.append("无恒星")
+    elif len(stars) >= 3:
+        struct.append(f"{len(stars)} 颗恒星")
+    elif len(stars) == 2:
+        struct.append("双星")
+    if len(planets) >= 2:
+        struct.append(f"{len(planets)} 颗行星")
+    add("天体构型", min(12, 6 * len(struct)), "；".join(struct))
+
+    score = int(round(min(100, sum(i["points"] for i in items))))
+    lo, hi = WEIRD_BAND
+    label = ("仍是地球换皮" if score < lo
+             else ("推荐区间" if score <= hi else "超出可理解范围"))
+    return {"score": score, "band": [lo, hi], "label": label, "items": items}
+
+
 def compute_derived(world: dict) -> dict:
     """对每个天体算出密度、重力、逃逸速度、平衡温度。"""
     gr = g_ratio(world)
     lt = total_luminosity(world)
     out = {"g_ratio": round(gr, 4), "total_luminosity": round(lt, 4),
-           "binary_sep_au": None, "bodies": []}
+           "binary_sep_au": None, "bodies": [], "weirdness": weirdness(world)}
 
     sep = binary_separation(world)
     if sep:
@@ -955,6 +1080,13 @@ def format_report(rep: Report, verbose: bool = True) -> str:
                 f"    v_esc={b['v_escape_km_s']}km/s · T_eq={teq}")
         lines.append(f"  G'/G={d['g_ratio']} ｜ 系统总光度={d['total_luminosity']}L☉"
                      + (f" ｜ 双星间距={d['binary_sep_au']}AU" if d.get("binary_sep_au") else ""))
+        w = d.get("weirdness") or {}
+        if w:
+            lo, hi = w.get("band", (40, 70))
+            lines.append(f"  反常识度 {w.get('score')}/100（推荐 {lo}–{hi}，{w.get('label')}）"
+                         + ("：" + "、".join(f"{i['name']}{i['points']:g}"
+                                            for i in (w.get("items") or [])[:5])
+                            if w.get("items") else ""))
 
     if rep.missing:
         lines.append("")
@@ -982,6 +1114,24 @@ DOMAIN_BY_PREFIX = {
     "V": ("civilization", "文明"),
 }
 
+# 代价类型二次索引：创作时想的不是「哪个学科」，而是「我想让世界付出什么代价」。
+COST_TAGS = (
+    ("时间", r"寿命|年长|年纪|衰老|永生|瞬间|秒|分钟|小时|一天|周期|计时|时代|世代|时间|历史|迟到"),
+    ("空间", r"距离|远行|迁徙|空间|地平线|边界|半径|轨道|星系|不可达|到不了|无法到|跨越|高度|深度"),
+    ("能量", r"能量|热量|温度|功率|辐照|输运|供能|耗能|熵|发电|光合|日照|冷|暖"),
+    ("物质", r"物质|元素|矿物|材料|密度|金属|重石|资源|稀有|水|大气|化学|相态|晶体"),
+    ("感知", r"视觉|颜色|光谱|声音|听觉|看见|看不到|亮度|影|方向|感知|认知|记忆|语言|数|几何|痛觉"),
+    ("社会", r"社会|文明|政治|阶级|权力|宗教|制度|城市|贸易|通信|协作|礼仪|战争|人口|技术|历法"),
+    ("生命", r"生物|生命|繁殖|代谢|细胞|基因|遗传|物种|生态|疾病|神经|脑|血肉|呼吸|食物"),
+    ("结构", r"稳定|坍缩|解体|潮汐|洛希|地震|地壳|共振|刚性|屈服|承压|引力|自转|轨道稳定"),
+)
+
+
+def cost_tags(text: str) -> list:
+    """按代价类型给一条积木打标签（0–4 个，按 COST_TAGS 顺序）。"""
+    blob = str(text or "")
+    return [tag for tag, pat in COST_TAGS if re.search(pat, blob)]
+
 
 def axiom_library(skill_root: str) -> list:
     """解析 references/公理库.md 的表格，返回结构化积木列表。"""
@@ -1006,6 +1156,7 @@ def axiom_library(skill_root: str) -> list:
             if sm:
                 scale = sm.group(1)
                 trace = trace[:sm.start()].strip() + trace[sm.end():].strip()
+            trace = re.sub(r"[\s`]+$", "", trace).strip("` ")
             out.append({
                 "id": aid,
                 "domain": domain,
@@ -1015,5 +1166,6 @@ def axiom_library(skill_root: str) -> list:
                 "cost": cells[2],
                 "trace": trace.strip(),
                 "scale": scale,
+                "cost_tags": cost_tags(" ".join(cells[:3])),
             })
     return out

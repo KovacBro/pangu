@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 import png_writer as pw
 import world_schema as ws
 
-MAP_VERSION = "1.1.1"
+MAP_VERSION = "1.1.2"
 MAX_SIDE = 720
 MIN_SIDE = 60
 DEFAULT_RES = (360, 180)

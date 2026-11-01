@@ -1,22 +1,24 @@
 ---
 name: pangu
-description: 盘古 1.1.1 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。1.1.1 能从设定推演整颗行星的地图（板块→盆地→水量定海平面→年辐照定温度→风带与迎风坡定降水→洼地填充定河网→群系），再让元胞自动机按宜居度长生态。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案、行星地图与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览""推演一张星球地图"等需求时使用。
+description: 盘古 1.1.2 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。能从设定推演整颗行星的地图（板块→盆地→水量定海平面→年辐照定温度→风带与迎风坡定降水→洼地填充定河网→群系），再让元胞自动机按宜居度长生态；1.1.2 进一步把"改设定"变成可验证的操作：patch 定点改/增/查字段并自动升版本记修订，sweep 沿单个参数扫出连续谱与崩点，diff 对比两版并列出必须重跑的下游产物，公理库支持按代价类型检索，反常识度指数给出"换皮还是过度"的量化参照。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案、行星地图与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览""推演一张星球地图""改一下这个世界的重力/参数看看会怎样""对比这两版设定"等需求时使用。
 license: MIT
 metadata:
-  title: 盘古 1.1.1 · 开天辟地造世引擎
-  version: 1.1.1
+  title: 盘古 1.1.2 · 开天辟地造世引擎
+  version: 1.1.2
   entrypoint: scripts/pangu.py
   runtime: python>=3.9 (仅标准库)
   install: python install.py --target all
 ---
 
-# 盘古 1.1.1 · 开天辟地造世引擎
+# 盘古 1.1.2 · 开天辟地造世引擎
 
 盘古不是"写设定"，是**立律**。区别在于：设定回答"这个世界有什么"，律回答"这个世界为什么只能长成这样"。
 
 地球不是模板，是**一个样本**。世界的引力常数可以不是 6.674e-11，光速可以不是 c，碳可以不是生命骨架，一天可以不是自转给的。本技能的任务是：让用户（或你）重写这些常数与规则，然后严格推导——推导出山怎么长、雨怎么下、生物怎么喘气、文明怎么计时——直到它**自洽到能骗过物理学家**，同时**奇诡到没人想过**。
 
 1.1.1 补上了 1.1 缺的那层：**地**。`map` 子命令从设定推演整颗行星——板块碰撞长出山脉，水量与盆地容积共同定海平面，年辐照与温室定温度，风带与迎风坡定降水，洼地填充定河网，最后用世界自己声明的群系高程带划出沙漠、森林、冰盖。地图还会喂给 `ca`：宜居度高的格子先长生产者，生长概率按宜居度缩放。
+
+1.1.2 补的是**改动本身**。世界不是一次写完的，是在「改一个数 → 看它崩不崩 → 对比上一版」里长出来的。所以这一版加了调参层：`patch` 按点路径改 / 增 / 查字段，写盘即升版本、记修订；`sweep` 沿单个参数扫出连续谱，标出安全窗与第一个崩点；`diff` 对比两版并推断哪些下游产物必须重跑；公理库多了按代价类型的二次索引；`validate` 多了一个 0–100 的反常识度指数，用来判断「仍是换皮」还是「已超出可理解范围」。
 
 ## 宿主无关：这份技能不绑定任何一家 agent
 
@@ -28,7 +30,7 @@ metadata:
 |---|---|---|
 | **A. 原生技能目录** | Claude Code / Claude.ai Skills、OpenAI Codex、Cline、Roo、OpenHands、以及任何支持 `SKILL.md` 约定或"把目录塞进上下文"的框架 | 整个目录，入口 `SKILL.md` |
 | **B. 指令文件指针** | Codex / Amp / Jules（`AGENTS.md`）、Cursor（`.cursor/rules/*.mdc`）、Windsurf（`.windsurf/rules/*.md`）、Gemini CLI（`GEMINI.md`） | 只写一个几十行的指针文件，告诉它去哪读 `SKILL.md` |
-| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 9 个 tool |
+| **C. MCP 工具服务器** | 任何支持 MCP 的客户端（Claude Desktop、Cursor、Zed、Continue、Cherry Studio、自研 harness） | `adapters/mcp/pangu_mcp.py`，把引擎暴露成 12 个 tool |
 
 `python install.py --target all` 会一次性把 A、B 两种入口铺好；C 只需在客户端配置里加一行命令。**三种方式共享同一套 `scripts/` 与 `references/`，不存在分叉。**
 
@@ -144,21 +146,37 @@ python scripts/pangu.py export out/world.json --md out/世界档案.md
 # 5. 查公理库（可复用的反常识设定积木）
 python scripts/pangu.py axioms              # 列全部
 python scripts/pangu.py axioms --domain physics --roll 3   # 物理类随机抽 3 条
+python scripts/pangu.py axioms --cost-list  # 代价类型索引（时间/空间/能量/…）
+python scripts/pangu.py axioms --cost 空间 --roll 3        # 「我想让远行变得不可能」
 
-# 6. 第一人称切片体检（两百字验尸：字数 / 定稿 / 引用 / 现象 / 时序）
+# 6. 改设定（不要手改 JSON；patch 会自动升版本、记修订、立刻体检）
+python scripts/pangu.py patch out/world.json --get "physics.constants[0].world_value"
+python scripts/pangu.py patch out/world.json --set "physics.constants[0].world_value=3.6e-11"
+python scripts/pangu.py patch out/world.json --set "seed.new_key=1" --create   # 新建字段
+python scripts/pangu.py patch out/world.json --set "..." --dry-run            # 只看不写
+
+# 7. 扫参数（沿一个数扫出连续谱，找安全窗与崩点）
+python scripts/pangu.py sweep out/world.json --list                        # 可扫哪些参数
+python scripts/pangu.py sweep out/world.json --param "cosmology.bodies[0].mass_earth" --percent 30 --steps 7 --recalc
+python scripts/pangu.py sweep out/world.json --param "physics.constants[0].world_value" --from 3.2e-11 --to 4.8e-11 --steps 5
+
+# 8. 对比版本（改了什么、哪条被修好、哪些产物必须重跑）
+python scripts/pangu.py diff out/world-v1.json out/world-v2.json
+
+# 9. 第一人称切片体检（两百字验尸：字数 / 定稿 / 引用 / 现象 / 时序）
 python scripts/pangu.py slice out/world.json
 
-# 7. 红队审查（让 AI 扮演敌对物理学家提问，未结案不许交付）
+# 10. 红队审查（让 AI 扮演敌对物理学家提问，未结案不许交付）
 python scripts/pangu.py redteam out/world.json            # 生成质疑
 python scripts/pangu.py redteam out/world.json --write    # 回写 world.json（按 id 幂等）
 python scripts/pangu.py redteam out/world.json --check    # 体检靶点与结案率
 
-# 8. 生态演化（把 biology.evolution 编译成元胞自动机）
+# 11. 生态演化（把 biology.evolution 编译成元胞自动机）
 python scripts/pangu.py ca out/world.json                 # 只编译：看规则、代价、强迫项
 python scripts/pangu.py ca out/world.json --run           # 跑演化并出快照图
 python scripts/pangu.py ca out/world.json --check         # 同 seed 复算，与 summary 逐项比对
 
-# 9. 行星地图（从设定推演地形、海平面、气候、河网、群系）
+# 12. 行星地图（从设定推演地形、海平面、气候、河网、群系）
 python scripts/pangu.py map out/world.json                # 只推演：看海洋占比、山峰、均温、河流
 python scripts/pangu.py map out/world.json --run          # 出七层图 + 正射地球 + map.html
 python scripts/pangu.py map out/world.json --write --yes  # 把摘要与粗粒度场写回 world.json（喂 CA）
@@ -169,6 +187,8 @@ python scripts/pangu.py map out/world.json --check        # 同 seed 复算 + �
 
 **地图的铁律**：海平面不是手填的，是水量与盆地容积解出来的；群系颜色和名字来自 `bodies[0].biomes[]`，不是引擎内置的地球群系。`map --write` 只写摘要和 72×36 的粗粒度场，**不写整张图**——图是派生文件，world.json 仍是单一数据源。
 
+**调参层的铁律**：改设定走 `patch`，不要手改 JSON；`patch` 会顺手把 `meta.version` 补丁位 +1、往 `history.revisions[]` 写一条修订，并立刻报评分与 fatal 的增减。扫参数时，`mass_earth` 这类质量参数要配 `--recalc`，否则声明的密度/重力会先撞 P01，满屏 fatal 看不出真正的临界点。`diff` 给出的「需要重跑」清单是义务，不是建议。
+
 ## 质量红线
 
 - ❌ **倒因为果**：先想好"龙"，再补物理。顺序必须反过来
@@ -176,7 +196,8 @@ python scripts/pangu.py map out/world.json --check        # 同 seed 复算 + �
 - ❌ **地球换皮**：只改了颜色和名字，法则一模一样。至少一条法则必须是新的
 - ❌ **数据打架**：`world.json` 里质量、半径、重力、密度四者不自洽（`validate` 会算）
 - ❌ **检索堆砌**：把搜索结果整段贴进设定
-- ✅ **每次改设定，`meta.version` +0.1，并在 `history.revisions[]` 留一条记录**
+- ✅ **每次改设定，`meta.version` +0.1，并在 `history.revisions[]` 留一条记录**（`patch` 会自动做）
+- ✅ **反常识度控制在 40–70**：低于 40 是换皮，高于 70 读者会放弃（`validate` 会算）
 
 ## 与「世界观构建」技能的分工
 
@@ -197,8 +218,9 @@ python scripts/pangu.py map out/world.json --check        # 同 seed 复算 + �
 | `references/检索与灵感策略.md` | 检索配方、query 模板、取反技巧、结果改写规范 | 每斧的"搜"环节 |
 | `references/自洽性审查协议.md` | 五维十六问、致命项清单、修补话术 | 第 7 斧 |
 | `references/world-schema.md` | `world.json` 全字段规范与最小示例 | 写 JSON 前必读 |
-| `scripts/pangu.py` | 主 CLI：init / validate / preview / export / axioms / doctor / slice / redteam / ca | 每次操作 |
-| `scripts/world_schema.py` | 结构校验、单位换算、天体物理计算、打分 | 被 import，勿单独运行 |
+| `scripts/pangu.py` | 主 CLI：init / validate / preview / export / axioms / patch / sweep / diff / doctor / slice / redteam / ca / map | 每次操作 |
+| `scripts/world_schema.py` | 结构校验、单位换算、天体物理计算、打分、反常识度、公理库解析 | 被 import，勿单独运行 |
+| `scripts/world_tuning.py` | 调参层：点路径读写、参数扫描、版本对比、下游重跑推断 | `patch` / `sweep` / `diff` 调用 |
 | `scripts/ca_engine.py` | 生态演化引擎：编译、跑、复算比对、快照出图、地图耦合 | `ca` 子命令调用 |
 | `scripts/mapgen.py` | 行星地图引擎：板块、海平面、气候、河网、群系、出图与交互页 | `map` 子命令调用 |
 | `scripts/png_writer.py` | 零依赖 PNG 编码器（zlib + struct） | 被 `ca_engine` import |
@@ -206,7 +228,7 @@ python scripts/pangu.py map out/world.json --check        # 同 seed 复算 + �
 | `examples/helikon/` | 完整示例：「赫利孔」三阳世界 | 不确定标准时对照 |
 | `AGENTS.md` | 通用 agent 指令文件（Codex/Amp/Jules 等直接读） | 宿主只认 `AGENTS.md` 时 |
 | `install.py` | 一键把入口铺到各 harness | 首次安装 / 换宿主 |
-| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 9 个 tool | 客户端只支持 MCP |
+| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 12 个 tool | 客户端只支持 MCP |
 | `adapters/generic/BOOTSTRAP.md` | 纯对话版启动提示词（无文件系统也能用） | 宿主不能读文件 |
 | `docs/跨harness移植说明.md` | 兼容矩阵、各宿主配置样例、排错 | 装载失败时 |
 

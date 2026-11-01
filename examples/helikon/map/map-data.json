@@ -1,8 +1,8 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.2",
   "meta": {
     "name": "赫利孔",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "generator": "mapgen",
     "seed": 7,
     "res": [

@@ -10,7 +10,10 @@
     validate <world.json> [--strict] [--json]  校验 + 自洽打分
     preview  <world.json> [-o <html>]          生成 3D 预览页
     export   <world.json> [--md <md>]          生成世界档案
-    axioms   [--domain <d>] [--roll N]         查公理库
+    axioms   [--domain <d>] [--cost <t>]        查公理库
+    patch    <world.json> --set p=v [--get p]  定点改 / 增 / 查字段（自动升版本）
+    sweep    <world.json> --param <p>           参数敏感度扫描，找崩点
+    diff     <a.json> <b.json>                  版本对比 + 下游重跑清单
     map      <world.json> [--run|--check]      行星地图：板块/海平面/气候/河网/群系
     ca       <world.json> [--run|--check]      生态演化：编译/跑/复算比对
 """
@@ -18,6 +21,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as _dt
 import json
 import os
@@ -32,6 +36,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import world_schema as ws  # noqa: E402
+import world_tuning as wt  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "preview_template.html")
 
@@ -368,8 +373,11 @@ def cmd_export(args) -> int:
     if meta.get("tagline"):
         A(f"> {meta['tagline']}")
         A("")
+    wd = d.get("weirdness") or {}
     A(f"`v{meta.get('version', '1.0')}` ｜ {meta.get('created', '')} ｜ "
-      f"自洽评分 **{rep.score}/100**（{rep.grade}） ｜ 生成：盘古")
+      f"自洽评分 **{rep.score}/100**（{rep.grade}）"
+      + (f" ｜ 反常识度 **{wd.get('score')}/100**" if wd else "")
+      + " ｜ 生成：盘古")
     A("")
     if meta.get("aesthetic"):
         A("美学基调：" + " · ".join(f"`{x}`" for x in meta["aesthetic"]))
@@ -657,6 +665,14 @@ def cmd_export(args) -> int:
     A(_h(2, "十 · 自洽性审查"))
     A(f"**{rep.score}/100**（{rep.grade}）｜ fatal {rep.fatal} ｜ warn {rep.warn}")
     A("")
+    wd = d.get("weirdness") or {}
+    if wd:
+        lo, hi = wd.get("band", (40, 70))
+        A(f"反常识度 **{wd.get('score')}/100**（推荐区间 {lo}–{hi}，当前判定：{wd.get('label')}）")
+        if wd.get("items"):
+            rows = [(i["name"], f"{i['points']:g}", i["detail"]) for i in wd["items"]]
+            A(_kv_table(rows, ("偏离维度", "分值", "具体改动")))
+        A("")
     rows = [(c.id, ws.DIM_CN.get(c.dim, c.dim), c.question,
              {"pass": "✓", "warn": "!", "fatal": "✗", "skip": "·"}[c.verdict], c.note)
             for c in rep.checks if c.verdict in ("warn", "fatal")]
@@ -743,6 +759,16 @@ def cmd_axioms(args) -> int:
     if not lib:
         err("公理库为空或未找到", "确认 references/公理库.md 存在且表格格式正确")
         return 3
+
+    if args.cost_list:
+        from collections import Counter
+        c = Counter(t for a in lib for t in (a.get("cost_tags") or []))
+        say("【代价类型】按「我想让世界付出什么」索引，不是按学科")
+        for tag, _ in ws.COST_TAGS:
+            say(f"  {tag}  {c.get(tag, 0):>2} 条")
+        say("\n用法：axioms --cost 空间 --roll 3")
+        return 0
+
     pool = lib
     if args.domain:
         pool = [a for a in lib if a["domain"] == args.domain or a["domain_cn"] == args.domain]
@@ -750,6 +776,16 @@ def cmd_axioms(args) -> int:
             err(f"未知领域：{args.domain}",
                 "可选：" + "、".join(sorted({a['domain'] for a in lib})))
             return 2
+    if args.cost:
+        hit = [a for a in pool if args.cost in (a.get("cost_tags") or [])]
+        if not hit:  # 宽松回退：标签没命中就搜正文
+            hit = [a for a in pool
+                   if args.cost in (a["name"] + a["setting"] + a["cost"] + a["trace"])]
+        if not hit:
+            err(f"没有代价类型「{args.cost}」的积木",
+                "可选：" + "、".join(t for t, _ in ws.COST_TAGS))
+            return 2
+        pool = hit
     if args.roll:
         pool = random.sample(pool, min(args.roll, len(pool)))
 
@@ -762,12 +798,239 @@ def cmd_axioms(args) -> int:
         if a["domain_cn"] != cur:
             cur = a["domain_cn"]
             say(f"\n【{cur}】")
-        say(f"  {a['id']}  {a['name']}  [{a['scale']}]")
+        tags = "/".join(a.get("cost_tags") or []) or "—"
+        say(f"  {a['id']}  {a['name']}  [{a['scale']}]  代价类型：{tags}")
         say(f"       设定：{a['setting']}")
         say(f"       代价：{a['cost']}")
         say(f"       痕迹：{a['trace']}")
     say(f"\n共 {len(pool)} 条。捡起积木时记得付账。")
     return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# patch / sweep / diff（1.1.2 调参层）
+# ════════════════════════════════════════════════════════════════════
+
+def _fmtv(v, width: int = 0) -> str:
+    """CLI 展示用的紧凑值格式。"""
+    if isinstance(v, bool) or v is None:
+        s = json.dumps(v, ensure_ascii=False)
+    elif isinstance(v, (int, float)):
+        s = f"{v:.4g}" if (v and (abs(v) < 1e-4 or abs(v) >= 1e6)) else f"{v:g}"
+    elif isinstance(v, (dict, list)):
+        s = f"<{type(v).__name__} {len(v)}>"
+    else:
+        s = str(v)
+        if len(s) > 60:
+            s = s[:60] + "…"
+    return s.rjust(width) if width else s
+
+
+def cmd_patch(args) -> int:
+    path = args.world
+    if not os.path.exists(path):
+        err(f"文件不存在：{path}", "检查路径，或先用 init 生成骨架")
+        return 2
+    try:
+        world = ws.load(path)
+    except json.JSONDecodeError as e:
+        err(f"JSON 解析失败：{e}", "检查第 " + str(e.lineno) + " 行附近")
+        return 2
+
+    # ── 查 ────────────────────────────────────────────────────────
+    if args.get:
+        bad = 0
+        for p in args.get:
+            ok, val, why = ws.resolve_path(world, p)
+            if ok:
+                say(f"{p} = {json.dumps(val, ensure_ascii=False)}")
+            else:
+                say(f"{p} → ✗ {why}")
+                bad += 1
+        return 2 if bad else 0
+
+    if not args.set:
+        err("没有改动", '用 --set "physics.constants[0].world_value=4.0e-11"；查值用 --get')
+        return 2
+
+    before = ws.validate(copy.deepcopy(world))
+    res = wt.apply_patches(world, args.set, create=args.create, note=args.note or "",
+                           bump=not args.no_bump, version=args.version)
+    if not res["ok"]:
+        err(res["error"], "路径示例：cosmology.bodies[0].mass_earth；加 --create 可新建字段")
+        return 2
+
+    after = ws.validate(copy.deepcopy(world))
+    written = not args.dry_run
+    if written:
+        _save_world(path, world)
+
+    if args.json:
+        say(json.dumps({
+            "ok": True, "written": written,
+            "version": (world.get("meta") or {}).get("version"),
+            "changes": res["changes"],
+            "before": {"score": before.score, "fatal": before.fatal, "warn": before.warn},
+            "after": {"score": after.score, "fatal": after.fatal, "warn": after.warn},
+        }, ensure_ascii=False, indent=2))
+        return 1 if (args.strict and after.fatal) else 0
+
+    for c in res["changes"]:
+        mark = "改" if c.get("existed") else "增"
+        say(f"  [{mark}] {c['path']}: {_fmtv(c['old'])} → {_fmtv(c['new'])}")
+        if (isinstance(c["old"], str) and isinstance(c["new"], (int, float))
+                and re.search(r"[A-Za-z]", c["old"])):
+            warn(f"{c['path']} 原是带单位的字符串，现在写成了纯数字——确认下游仍能解析")
+    if res.get("revision"):
+        say(f"  版本 → {res['revision']['version']}，修订记录已追加"
+            f"（{len((world.get('history') or {}).get('revisions') or [])} 条）")
+    say(f"  评分 {before.score} → {after.score}"
+        f" ｜ fatal {before.fatal} → {after.fatal}"
+        f" ｜ warn {before.warn} → {after.warn}")
+    if after.fatal > before.fatal:
+        warn("新增了致命项——这个世界现在还不可交付")
+    if any(str(c["path"]).startswith(("cosmology", "physics")) for c in res["changes"]):
+        say("  下游：preview / export 需重跑"
+            + ("；地图与 CA 粗场也可能受影响"
+               if any(re.search(r"radius|albedo|orbit|greenhouse|biomes", str(c["path"]))
+                      for c in res["changes"]) else ""))
+
+    say(f"✓ 已写入 {path}" if written else "  --dry-run：未写盘")
+    return 1 if (args.strict and after.fatal) else 0
+
+
+def cmd_sweep(args) -> int:
+    path = args.world
+    if not os.path.exists(path):
+        err(f"文件不存在：{path}", "检查路径")
+        return 2
+    try:
+        world = ws.load(path)
+    except json.JSONDecodeError as e:
+        err(f"JSON 解析失败：{e}", "检查 JSON 语法")
+        return 2
+
+    if args.list:
+        targets = wt.scan_targets(world)
+        say("【可扫描参数】改一个值，看世界怎么变")
+        for t in targets:
+            say(f"  {t['path']:<42} {t['label']:<16} 当前 {_fmtv(t['value'])}")
+        say(f"\n共 {len(targets)} 个。用法：sweep <world> --param <路径> --percent 20 --steps 7")
+        return 0
+
+    if not args.param:
+        err("缺少 --param", '先跑 sweep <world> --list 看有哪些参数可扫')
+        return 2
+
+    ok, cur, why = ws.resolve_path(world, args.param)
+    if not ok:
+        err(f"路径不可解析：{args.param}（{why}）", "sweep <world> --list 列出可用路径")
+        return 2
+    cur_num = ws._parse_first(cur)
+    if cur_num is None:
+        err(f"该字段不是数值：{args.param} = {_fmtv(cur)}", "只有数值参数能扫")
+        return 2
+
+    lo = ws._parse_first(args.from_) if args.from_ else None
+    hi = ws._parse_first(args.to) if args.to else None
+    if lo is None and hi is None and args.percent is None:
+        args.percent = 20.0
+    if args.percent is not None and lo is None and hi is None:
+        lo, hi = cur_num * (1 - args.percent / 100.0), cur_num * (1 + args.percent / 100.0)
+
+    values = wt.sweep_values(cur_num, lo, hi, args.steps)
+    result = wt.sweep_world(world, args.param, values, body_index=args.body,
+                            recalc=bool(args.recalc))
+    if not result["ok"]:
+        err(result["error"], "检查路径")
+        return 2
+
+    if args.json:
+        say(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    base = result["baseline"]
+    say(f"【敏感度扫描】{args.param}")
+    say(f"  当前值 {_fmtv(cur_num)} ｜ 基线 评分 {base['score']} ｜ fatal {base['fatal']} ｜ warn {base['warn']}"
+        + (" ｜ 每步重算密度/重力" if result.get("recalc") else ""))
+    say("")
+    say(f"  {'值':>12}  {'g':>6}  {'T_surf':>9}  {'v_esc':>7}  {'评分':>4}  {'fatal':>5}  判定")
+    for r in result["rows"]:
+        mark = "✗ 崩" if r["broken"] else "✓ 可存续"
+        extra = ""
+        if r["broken"] and r["fatal_ids"]:
+            extra = "（" + "、".join(r["fatal_ids"][:3]) + "）"
+        star = " ←" if result.get("critical") and r["value"] == result["critical"]["value"] else ""
+        say(f"  {_fmtv(r['value']):>12}  {_fmtv(r.get('gravity_g') or 0, 6)}  "
+            f"{_fmtv(r.get('t_surface_k') or 0, 9)}  {_fmtv(r.get('v_escape_km_s') or 0, 7)}  "
+            f"{r['score']:>4}  {r['fatal']:>5}  {mark}{extra}{star}")
+
+    say("")
+    if result.get("critical"):
+        c = result["critical"]
+        say(f"  崩点：{args.param} = {_fmtv(c['value'])}"
+            f"（评分 {c['score']}，fatal {c['fatal']}）——临界点本身就是设定素材")
+    else:
+        say("  全区间未崩：这个参数不是这个世界的死穴，换一个扫。")
+    if result.get("safe_window"):
+        lo, hi = result["safe_window"]
+        say(f"  安全窗：{_fmtv(lo)} … {_fmtv(hi)}")
+    return 0
+
+
+def cmd_diff(args) -> int:
+    worlds = []
+    for p in (args.a, args.b):
+        if not os.path.exists(p):
+            err(f"文件不存在：{p}", "检查路径")
+            return 2
+        try:
+            worlds.append(ws.load(p))
+        except json.JSONDecodeError as e:
+            err(f"JSON 解析失败：{p}（{e}）", "检查 JSON 语法")
+            return 2
+
+    res = wt.diff_worlds(worlds[0], worlds[1], limit=args.limit)
+    if args.json:
+        say(json.dumps(res, ensure_ascii=False, indent=2))
+        return 1 if (args.strict and res["new_fatal"]) else 0
+
+    va = res["version"].get("from") or "—"
+    vb = res["version"].get("to") or "—"
+    say(f"【世界版本对比】{va} → {vb}")
+    say(f"  改动 {len(res['changes'])} 处 ｜ 新增 {len(res['added'])} 处 ｜ 删除 {len(res['removed'])} 处"
+        + ("（已达上限，用 --limit 放大）" if res["truncated"] else ""))
+    say("")
+    for c in res["changes"]:
+        say(f"  ~ {c['path']}")
+        say(f"      {_fmtv(c['old'])} → {_fmtv(c['new'])}")
+    for a in res["added"]:
+        say(f"  + {a['path']} = {_fmtv(a['new'])}")
+    for r in res["removed"]:
+        say(f"  - {r['path']}（原 {_fmtv(r['old'])}）")
+
+    if res["derived"]:
+        say("")
+        say("【派生量】")
+        for d in res["derived"]:
+            say(f"  {d['label']}：{_fmtv(d['from'])} → {_fmtv(d['to'])}")
+
+    if res["new_fatal"] or res["fixed"] or res["new_warn"]:
+        say("")
+        say("【审查变化】")
+        if res["new_fatal"]:
+            say("  ✗ 新增致命项：" + "、".join(res["new_fatal"]))
+        if res["fixed"]:
+            say("  ✓ 已解除：" + "、".join(res["fixed"]))
+        if res["new_warn"]:
+            say("  ! 新增告警：" + "、".join(res["new_warn"]))
+
+    say("")
+    say("【需要重跑】")
+    for t in res["downstream"]:
+        say(f"  {t['task']:<8} {t['cmd']}")
+        say(f"           └ {t['why']}")
+    return 1 if (args.strict and res["new_fatal"]) else 0
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1351,9 +1614,48 @@ def build_parser() -> argparse.ArgumentParser:
 
     a = sub.add_parser("axioms", help="查公理库")
     a.add_argument("--domain", help="physics|cosmos|math|chemistry|biology|civilization")
+    a.add_argument("--cost", help="按代价类型过滤：时间/空间/能量/物质/感知/社会/生命/结构")
+    a.add_argument("--cost-list", action="store_true", help="列出代价类型二次索引")
     a.add_argument("--roll", type=int, help="随机抽取 N 条")
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_axioms)
+
+    pt = sub.add_parser("patch", help="定点改 / 增 / 查字段（自动升版本与记修订）")
+    pt.add_argument("world")
+    pt.add_argument("--set", action="append", default=[], metavar="PATH=VALUE",
+                    help="写入一个字段，可重复；值先按 JSON 解析，失败当字符串")
+    pt.add_argument("--get", action="append", default=[], metavar="PATH",
+                    help="查询一个字段，可重复")
+    pt.add_argument("--create", action="store_true", help="允许新建不存在的字段 / 追加数组")
+    pt.add_argument("--note", help="修订说明，写进 history.revisions[].change")
+    pt.add_argument("--version", help="显式指定新版本号（默认补丁位 +1）")
+    pt.add_argument("--no-bump", action="store_true", help="不改版本、不记修订")
+    pt.add_argument("--dry-run", action="store_true", help="只显示改动，不写盘")
+    pt.add_argument("--json", action="store_true", help="机器可读输出")
+    pt.add_argument("--strict", action="store_true", help="改完有 fatal 时退出码 1")
+    pt.set_defaults(func=cmd_patch)
+
+    sw = sub.add_parser("sweep", help="参数敏感度扫描：沿一个数值找崩点")
+    sw.add_argument("world")
+    sw.add_argument("--param", help="要扫的点路径，如 physics.constants[0].world_value")
+    sw.add_argument("--from", dest="from_", help="起始值（缺省按 --percent）")
+    sw.add_argument("--to", help="终止值（缺省按 --percent）")
+    sw.add_argument("--percent", type=float, help="以当前值为中心 ±N%%（默认 20）")
+    sw.add_argument("--steps", type=int, default=7, help="采样点数 3–31，默认 7")
+    sw.add_argument("--body", type=int, default=0, help="看第几个天体的派生量，默认 0")
+    sw.add_argument("--recalc", action="store_true",
+                    help="每步重算该天体的密度/重力/半径，扫出物理自洽的邻近世界")
+    sw.add_argument("--list", action="store_true", help="列出可扫描的数值参数")
+    sw.add_argument("--json", action="store_true")
+    sw.set_defaults(func=cmd_sweep)
+
+    df = sub.add_parser("diff", help="版本对比：改了什么、哪条被修好、要重跑什么")
+    df.add_argument("a", help="旧版 world.json")
+    df.add_argument("b", help="新版 world.json")
+    df.add_argument("--limit", type=int, default=200, help="最多记录多少处改动")
+    df.add_argument("--json", action="store_true")
+    df.add_argument("--strict", action="store_true", help="新增 fatal 时退出码 1")
+    df.set_defaults(func=cmd_diff)
 
     sl = sub.add_parser("slice", help="第一人称切片体检")
     sl.add_argument("world")

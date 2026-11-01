@@ -26,6 +26,11 @@ python scripts/pangu.py validate out/world.json --fix-hint
 python scripts/pangu.py preview out/world.json -o out/preview.html
 python scripts/pangu.py export out/world.json --md out/世界档案.md
 python scripts/pangu.py axioms --domain physics --roll 3
+python scripts/pangu.py axioms --cost 空间 --roll 3            # 按代价类型查积木
+python scripts/pangu.py patch out/world.json --set "physics.constants[0].world_value=3.6e-11"
+python scripts/pangu.py patch out/world.json --get "cosmology.bodies[0].mass_earth"
+python scripts/pangu.py sweep out/world.json --param "cosmology.bodies[0].mass_earth" --percent 30 --recalc
+python scripts/pangu.py diff out/old.json out/new.json        # 改了什么 + 要重跑什么
 python scripts/pangu.py slice out/world.json      # 第一人称切片体检
 python scripts/pangu.py redteam out/world.json --check
 python scripts/pangu.py map out/world.json --run --write --yes   # 行星地图：板块/海平面/气候/河网/群系
@@ -43,6 +48,7 @@ python scripts/pangu.py ca out/world.json --check  # 生态演化：同 seed 复
 3. **产物位置**：写到用户指定目录；没指定就写当前工作目录下的 `out/<id>/`，不要污染技能目录。
 4. **先立律后长物**：物理层没定稿前，不许讨论生物与文明（这叫倒因为果，审查器会判 fatal）。
 5. **有致命项不许交付**：`validate --strict` 非零退出时，必须先修或明确告知用户"这个世界有一处会崩"。
+6. **改设定走 `patch`**：它会自动升 `meta.version`、记 `history.revisions[]`、立刻复检；改完用 `diff` 确认本次改动和必须重跑的下游产物。
 
 ## 三律（灵魂）
 

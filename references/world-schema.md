@@ -210,7 +210,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `eras` | obj[] | `{name, span, summary}` |
-| `revisions` | obj[] | `{version, date, change}`，改设定必记 |
+| `revisions` | obj[] | `{version, date, change, fields?}`，改设定必记；`fields` 是 1.1.2 新增的可选字段（本次改了哪些路径，最多 40 条）。用 `patch` 改设定会自动追加，不必手写 |
 
 ### 3.10 `consistency`
 
@@ -345,3 +345,22 @@ gravity_g   = mass_earth / (radius_earth ** 2) * (G_world / G_earth)
 | X02 | 通用 | `physics` 缺失或 `constants` 为空 | fatal |
 
 评分：100 − fatal×25 − warn×4，下限 0。`--strict` 模式下存在 fatal 则退出码 1。
+
+---
+
+## 8. 改设定（1.1.2）
+
+不要手改 JSON。所有改动走 `patch`，它会顺手升版本、记修订、立刻复检：
+
+```bash
+python scripts/pangu.py patch world.json --get "cosmology.bodies[0].mass_earth"
+python scripts/pangu.py patch world.json --set "cosmology.bodies[0].mass_earth=30.0" \
+       --note "加质量，看地壳撑不撑得住"
+python scripts/pangu.py diff world-v1.json world-v2.json       # 改了什么 + 要重跑什么
+```
+
+- 路径文法：`a.b[0].c`，与切片 `cites`、红队 `target`、CA `source` 同源。
+- 默认拒绝写不存在的字段；要新建或往数组末尾追加，加 `--create`。
+- 改 `mass_earth` / `radius_earth` / G 后，`density_gcc` 与 `gravity_g` **不会自动跟着变**，`validate` 会报 P01。这是设定决策：要么手动改声明，要么用 `sweep --recalc` 看自洽解长什么样。
+
+反常识度（`validate` 派生量里的 `weirdness`）是信息量指标：推荐 40–70，低于 40 是换皮，高于 70 读者会放弃。它不参与评分。
