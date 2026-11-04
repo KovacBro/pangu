@@ -158,6 +158,7 @@ class MapResult:
     hash: str
     meta: dict
     noise_meta: dict = field(default_factory=dict)
+    npp: list = field(default_factory=list)   # 1.1.4：净初级生产力 g C/m²/yr（陆地）
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -253,6 +254,9 @@ def _cfg(world: dict) -> dict:
         "relief_km": relief_km, "plates": plates, "hotspots": hotspots,
         "area_total": area_total, "mean_depth": mean_depth, "inventory": inv,
         "pressure": pressure, "mean_precip": mean_precip,
+        # 1.1.4 增补：洋流热输运（0 = 现在的行为，1 = 梯度被压平 35%）
+        "oht": _clamp(ws._num(clim.get("ocean_heat_transport"), 0.0), 0.0, 1.0),
+        "season_dec": None,
         "polar_color": str(body.get("polar_color") or "#E8F0F8"),
         "seed": int(ws._num(pm.get("seed"), 7)),
     }
@@ -539,7 +543,12 @@ def _temperature(cfg, res_lat, area, ux, uy, uz, ocean, depth, elev):
     locked = cfg["locked"]
     body = cfg["body"]
 
-    fs = [_annual_factor(la, tilt) for la in res_lat]
+    season = cfg.get("season_dec")
+    if season is None:
+        fs = [_annual_factor(la, tilt) for la in res_lat]
+    else:
+        # 季节切片：用当天赤纬代替全年平均，极昼极夜自然出现
+        fs = [_daily_coszen(la, season) for la in res_lat]
     area_sum = sum(area) or 1.0
     mean_f = sum(fs[i // nx] * area[i] for i in range(n)) / area_sum
 
@@ -560,10 +569,27 @@ def _temperature(cfg, res_lat, area, ux, uy, uz, ocean, depth, elev):
                 t = t_mean - 52.0 + 14.0 * cospsi
         else:
             fn = (fs[i // nx] / mean_f) if mean_f > 0 else 1.0
-            t = t_mean + (fn - 1.0) * 62.0
+            # 季节切片的振幅要压到年振幅的一半左右：真实地球 60°N 年较差 ~25 K，
+            # 而按全年增益直接推会给出 70 K+。海温滞后、热惯性没有建模，只能按经验折半。
+            gain = 62.0 if season is None else 28.0
+            t = t_mean + (fn - 1.0) * gain
         T[i] = t
 
     T = _box_blur(T, cfg["nx"], cfg["ny"], 2)
+
+    # 洋流热输运：把纬向温度梯度压平（默认 0，即不改变旧行为）
+    oht = _clamp(cfg.get("oht", 0.0), 0.0, 1.0)
+    if oht > 0:
+        band_sum = [0.0] * ny
+        band_w = [0.0] * ny
+        for i in range(n):
+            y = i // nx
+            band_sum[y] += T[i] * area[i]
+            band_w[y] += area[i]
+        band_t = [(band_sum[y] / band_w[y]) if band_w[y] else 0.0 for y in range(ny)]
+        k = 0.35 * oht
+        for i in range(n):
+            T[i] = T[i] * (1.0 - k) + band_t[i // nx] * k
 
     lapse = 6.5 * (max(0.3, cfg["g"]) ** 0.25)
     for i in range(n):
@@ -607,8 +633,10 @@ def _wind_field(cfg, lat, lon, ux, uy, uz):
             V[i] = (wx * nn[0] + wy * nn[1] + wz * nn[2]) / wl
         return U, V
 
+    # 季节：整个风带随热赤道往夏半球挪（赤纬 ×0.6）
+    shift = _clamp((cfg.get("season_dec") or 0.0) * 0.6, -20.0, 20.0)
     for i in range(n):
-        la = lat[i // nx]
+        la = lat[i // nx] - shift
         ala = abs(la)
         s = 1.0 if la >= 0 else -1.0
         if ala < 30.0:
@@ -662,15 +690,24 @@ def _precipitation(cfg, lat, lon, area, height, ocean, elev, temp):
     pos = [s for s in slope if s > 0]
     p90 = _percentile(pos, 0.90) if pos else 1.0
 
+    # 副热带下沉支（Hadley 下降流）：20–35° 上空气流下沉，额外失水
+    subs = [0.0] * n
+    for y in range(ny):
+        f = math.exp(-((abs(lat[y]) - 28.0) / 11.0) ** 2)
+        if f < 1e-3:
+            continue
+        base = y * nx
+        for x in range(nx):
+            subs[base + x] = f
+
     evap_base = [0.0] * n
     for i in range(n):
-        if temp[i] < 268.0:
-            continue
+        # 1.1.4：极区不再一刀切归零——冰面升华与冷水蒸发很小，但不是没有
         if ocean[i]:
-            evap_base[i] = (temp[i] - 268.0) / 30.0
+            evap_base[i] = max(0.0, temp[i] - 250.0) / 30.0 + 0.06
         else:
             # 陆地蒸腾：森林自己往空中送水，内陆不至于全干
-            evap_base[i] = 0.38 * (temp[i] - 268.0) / 30.0
+            evap_base[i] = 0.38 * max(0.0, temp[i] - 258.0) / 30.0 + 0.03
     ev = sum(evap_base)
     if ev <= 0:
         ev = 1.0
@@ -690,7 +727,8 @@ def _precipitation(cfg, lat, lon, area, height, ocean, elev, temp):
                            (i // nx) - V[i] * sp * 1.9)
             src = evap_base[i] + 0.965 * up
             lift = _clamp(slope[i] / p90, 0.0, 1.0) if p90 > 0 else 0.0
-            k = 0.045 + 0.28 * lift
+            # 下沉支抑制成雨（不是增加）：k 越小，水汽越容易留在空中被带走
+            k = (0.045 + 0.28 * lift) * (1.0 - 0.55 * subs[i])
             loss = src * k
             if loss > src * 0.82:
                 loss = src * 0.82
@@ -797,6 +835,22 @@ def _biomes(cfg, v):
     return idx
 
 
+def _npp(ocean, temp, precip):
+    """Miami 模型：NPP = min(f(T), f(P))，干物质 ×0.475 转碳。海洋计 0。"""
+    out = [0.0] * len(temp)
+    for i, tk in enumerate(temp):
+        if ocean[i]:
+            continue
+        t = tk - 273.15
+        if t <= -12.0:
+            out[i] = 0.0
+            continue
+        npp_t = 3000.0 / (1.0 + math.exp(1.315 - 0.119 * t))
+        npp_p = 3000.0 * (1.0 - math.exp(-0.000664 * max(0.0, precip[i])))
+        out[i] = max(0.0, min(npp_t, npp_p) * 0.475)
+    return out
+
+
 def _habitat(cfg, ocean, depth, elev, temp, precip):
     n = len(temp)
     out = [0.0] * n
@@ -818,12 +872,13 @@ def _habitat(cfg, ocean, depth, elev, temp, precip):
 # 构建
 # ════════════════════════════════════════════════════════════════════
 
-def build(world: dict, res=None, seed=None) -> MapResult:
+def build(world: dict, res=None, seed=None, season_dec=None) -> MapResult:
     nx, ny = res or DEFAULT_RES
     nx = int(_clamp(nx, MIN_SIDE, MAX_SIDE))
     ny = int(_clamp(ny, MIN_SIDE // 2, MAX_SIDE // 2))
     cfg = _cfg(world)
     cfg["nx"], cfg["ny"] = nx, ny
+    cfg["season_dec"] = season_dec
     use_seed = int(seed if seed is not None else cfg["seed"])
     wid = str(ws._get(world, "meta", "id", default="world"))
     rng = random.Random(zlib.crc32((wid + ":" + str(use_seed)).encode("utf-8")))
@@ -895,8 +950,9 @@ def build(world: dict, res=None, seed=None) -> MapResult:
         elif temp[i] + edge < 268.5 and not ocean[i] and elev[i] > 0.15:
             biome[i] = ice_idx
 
+    npp = _npp(ocean, temp, precip)
     stats = _stats(nx, ny, area, area_total, ocean, depth, elev, temp, precip,
-                   biome, biomes, habitat, lake, river, tec, cfg)
+                   biome, biomes, habitat, lake, river, tec, cfg, npp=npp)
     checks = _checks(cfg, stats, ocean_frac)
     h = _field_hash(v, temp, precip, habitat, biome)
     meta = {
@@ -926,12 +982,12 @@ def build(world: dict, res=None, seed=None) -> MapResult:
         hotspot=tec["hot"], filled=filled, down=down, discharge=discharge,
         lake=lake, river=river, micro=micro, biomes=biomes, stats=stats,
         checks=checks, hash=h, meta=meta,
-        noise_meta={"U": U, "V": V},
+        noise_meta={"U": U, "V": V}, npp=npp,
     )
 
 
 def _stats(nx, ny, area, area_total, ocean, depth, elev, temp, precip,
-           biome, biomes, habitat, lake, river, tec, cfg):
+           biome, biomes, habitat, lake, river, tec, cfg, npp=None):
     n = nx * ny
     A = area_total or 1.0
 
@@ -976,6 +1032,10 @@ def _stats(nx, ny, area, area_total, ocean, depth, elev, temp, precip,
         "lake_fraction": round(sum(area[i] for i in range(n) if lake[i]) / A, 4),
         "habitat_mean": round(wmean(habitat), 4),
         "habitat_p50": round(q[len(q) // 2], 4) if q else 0.0,
+        "mean_npp_gc_m2_yr": round(wmean(npp, [not o for o in ocean]), 1) if npp else 0.0,
+        "land_npp_gtc_yr": round(
+            sum(npp[i] * area[i] * 1e6 for i in range(n) if not ocean[i]) / 1e15, 2
+        ) if npp else 0.0,
         "plates": len(set(tec["plate"])),
         "convergent_cells": int(tec["conv_cells"]),
         "divergent_cells": int(tec["div_cells"]),
@@ -1603,6 +1663,22 @@ def write_outputs(res: MapResult, outdir: str, render=(RENDER_RES[0], RENDER_RES
             "figures": figs,
         }, f, ensure_ascii=False, indent=2)
     return {"outdir": outdir, "figures": figs, "html": html, "hash": res.hash}
+
+
+def write_season(res: MapResult, outdir: str, tag: str,
+                 render=(RENDER_RES[0], RENDER_RES[1])) -> list:
+    """季节切片出图：只画温度与降水两张（1.1.4）。"""
+    os.makedirs(outdir, exist_ok=True)
+    W, H = int(render[0]), int(render[1])
+    s = _sample_grid(res, W, H)
+    coast = _coast_mask(s)
+    figs = []
+    for key, suffix in (("temperature", "temp"), ("precipitation", "precip")):
+        w, h, px = _render_layer(res, key, W, H, s, coast)
+        name = f"map-{tag}-{suffix}.png"
+        pw.write_rgb(os.path.join(outdir, name), w, h, px)
+        figs.append(name)
+    return figs
 
 
 def check(world: dict, res=None, seed=None) -> dict:

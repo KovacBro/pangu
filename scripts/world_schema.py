@@ -40,6 +40,9 @@ BINARY_MIN = 2.0             # 双星稳定绝对下限
 
 DIMENSIONS = ("structure", "energy", "observation", "evolution", "narrative")
 
+# 引擎版本：doctor 用它和 SKILL / README / CHANGELOG / MCP 对齐（1.1.3）
+VERSION = "1.1.4"
+
 
 # ════════════════════════════════════════════════════════════════════
 # 基础工具
@@ -450,12 +453,81 @@ def weirdness(world: dict) -> dict:
     return {"score": score, "band": [lo, hi], "label": label, "items": items}
 
 
+def _fraction(v) -> float:
+    """成分占比：支持 0.78 / "78%" / "78" 三种写法。"""
+    if isinstance(v, str):
+        s = v.strip()
+        pct = s.endswith("%")
+        s = s.replace("%", "").strip()
+        try:
+            x = float(s)
+        except ValueError:
+            return 0.0
+        return x / 100.0 if (pct or x > 1.0) else x
+    return _num(v, 0.0)
+
+
+# 地球基准：420 ppm CO₂ + 1.9 ppm CH₄ + 0.33 ppm N₂O ≈ 560 ppm CO₂e，对应 33 K 温室
+EARTH_CO2E_PPM = 420.0 + 28.0 * 1.9 + 265.0 * 0.33
+GREENHOUSE_BASE_K = 33.0
+CLIMATE_SENSITIVITY = 4.28  # K per e-fold；×ln2 = 2.97 K/2×CO₂（AR6 最佳估计 3.0）
+
+
+def estimate_greenhouse(body: dict):
+    """由大气成分估算温室增温（K）。返回 (K, 依据)。
+
+    口径：ΔT = 33 + 4.28·ln(CO₂e/560)，再把气压按 (P/101.325)^0.15 放大。
+    只认长寿命温室气体（CO₂/CH₄/N₂O/SF₆）；水汽是反馈量，按 0.5 权重计入。
+    没有成分数据时返回 (0, "none")——等于退回「只有平衡温度」的旧行为。
+    """
+    atm = body.get("atmosphere") if isinstance(body.get("atmosphere"), dict) else {}
+    comp = atm.get("composition") if isinstance(atm.get("composition"), dict) else {}
+    if not comp:
+        return 0.0, "none"
+
+    def ppm(*keys) -> float:
+        for k in keys:
+            if k in comp:
+                return _fraction(comp[k]) * 1e6
+        return 0.0
+
+    co2e = (ppm("CO2", "co2", "二氧化碳")
+            + 28.0 * ppm("CH4", "ch4", "甲烷")
+            + 265.0 * ppm("N2O", "n2o", "一氧化二氮")
+            + 23500.0 * ppm("SF6", "sf6")
+            + 0.5 * ppm("H2O", "h2o", "水汽"))
+    if co2e <= 0:
+        return 0.0, "none"
+
+    p = _num(atm.get("surface_pressure_kpa"), 101.325) or 101.325
+    gh = GREENHOUSE_BASE_K + CLIMATE_SENSITIVITY * math.log(co2e / EARTH_CO2E_PPM)
+    gh *= (max(1.0, p) / 101.325) ** 0.15
+    return max(0.0, gh), "composition"
+
+
 def compute_derived(world: dict) -> dict:
-    """对每个天体算出密度、重力、逃逸速度、平衡温度。"""
+    """对每个天体算出密度、重力、逃逸速度、平衡温度、温室与恒星寿命。"""
     gr = g_ratio(world)
     lt = total_luminosity(world)
     out = {"g_ratio": round(gr, 4), "total_luminosity": round(lt, 4),
-           "binary_sep_au": None, "bodies": [], "weirdness": weirdness(world)}
+           "binary_sep_au": None, "bodies": [], "stars": [],
+           "weirdness": weirdness(world)}
+
+    # 恒星主序寿命 t ≈ 10 Gyr × M/L（M、L 均以太阳为单位）
+    for s in (_get(world, "cosmology", "stars", default=[]) or []):
+        if not isinstance(s, dict):
+            continue
+        m = _num(s.get("mass_solar"), 0) or 1.0
+        lum = _num(s.get("luminosity_solar"), 0) or (m ** 3.5 if m > 0 else 1.0)
+        life = (10.0 * m / lum) if lum > 0 else 0.0
+        out["stars"].append({
+            "id": s.get("id", "?"), "name": s.get("name", "?"),
+            "mass_solar": m, "luminosity_solar": lum,
+            "ms_lifetime_gyr": round(life, 2),
+            "note": "寿命短于 1 Gyr，复杂生命来不及" if life and life < 1.0 else "",
+        })
+    if lt > 0:
+        out["hz_au"] = [round(math.sqrt(lt / 1.1), 3), round(math.sqrt(lt / 0.53), 3)]
 
     sep = binary_separation(world)
     if sep:
@@ -480,8 +552,11 @@ def compute_derived(world: dict) -> dict:
 
         a = _num(_get(b, "orbit", "a_au"), 0)
         alb = _num(b.get("albedo"), 0.3)
-        # 1.1：温室补偿。1.0 只有平衡温度，等于假设零温室——冰球世界会被误判成宜居。
-        gh = _num(_get(b, "atmosphere", "greenhouse_delta_k"), 0)
+        # 温室：声明值优先（作者决策），否则由成分估（1.1.4 增补）
+        gh_decl = _num(_get(b, "atmosphere", "greenhouse_delta_k"), 0)
+        gh_est, gh_why = estimate_greenhouse(b)
+        gh = gh_decl if gh_decl > 0 else gh_est
+        gh_src = "declared" if gh_decl > 0 else gh_why
         t_eq = 0.0
         if (not is_sat) and a > 0 and lt > 0:
             x = (1.0 - alb) * lt / (a * a)
@@ -504,6 +579,9 @@ def compute_derived(world: dict) -> dict:
             "a_au": a,
             "t_eq_k": round(t_eq, 1),
             "greenhouse_delta_k": round(gh, 1),
+            "greenhouse_declared_k": round(gh_decl, 1) if gh_decl > 0 else None,
+            "greenhouse_estimated_k": round(gh_est, 1) if gh_est > 0 else None,
+            "greenhouse_source": gh_src,
             "t_surface_k": round(t_surf, 1),
         })
     return out
@@ -930,6 +1008,27 @@ def validate(world: dict, strict: bool = False) -> Report:
         "；".join(base_issues) if base_issues else
         (f"基座：{bic.get('base')}；主元素：{bic.get('primary_element')}" if bic else "未定义 biochemistry"))
 
+    # ── R01 选项卡互斥（1.1.3）──────────────────────────────────────
+    brief = seed.get("brief") if isinstance(seed.get("brief"), dict) else {}
+    choices = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+    if not choices:
+        add("R01", "narrative", "已采纳的选项卡互不矛盾？", "skip",
+            "未采纳选项卡（seed.brief.choices 为空）——1.1.3 可选能力")
+    else:
+        r01 = []
+        for i, c in enumerate(choices):
+            if not str(c.get("qid") or "").strip():
+                r01.append(f"第 {i + 1} 张缺 qid")
+            if not str(c.get("option") or c.get("label") or "").strip():
+                r01.append(f"第 {i + 1} 张缺 option / label")
+            if not str(c.get("cost") or "").strip():
+                r01.append(f"{c.get('qid') or i + 1} 没写代价——免费奇观")
+        r01 += card_conflicts(choices)
+        r01 += card_world_mismatch(choices, world)
+        add("R01", "narrative", "已采纳的选项卡互不矛盾？",
+            "pass" if not r01 else "warn",
+            "；".join(r01) if r01 else f"{len(choices)} 张卡，无互斥")
+
     # ── O01 年长一致 ────────────────────────────────────────────────
     cal = cos.get("calendar") or {}
     y_days = _num(cal.get("year_days"), 0)
@@ -987,6 +1086,23 @@ def validate(world: dict, strict: bool = False) -> Report:
         else:
             add("O04", "observation", "地面视角有可观测的恒星？", "pass",
                 f"{len(star_ids)} 颗恒星可观测")
+
+    # ── SK01 / SK02 观测层（1.1.4）──────────────────────────────────
+    # 与 sky --check 同源：缺省星表时 skip，旧世界不掉分。
+    try:
+        import sky as _sky  # 延迟导入，避免 world_schema ↔ sky 的循环依赖
+        _ck = _sky.check(world)
+        for _c in _ck["checks"]:
+            if _c["id"] not in ("S01", "S02"):
+                continue
+            _v = {"pass": "pass", "skip": "skip"}.get(_c["status"], "warn")
+            add("SK" + _c["id"][1:], "observation",
+                "星表可复算？" if _c["id"] == "S01" else "星空摘要与星表一致？",
+                _v, _c["note"])
+    except Exception as _e:  # noqa: BLE001
+        add("SK01", "observation", "星表可复算？", "skip",
+            f"观测层不可用：{type(_e).__name__}")
+        add("SK02", "observation", "星空摘要与星表一致？", "skip", "同上")
 
     # ── N01 叙事 ────────────────────────────────────────────────────
     nar_miss = [k for k in ("three_seconds", "setpiece", "hook")
@@ -1290,6 +1406,104 @@ def glyph_component(glyph: str) -> str:
     """从 IDS 字形里取回内嵌单字；不合法返回空串。"""
     m = GLYPH_RE.match(str(glyph or ""))
     return m.group(1) if m else ""
+
+
+def card_conflicts(choices: list) -> list:
+    """
+    选项卡互斥检查（1.1.3）。
+
+    选项的 `tags` 里，以 `-` 开头的标签表示「排除带这个标签的选项」。
+    例：无恒星世界的选项带 `-有恒星`，双日选项带 `有恒星`。
+    同一份创作简报里正负标签同时出现，就是互斥。
+
+    返回人类可读的冲突说明（空列表 = 无冲突）。
+    """
+    pos, neg = {}, {}
+    for c in choices or []:
+        if not isinstance(c, dict):
+            continue
+        who = str(c.get("qid") or c.get("label") or "?")
+        for t in c.get("tags") or []:
+            t = str(t).strip()
+            if not t:
+                continue
+            if t.startswith("-"):
+                neg.setdefault(t[1:], []).append(who)
+            else:
+                pos.setdefault(t, []).append(who)
+    out = []
+    for tag in sorted(set(pos) & set(neg)):
+        out.append(f"「{tag}」不能同时成立：{('、'.join(pos[tag]))} vs {('、'.join(neg[tag]))}")
+    return out
+
+
+def _fact_has_stars(w: dict) -> bool:
+    return bool((w.get("cosmology") or {}).get("stars"))
+
+
+def _fact_locked(w: dict) -> bool:
+    bodies = [b for b in ((w.get("cosmology") or {}).get("bodies") or [])
+              if isinstance(b, dict)]
+    if not bodies:
+        return False
+    b0 = bodies[0]
+    if b0.get("rotation_hours") in (None, 0):
+        return True
+    return bool((b0.get("planet_map") or {}).get("tidal_locked"))
+
+
+def _fact_photosynthesis(w: dict) -> bool:
+    return isinstance((w.get("biology") or {}).get("photosynthesis"), dict)
+
+
+def _fact_water(w: dict) -> bool:
+    sv = (w.get("chemistry") or {}).get("solvent")
+    name = str(sv.get("name") if isinstance(sv, dict) else sv or "").strip()
+    return name in ("水", "water", "H2O", "水基")
+
+
+def _fact_carbon(w: dict) -> bool:
+    base = str(((w.get("biology") or {}).get("biochemistry") or {}).get("base") or "")
+    return "碳" in base
+
+
+# 卡上的标签 → world.json 里可机检的事实。没登记的事实标签不检查（只当创作备注）。
+CARD_FACTS = {
+    "有恒星": _fact_has_stars,
+    "锁定": _fact_locked,
+    "光合": _fact_photosynthesis,
+    "水溶剂": _fact_water,
+    "碳基": _fact_carbon,
+}
+
+
+def card_world_mismatch(choices: list, world: dict) -> list:
+    """
+    卡与世界对不上（1.1.3）：采纳的选项说「没有恒星」，可 world.json 里写着三颗。
+
+    选项卡只是决策记录，不改世界数据——所以这种不一致必须报出来，
+    否则「我选了无恒星」和「我写了三颗恒星」会同时存在于同一个世界里。
+    """
+    out = []
+    for c in choices or []:
+        if not isinstance(c, dict):
+            continue
+        qid = c.get("qid") or "?"
+        for raw in c.get("tags") or []:
+            tag = str(raw).strip()
+            neg = tag.startswith("-")
+            key = tag[1:] if neg else tag
+            fact = CARD_FACTS.get(key)
+            if not fact:
+                continue
+            try:
+                actual = bool(fact(world))
+            except Exception:      # noqa: BLE001
+                continue
+            if actual != (not neg):
+                out.append(f"{qid} 的「{key}」要求它{'不存在' if neg else '存在'}，"
+                           f"但 world.json 里它{'存在' if actual else '不存在'}")
+    return out
 
 
 def axiom_library(skill_root: str) -> list:

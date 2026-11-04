@@ -6,10 +6,10 @@
     "generator": "mapgen",
     "seed": 7,
     "res": [
-      360,
-      180
+      240,
+      120
     ],
-    "sea_level_km": 1.423,
+    "sea_level_km": 1.431,
     "relief_total_km": 11.48,
     "inventory_km3": 7750000000.0,
     "mean_depth_target_km": 3.36,
@@ -18,49 +18,51 @@
     "tidal_locked": false,
     "plates": 12,
     "hotspots": 5,
-    "ocean_fraction": 0.7729,
-    "hash": "d544bcfd"
+    "ocean_fraction": 0.7845,
+    "hash": "45319b21"
   },
   "stats": {
-    "ocean_fraction": 0.7729,
-    "land_fraction": 0.2271,
-    "mean_elevation_km": 0.813,
+    "ocean_fraction": 0.7845,
+    "land_fraction": 0.2155,
+    "mean_elevation_km": 0.94,
     "max_elevation_km": 5.6,
-    "mean_ocean_depth_km": 2.184,
-    "max_ocean_depth_km": 9.895,
-    "mean_temperature_k": 287.79,
-    "min_temperature_k": 243.56,
-    "max_temperature_k": 304.04,
-    "mean_land_temperature_k": 275.01,
-    "mean_sea_temperature_k": 279.44,
+    "mean_ocean_depth_km": 2.152,
+    "max_ocean_depth_km": 9.286,
+    "mean_temperature_k": 287.76,
+    "min_temperature_k": 244.03,
+    "max_temperature_k": 304.07,
+    "mean_land_temperature_k": 275.98,
+    "mean_sea_temperature_k": 279.11,
     "mean_precip_mm": 978.7,
-    "max_precip_mm": 11560.3,
+    "max_precip_mm": 11410.3,
     "ice_fraction": 0.113,
-    "river_cells": 229,
-    "lake_fraction": 0.0052,
-    "habitat_mean": 0.3645,
-    "habitat_p50": 0.2008,
+    "river_cells": 167,
+    "lake_fraction": 0.003,
+    "habitat_mean": 0.3593,
+    "habitat_p50": 0.2062,
+    "mean_npp_gc_m2_yr": 557.6,
+    "land_npp_gtc_yr": 551.65,
     "plates": 12,
-    "convergent_cells": 791,
-    "divergent_cells": 786,
-    "transform_cells": 539,
+    "convergent_cells": 526,
+    "divergent_cells": 522,
+    "transform_cells": 356,
     "hotspot_cells": 200,
     "biome_shares": {
-      "深钴海": 0.14059517022377024,
-      "浅青滩": 0.543789421266115,
-      "灰烬平原": 0.12783829212905065,
-      "锈林": 0.06430288292482825,
-      "高地岩": 0.01019903786711194,
-      "峰脊": 0.000306474323788092,
-      "极冰": 0.024489881628493308,
-      "海冰": 0.08847883963665445
+      "深钴海": 0.1629414370177262,
+      "浅青滩": 0.5278675586883447,
+      "灰烬平原": 0.11690500700404532,
+      "锈林": 0.06440210222940237,
+      "高地岩": 0.014263877395390775,
+      "峰脊": 0.000636435841556487,
+      "极冰": 0.019303967973688645,
+      "海冰": 0.09367961384989323
     }
   },
   "checks": [
     {
       "id": "M01",
       "ok": true,
-      "note": "海洋占比 77.3%（水量 7.75e+09 km³）"
+      "note": "海洋占比 78.4%（水量 7.75e+09 km³）"
     },
     {
       "id": "M02",
@@ -75,7 +77,7 @@
     {
       "id": "M04",
       "ok": true,
-      "note": "河流格 229"
+      "note": "河流格 167"
     },
     {
       "id": "M05",
@@ -88,7 +90,7 @@
       "note": "平均宜居度 0.36"
     }
   ],
-  "hash": "d544bcfd",
+  "hash": "45319b21",
   "biomes": [
     {
       "id": "deep_sea",

@@ -6,11 +6,13 @@
 
 1. 设计原则
 2. 顶层结构
-3. 逐段字段表
+3. 逐段字段表（含 `seed.brief` / `cosmology.energy_source` / 推论标记）
 4. 单位与换算约定
 5. 3D 预览专用字段
 6. 最小可用示例
-7. 校验规则清单
+7. 校验规则清单（37 项，含 R01）
+8. 改设定
+9. 五个配套命令（plan / options / entail / review / whatif）
 
 ---
 
@@ -71,6 +73,34 @@
 | `resolution` | str | **一句话解释**：凭什么它可能（对应代价律） |
 | `references` | obj[] | `{title, url, takeaway, use}`，至少 4 条，至少 1 条属"证伪"类 |
 | `forbidden` | str[] | 用户明确不要的元素，推导时避开 |
+| `brief` | obj | **1.1.3 可选**：创作简报，见 §3.2.1 |
+
+#### 3.2.1 `seed.brief`（1.1.3，可选）
+
+记录「采纳了哪些选项卡」。它是**决策层**，不改任何物理字段；缺省不影响评分（`R01` 记 skip）。
+
+```jsonc
+{
+  "updated": "2026-11-02",
+  "choices": [
+    {
+      "qid": "Q2.1",              // 命题号，Q<斧>.<序>
+      "axe": 2,                    // 属于第几斧
+      "title": "天上有什么？",
+      "option": "B",               // 选项字母
+      "label": "内层双星互绕，行星绕两者公转",   // 设定原文
+      "cost": "行星轨道必须 ≥2.5 倍双星间距……",  // 代价（必须非空）
+      "trace": "两道颜色不同的影子……",           // 痕迹
+      "tags": ["有恒星", "双星"],   // `-` 前缀表示排除，用于互斥判定
+      "fields": ["cosmology.stars[0..1].orbit"],  // 要顺手写的字段
+      "date": "2026-11-02"
+    }
+  ]
+}
+```
+
+- 同一 `qid` 只保留一条；`options --adopt` 后写覆盖先写，并按 `Qn.m` 排序。
+- `card_conflicts` 查卡间互斥；`card_world_mismatch` 查卡与数据的一致性（`有恒星` / `锁定` / `光合` / `水溶剂` / `碳基` 五个标签可机检，其余只当备注）。
 
 ### 3.3 `cosmology`
 
@@ -79,10 +109,13 @@
 | `frame` | str | 框架标签，自由文本，如 `circumbinary-superearth`、`shell-world`、`no-star-tidal` |
 | `topology` | str | 空间拓扑描述（欧氏/闭合/分层/非欧） |
 | `has_stars` | bool | 有无恒星。无恒星世界仍需给出替代能源 |
+| `energy_source` | str | **1.1.3 建议**：无恒星世界的替代能源（如 `潮汐摩擦 + 放射性衰变`）。`has_stars=false` 时斧 2 会检查它；`entail` 的 E03/E27 读它 |
 | `stars` | obj[] | 见下 |
 | `bodies` | obj[] | 见下。**第 0 个视为主角天体** |
-| `sky_phenomena` | str[] | 居民抬头能看见的异常（痕迹律的落点），3–6 条 |
-| `calendar` | obj | `{day_hours, year_days, months, month_days, epoch}` |
+| `sky_phenomena` | str[] | 居民抬头能看见的异常（痕迹律的落点），3–6 条。`entail --write` 追加的条目以 `〔entail Exx〕` 结尾 |
+| `calendar` | obj | `{day_hours, year_days, months, month_days, epoch}`；**1.1.4 可选** `month_names: str[]`（`sky --year` 用它给月份起名，缺省「第 N 月」） |
+| `starfield` | obj | **1.1.4 可选**：星表参数，见 §3.3.3。缺省也能跑，标「默认星表（未登记）」 |
+| `sky` | obj | **1.1.4 可选**：星空摘要 `{summary{limit_mag,visible_stars,sky_brightness,milky_way,moment,note}, checks[], figures[]}`，由 `sky --write --yes` 生成，**不要手填** |
 
 **星体 `stars[]`**
 
@@ -111,11 +144,42 @@
 | `axial_tilt_deg` | num | | 转轴倾角，决定季节 |
 | `albedo` | num | | 反照率 0–1 |
 | `orbit` | obj | ✅ | 同上结构，`a_au` 相对 `parent` |
-| `atmosphere` | obj\|null | | `{surface_pressure_kpa, composition{}, color, height_km}` |
+| `atmosphere` | obj\|null | | `{surface_pressure_kpa, composition{}, color, height_km, greenhouse_delta_k}`。**1.1.4**：`greenhouse_delta_k` 不写时由 `composition` 估算（`33 + 4.28·ln(CO₂e/560)`，气压按 `(P/101.325)^0.15` 放大）；写了就以声明值为准 |
 | `biomes` | obj[] | | `{id, name, color, elevation}`，`elevation` 0–1 升序，供 3D 着色器插值 |
 | `rings` | obj\|null | | `{inner_r, outer_r, color, opacity}`，半径单位为**行星半径倍数** |
 | `visual_radius` | num | | 3D 显示半径（夸张值，非真实比例），缺省按 `radius_earth` 映射 |
 | `note` | str | | 一句话特征 |
+
+### 3.3.3 `cosmology.starfield`（1.1.4，可选）
+
+星表是**程序生成**的，不是真实星表。给它参数就能复算，给它 hash 才能体检。
+
+```json
+"starfield": {
+  "seed": 7,
+  "count": 12000,
+  "magnitude_dist": "power-law",
+  "color_mix": {"K": 0.2, "G": 0.5, "F": 0.2, "M": 0.1},
+  "galaxy": {"present": true, "inclination_deg": 32, "width_deg": 18, "brightness": 0.6},
+  "constellations": [{"name": "长明之弧", "stars": [[0.0, 12.0], [0.4, 14.0]]}],
+  "hash": "a1b2c3d4"
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `seed` | int | 决定整片天的随机种子；缺省取 `seed` 顶层里的整数值，再缺省 0 |
+| `count` | int | 星数，50–200000；缺省 2000 |
+| `magnitude_dist` | str | 目前只实现 `power-law`（星数按 10^(0.45 m) 增长，m ∈ −1.5…6.5） |
+| `color_mix` | obj | 光谱型占比 `O/B/A/F/G/K/M`，合计不必为 1（内部归一） |
+| `galaxy.present` | bool | 是否撒银河带（再多星系没有意义：银河是银道面密集暗星的叠加） |
+| `galaxy.inclination_deg` | num | 银道面相对赤道的倾角 |
+| `galaxy.width_deg` | num | 银带半宽（高斯 σ 的两倍） |
+| `galaxy.brightness` | num | 0–1；≥0.3 且天光 ≤21 mag/arcsec² 才算「可见」 |
+| `constellations` | obj[] | 手写星座连线，`stars: [[ra_deg, dec_deg], …]`。引擎**不自动生成**星座神话 |
+| `hash` | str | 参数指纹前 8 位，`sky --write --yes` 生成；`sky --check` 用它复算比对（S01） |
+
+`bodies[].orbit.phase_deg` 也是 1.1.4 新增的可选字段（卫星相位，缺省 0）。
 
 ### 3.3.1 `bodies[].planet_map`（1.1.1，可选）
 
@@ -133,6 +197,7 @@
 | `hydrosphere.inventory_km3` | num | 水体积，缺省 area×0.50×mean_depth |
 | `climate.mean_precip_mm` | num | 年降水目标，缺省由气压推 |
 | `climate.temp_optimum_k` / `temp_tolerance_k` | num | 宜居度温度窗 |
+| `climate.ocean_heat_transport` | num | **1.1.4**：0–1，洋流热输运强度。开了就把纬向温度梯度压平最多 35%（默认 0，与旧行为一致） |
 | `summary` | obj | 派生：海洋/陆地占比、最高峰、最深海、均温、年降水、河流格、湖泊、冰、宜居度、构造统计 |
 | `checks` | obj[] | 六项地图体检（M01–M06） |
 | `hash` | str | 八位字段哈希，同 seed 可复算 |
@@ -186,6 +251,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `energy_currency` | obj | `{name, note}`，能量货币（地球是 ATP） |
+| `carrying_capacity` | obj | **1.1.4**：`capacity --write` 生成，含 `land_npp_gtc_yr` / `harvest_fraction` / `humans_subsistence` / `assumptions`。不要手填，也不要把 `assumptions` 删掉 |
 | `metabolism_summary` | str | 一句话代谢路线 |
 | `photosynthesis` | obj\|null | `{pigment, absorbs[], appearance}` |
 | `genetic_carrier` | obj | `{name, note}` |
@@ -341,10 +407,15 @@ gravity_g   = mass_earth / (radius_earth ** 2) * (G_world / G_earth)
 | N02 | 叙事 | `seed.references` ≥ 4 条 | warn |
 | M10 | 观测 | 有 `planet_map.summary` 时：占比/温度/峰值范围合法、`hash` 存在、`coarse` 长度对 | warn |
 | M11 | 观测 | 地图是否喂给 CA（`coarse` 场存在） | skip |
+| R01 | 叙事 | **1.1.3**：已采纳的卡之间无互斥、卡与世界数据一致、每张卡都写了代价 | warn（无卡时 skip） |
+| SK01 | 观测 | **1.1.4**：`starfield.hash` 与参数复算一致 | warn（无星表时 skip） |
+| SK02 | 观测 | **1.1.4**：`cosmology.sky.summary` 与实算一致（极限星等 ±0.6、可见星 ±20%） | warn（无摘要时 skip） |
 | X01 | 通用 | `consistency.open_issues` 非空 | warn |
 | X02 | 通用 | `physics` 缺失或 `constants` 为空 | fatal |
 
-评分：100 − fatal×25 − warn×4，下限 0。`--strict` 模式下存在 fatal 则退出码 1。
+评分：`100 − 25×fatal − 4×warn − 2×缺失段`，钳在 0–100。`--strict` 模式下存在 fatal 则退出码 1。
+
+> 1.1.4 起校验项为 39 项（1.1.3 为 37）。`R01` 是唯一会读 `seed.brief` 的检查；卡里缺 `cost` 会被点名——没写代价的选项就是免费奇观。`SK01`/`SK02` 与 `sky --check` 同源：**缺省即 skip**，旧世界不因没登记星表而掉分。
 
 ---
 
@@ -364,3 +435,28 @@ python scripts/pangu.py diff world-v1.json world-v2.json       # 改了什么 + 
 - 改 `mass_earth` / `radius_earth` / G 后，`density_gcc` 与 `gravity_g` **不会自动跟着变**，`validate` 会报 P01。这是设定决策：要么手动改声明，要么用 `sweep --recalc` 看自洽解长什么样。
 
 反常识度（`validate` 派生量里的 `weirdness`）是信息量指标：推荐 40–70，低于 40 是换皮，高于 70 读者会放弃。它不参与评分。
+
+`patch --suggest` 会顺手把「照这个质量/半径/G，密度与重力应该是多少」算给你（只建议、不写盘）：ρ = M×5.514/R³，g = M/R²×(G'/G)。
+
+---
+
+## 9. 五个配套命令（1.1.3）
+
+| 命令 | 读什么 | 写什么 | 什么时候用 |
+|---|---|---|---|
+| `plan world.json` | 全字段 + `validate` | 不写盘 | 每轮开工第一件事；`--brief` 一行、`--next` 一条命令、`--axe N` 只看一斧 |
+| `options [world] --axe N / --roll / --adopt` | `references/选项卡.md` + `seed.brief` | 只写 `seed.brief.choices`（走 `record_revision`） | 缺想法时抽卡；定了方向就采纳 |
+| `entail world.json --write --yes` | `cosmology` / `physics` / `chemistry` / `biology` | 只往 `cosmology.sky_phenomena` 追加 `〔entail Exx〕` 条目 | 斧 7 补天象；改设定后 `--check` 验活 |
+| `review world.json` | 全部 + 真跑地图/演化复算 | **不写盘** | 交付前一次；`--fast` 秒级、`--strict` 进 CI |
+| `whatif world.json --set/--scale` | 全部（副本） | 默认不写盘；`--write` 另存假设世界 | 「如果改这一条会怎样」；与 `sweep` 的分工见下 |
+
+四条只读/半只读命令的共同约定：**只补自己的那一段，不动别人的字段**。`plan` 与 `review` 不改任何东西，`options` 不碰物理层，`entail` 不反推设定，`whatif` 只改内存副本。这条边界是 1.1.3 能在 1.1.2 之上平滑升级的原因。
+
+`review` 与 `whatif` 的判据：
+
+| | `review` | `whatif` |
+|---|---|---|
+| 回答 | 能不能交（八项，一个结论） | 改了会怎样（代价 / 审查 / 现象 / 下游） |
+| 副作用 | 无 | 只在 `--write` 时写一个新文件 |
+| 与 `plan` 的关系 | 复用其六项门槛的口径，另加演化与推论 | 不涉及斧位 |
+| 与 `sweep` 的关系 | `sweep` 的结果可以拿来当 `whatif` 的输入假设 | `sweep` 扫一个数，`whatif` 任意多字段 |

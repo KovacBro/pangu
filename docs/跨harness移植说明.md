@@ -149,7 +149,7 @@ python install.py --print-mcp
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | python adapters/mcp/pangu_mcp.py
 ```
 
-应返回 12 个 tool 的 JSON。若无输出，先看 stderr（日志只走 stderr，不会污染协议）。
+应返回 15 个 tool 的 JSON。若无输出，先看 stderr（日志只走 stderr，不会污染协议）。
 
 **十二个工具**：
 

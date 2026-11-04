@@ -1,10 +1,9 @@
 {
-
   "meta": {
     "id": "helikon",
     "name": "赫利孔",
     "subtitle": "三阳世界",
-    "version": "1.1.2",
+    "version": "1.1.4",
     "created": "2026-10-27",
     "author": "盘古 / 自主生成",
     "tagline": "两个太阳，两道影子，一个从不迟到的历法。",
@@ -63,7 +62,139 @@
       "超自然力量",
       "外星文明干预",
       "时间旅行"
-    ]
+    ],
+    "brief": {
+      "choices": [
+        {
+          "qid": "Q1.1",
+          "axe": 1,
+          "title": "这个世界的「第一眼」是什么？",
+          "option": "A",
+          "label": "任何直立的东西都有两道影子，一锐一糊",
+          "cost": "必须有第二个与主星不同步的光源，全天候占一份辐照账",
+          "trace": "正午时两道影子几乎重合成一个厚影",
+          "tags": [
+            "有恒星",
+            "双影"
+          ],
+          "fields": [
+            "cosmology.stars（≥2）",
+            "cosmology.sky_phenomena"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q2.1",
+          "axe": 2,
+          "title": "天上有什么？",
+          "option": "B",
+          "label": "内层双星互绕，行星绕两者公转",
+          "cost": "行星轨道必须 ≥2.5 倍双星间距，宜居带被推得很远，一年很长",
+          "trace": "两道颜色不同的影子；周期性互食造成长夜",
+          "tags": [
+            "有恒星",
+            "双星"
+          ],
+          "fields": [
+            "cosmology.stars[0..1].orbit",
+            "bodies[0].orbit.a_au"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q2.4",
+          "axe": 2,
+          "title": "有没有月亮，或者环？",
+          "option": "B",
+          "label": "一颗大月亮（视角直径比太阳大）",
+          "cost": "潮汐极大，海岸线每天退进几公里；地壳受潮汐加热",
+          "trace": "每月一次大潮能走进海底森林",
+          "tags": [
+            "大卫星"
+          ],
+          "fields": [
+            "bodies[1]（orbit.parent=主星）",
+            "ocean",
+            "潮汐带",
+            "sky_phenomena"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q4.1",
+          "axe": 4,
+          "title": "最常见的液体是什么？",
+          "option": "A",
+          "label": "水",
+          "cost": "无；但冰的密度反常这类福利要自己解释",
+          "trace": "雨是水，河是水，眼泪也是水",
+          "tags": [
+            "水溶剂",
+            "基准"
+          ],
+          "fields": [
+            "chemistry.solvent",
+            "biology.biochemistry.solvent"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q5.3",
+          "axe": 5,
+          "title": "生命基座是什么？",
+          "option": "C",
+          "label": "碳硅杂合——碳做信息，硅做结构",
+          "cost": "两套化学要同时成立，温度窗口极窄",
+          "trace": "他们的骨骼会缓慢长成晶体",
+          "tags": [
+            "碳基",
+            "硅基",
+            "杂合"
+          ],
+          "fields": [
+            "biology.biochemistry",
+            "chemistry.key_bonds"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q5.4",
+          "axe": 5,
+          "title": "初级生产者靠什么取能？",
+          "option": "D",
+          "label": "双峰色素，分别对准两颗不同色温的恒星",
+          "cost": "两套色素系统，成本翻倍，只在双星世界成立",
+          "trace": "叶片正面与背面颜色不同",
+          "tags": [
+            "光合",
+            "双峰"
+          ],
+          "fields": [
+            "biology.photosynthesis",
+            "cosmology.stars[].temp_k"
+          ],
+          "date": "2026-11-02"
+        },
+        {
+          "qid": "Q6.1",
+          "axe": 6,
+          "title": "他们怎么知道「过了一年」？",
+          "option": "B",
+          "label": "数双星合的周期（一年几十天）",
+          "cost": "周期太短，历史感被压缩，纪年编号到四位数就没人记得",
+          "trace": "他们把「合」当作节日与税期",
+          "tags": [
+            "双星计时"
+          ],
+          "fields": [
+            "timekeeping",
+            "calendar.month_days"
+          ],
+          "date": "2026-11-02"
+        }
+      ],
+      "updated": "2026-11-02"
+    }
   },
   "cosmology": {
     "frame": "circumbinary-superearth-hierarchical-triple",
@@ -235,12 +366,14 @@
             "mean_land_temperature_k": 275.01,
             "mean_sea_temperature_k": 279.44,
             "mean_precip_mm": 978.7,
-            "max_precip_mm": 11560.3,
+            "max_precip_mm": 11600.8,
             "ice_fraction": 0.113,
-            "river_cells": 229,
-            "lake_fraction": 0.0052,
-            "habitat_mean": 0.3645,
-            "habitat_p50": 0.2008,
+            "river_cells": 407,
+            "lake_fraction": 0.0065,
+            "habitat_mean": 0.3571,
+            "habitat_p50": 0.2031,
+            "mean_npp_gc_m2_yr": 508.6,
+            "land_npp_gtc_yr": 530.35,
             "plates": 12,
             "convergent_cells": 791,
             "divergent_cells": 786,
@@ -249,9 +382,9 @@
             "biome_shares": {
               "深钴海": 0.14059517022377024,
               "浅青滩": 0.543789421266115,
-              "灰烬平原": 0.12783829212905065,
-              "锈林": 0.06430288292482825,
-              "高地岩": 0.01019903786711194,
+              "灰烬平原": 0.1347308559321395,
+              "锈林": 0.0574502766717909,
+              "高地岩": 0.010159080317061036,
               "峰脊": 0.000306474323788092,
               "极冰": 0.024489881628493308,
               "海冰": 0.08847883963665445
@@ -276,7 +409,7 @@
             {
               "id": "M04",
               "ok": true,
-              "note": "河流格 229"
+              "note": "河流格 407"
             },
             {
               "id": "M05",
@@ -289,9 +422,9 @@
               "note": "平均宜居度 0.36"
             }
           ],
-          "hash": "d544bcfd",
-          "generated": "2026-10-31",
-          "generator": "mapgen/1.1.1",
+          "hash": "a870840f",
+          "generated": "2026-11-04",
+          "generator": "mapgen/1.1.2",
           "figures": [
             "map/map-elevation.png",
             "map/map-biome.png",
@@ -305,7 +438,7 @@
           "coarse": {
             "nx": 72,
             "ny": 36,
-            "habitat": "0000000000000000000000110001111111111111100000000000000000000000000000000000000000000000000000000001111111111110111100000000000000000000000000000000000000011111010111111111111111111122223222221111110000000000000000001111111122222211111111111111111112250005322222222235421111111111000011111222222222233322121222222221122240842222221111111221237521111111111111112222333333344333332333323332334a032222223321122222111225c4333223322232223433333343464433334433234345873f5433333333333323332222224b11223675445543787655434456664343344344457abn375444434544433333333333369ahggede527a87658678742155655565212111124btg8112h8765665655434454544346cdkktfnhhuln43887300387787520013535545456aj9abpos94h77899a8765557765457cdjqxrqqviscvek299877756686335cc3445556678avkzmmlghxnahddcaa97565886558hgnmpyyrwpfvmdfeo77976678678666bb653457aa9djqmzjkljlkzt9ejeca8688ada766nrzuqmwwwusdedeghj3e976556687696cf6644798acfndwyykmjojmlglxhbc9dgjdcc879ftrlvxzqnkowpnvxqzrwe6533578867dhh9866aaab9blgxyljhpxqwpminwklmlnhfeeadghslomvpvwxxyxwym6lolr944346878bejkc98678bb99gqolwwpvpwvwtwtvxxxnowoikilnf9wwnkuwvwwilwl5lrwmof54578a87bcolaba9cjfb78eudfmomvnvvvvti6klqvvvvjlvvoh9tulmpuuvvgli4lkoutrs75587bacegvjccdfmgc987etcejhigdgiihed5vvvummqqppujfaqnmtstuulgh4ifikqvtnf78a8ba9feuucecgifca78fuaejikgbeddb9ifluuunggnqolofannuuuuuumf3fglihlrurs8ccabb8ehuuedcdabda8auu8fkkufehccaktkuumhgdfmomkhmc8ttutuuun4fdhhehrquuog99abd9fckn999fmuvtuuv19ecinhfdhkuudglumhggkkpplipo7rtuuuumeehdemnfhkimtt79agba95otustvvmgb64463dcdhnvlolu9ahjjvgdklosqntkuaqupvvvkejgbcjvklkhnfqc78eebbgt8755555584454468cinolrxc9bfgdeicdlwimtvl2egewwxajkhfacknjfggcfiwxpmmxxre976545655434442a9hmlwed889ec999bdnxc32ehfdbf4f7xoniiggffcad991cccclrtxoaa974434544333331kwqdacb86aca98890gnmmjidb98cdm2zyzqoigcb988709ba999eggigc975334554432235l899abd9689867718abdidda7aadciezwxqljg9786666baabbcejjkoe976544433333337c69cbbca989766607778aa99aabbacg2wrpnhb9746068989agdfeinxg876533322233225e8d9baacaba66605567bcc78788bbafi1qmkdd7103458789bffdginihb6444432222222bda97768989886344677cfd8998ad98baf13234b97657889ccb9dfgikfc9764432222223fca78658778874354458cd98adecd9899aecegffda979a8aaadcbe1000f0b53332111112d788544456571676699abb99ccab999a97aadfdcddba89aaaab0000b00000b97333222220456545567306567776778899777654557a989bcc998800000000000000000877877443604545651027656554467778766556665578808000777000000000000000000000055554430011344444334445444445550550000000006000000000000000000000000000000000000004433333443334000000000000000000000000000000333000000000000000000000000000000000000333000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "habitat": "0000000000000000000000110001111111111111100000000000000000000000000000000000000000000000000000000001111111111110111100000000000000000000000000000000000000011111010111111111111111111122223222221111110000000000000000001111111122222211111111111111111112250005322222222235421111111111000011111222222222233322121222222221122241842222221111111221237521111111111111112222333333344333332333323332334af32222223321122222111225c433322332223222343333334346443333443323434587jf5433333333333323332222224b11223675445543787655434456664343344344457abnd75444434544433333333333369ahggede527a87658678742155655565212111124btgb337h8765665655434454544346cdkktrnhhuln43887300387787520013535545456ajeggpose7h77899a8765557765457cdjqxxqqvmtgvik299877756686335cc3445556678avnznmlghxnchddcaa97565886558hgnmpyyrwoeskbddo77976678678666bb653457aa9djqlzfdljlkztadjeca8688ada766nrvnqgmlwom9999abc3e976556687696cf6644798acfncwqykmjojbcclxhbc9dgjdcc879btrblolecbewfevxhzmwe6533578867dhh9866aaab9blexyljhpxgwpednwklmlnhfeeadgcsledvglwuuypwym6lklr944346878bejkc98678bb99gpolwwpnjwvrqwpvxtvnowoikilnd8wwhfuwvwwilwl5lmwlof54578a87bcolaba9cjfb78eudfmomvnvvvvti6klmvvvvjltvof9tqijmuuvvgli4lkossss75587bacegvjccdfmgc987etcejhigdgiihed5vvvummnnmmuie9qljtqtuulgh4ifikovsnf78a8ba9feuucecgifca78fuaejikgbeddb9ifluuunggnomknfanluuuuuumf3fglihlqurs8ccabb8ehuuedcdabda8auu8fkkufehccaktkuumhgdfmmkjglc8tturuuun4fdhhehopuuog99abd9fckn999fmuvruuv19ecinhfdhkuudglumhggkkmnkhon7rtutuumeehdemnfhkimtt79agba95mtuopvvmgb64463dcdhnvlnlu9ahjjvgdklonmkqiuaqumsvvkejgbcjvklkhnfqc78eebbgt8755555584454468cinkjrxc9bfgdeicdlwimnpl2egewwxajkhfacknjfggcfiwxpmmxxre976545655434442a9hfhwed889ec999bdntc32ehfdbf4f7xoniiggffcad991cccclfjqoaa974434544333331kwqdacb86aca98890gnmmjidb98cdm2vyzqoigcb988709ba999eggigc975334554432235l899abd9689867718abdidda7aadciezsxjljg9786666baabbcejjkoe976544433333337c69cbbca989766607778aa99aabbacg2wtqnhb9746068989agdfeinxg876533322233225e8d9baacaba66605567bcc78788bbafi1xmkdd7103458789bffdginuub6444432222222bda97768989886344677cfd8998ad98baf13234b97657889ccb9dfgikfc9764432222223fca78658778874354458cd98adecd9899aecegffda979a8aaadcbel6a4f5b53332111112d788544456571676699abb99ccab999a97aadfdcddba89aaaab112fb11134b9733322222e456545567306567776778899777654557a989bcc998800000000000000014877877443694545651027656554467778766556665578818015777000000000000000000000155554430011344444334445444445551550000000016000000000000000000000000000000000000004433333443334000000000000000000000000000000333000000000000000000000000000000000000333000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
             "temperature": "777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888999999999999999999999999999999999999999999999999999999999999999999999999aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbba999abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbabbbbbabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccbbcccccccbbcccccccccccccccccccccccccbbbbbbbcccccccccccccccccccccccccccccbcccccccccbbcccccccccccccccccccccccccbbcbbcccccccccccccccccddccccccccdddbcccdddddcccbcdddcddddddcccccdcccccccccccccccccdddddddddddddddddddddddddcddddddddcddcbddddddddddddddcddcccccddddcddddcbcddddddddddddddddddddddddcdddddddddddddddddddddddddddcdddccddddddddddddccddddddddddddddddddddddddddddddddddddddddddddddddddddcddddddddddddddddddccdddddddddddddddddddddddddddddddddddddddddddddddddddccddddddddddddddddddbdddddddddddddddddddddddddddddddddddddddddddddddddddccddddddddddddddddddcddddddddddddddddddddddddddddddddddddddddddddddddddddbdddddddddddddddddddcdddddddddddddddddddddddddddddddddddddddddddddddddddbcddddddddddddddddddcddddddddddcdddddddddddddddddddddcddddddddddddddddddccdddddddddddddddddddcddddddddcddddddddddddddddddddccdddddddddddddddddddddddddddddddddddddddddcddddddcdddddddddddddddddddcccddddddddddddddddddddddddddddddddddddddcccddddddccddccccccccccccccccdcddcddcccdccccccddddddddccdddcdccddddddcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccbcccccccccbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa999999999999999999999999999999999999999999999999999999999999999999999999888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888777777777777777777777777777777788888888888888788778888877777777777878877777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777",
             "elevation": "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000012000000000000000000000000000000000000000000000000000000000000000000007aa8300000000000000000000000000001000000000000000000000000000000000000083000274000000000000000000000000000011211000000000000000000000000000000220000001740000000000000000000000001122232210000000000000000000000000000630100000048100000000000000000001012344444221000000000000000000000000000721100000003a100000000000002501320013323331101200000000000000000000000006100000002012a10000000000001600232221101200002c70000000000000000000000005000000112021120000000000000a101431200000000008a000000000000000000000000300000000002400001211000000094243332000000000005500000000000000000000000300000000000000000000011011389233332000000000000c0000000000000000000000020000000000000000100000123447b32110120000000000075000000000010000000000000000000000004000000000133545d4411011000000000111b000000000000000000330000000000000220000000000002443c75220100000000000005400000000042110000000000000000028200000000000001222883321000000000000000800000000500000000000000000000470000000000000001100000110000000000000000020000006000000000000000000036200000000000001000000000000000000000000000000000010000000000000000000200000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000021100000000000000000000000000000000000000000000000000000000000000000000012100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000011000000000000000000000000000000000000000000000000000000000000000111111101100000000000010000000000000000000000000000000000000000000011000011111112110000000000000000000000000000000000000000000021000000000111111011122211111111110000012100000000000000000000000000011321100000001000000000111112212222232222222222221110000000000000001112223211111000000222222211122222222222222222222222222222222222222222222111111122222222222",
             "ocean": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111000111111111111111111111111111111111111111111111111111111111111111111011111111111111111111111111111111111111111111111111111111111111111111110111111111111111111111111111111111111111111111111111111111111111111111011111111111111111111111111111111111111111111111111111111111111111111110011111111111111111111111111111111111111111111111111111111111111111110000001111111111111111111111111110011101111111111111111111111111111111110001100011111111111111111111111100110000001111111111111111111111111111100001111000111111111111111111111100000000000111111111111111111111111111100000111100001111111111111111001000000000000011111111111111111111111111100001111100000111111111111100100000000000000000111111111111111111111111100011110001000011111111111100100000000000011100011111111111111111111111101100100000000000011011111100000000000110111000011111111111111111111111101111101000001111000001100100000000000111111100001111111111011111111111101111111111111100001100000000000000001111111100001111111111001111111111101111111111111110001111000000000000001111111110000111111111001111111111001111011111110100111111000000000000001111111100000111111111111111100000011111111111001110111111000000000000011111111111110011111111000000011111111111110100011111011111000000000000011111110111111011111111011111111111111111110000111111111110110011111000111111111111111100111000111111111111111111100011111111111110111111111111011111111111111111110001111111111111111111011111111111111111111111111111000111111111111111111111111111111111111111111111111111111111111111111111000011111111111111111111111111111111111111111111111111111111111111111111100011111111111111111111011111111111111111111111111111111111111111111111110111111111111111111111001111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111100001011111111111111111111111111111111111111111111111111111111111111100001000001111111111101111111111111111111111111111111111111111111100000000000000000111111111101111111111111111111111111111111111101000111000000000000000000000011111111111111111111111111111110110000000001000000000000000000000000000000000000001111111111111000000000000000000000000000000111000000000000000000000000000000000000111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -367,11 +500,17 @@
     ],
     "sky_phenomena": [
       "每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰；短烛的影子边缘模糊、边缘泛橙",
-      "两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影",
+      "两道影子的夹角随双星互绕而每日变化，正午时几乎重合成一个厚影〔entail E01〕",
       "每四十四天一次「双星合」：短烛走到长明之前，天光在 90 分钟内从琥珀降到铁灰，气温骤降 11 度",
-      "地平线上永远能看见远灯——一颗不闪的橙红小点，30 年绕天空一圈，是唯一可靠的方位与长周期计时基准",
+      "地平线上永远能看见远灯——一颗不闪的橙红小点，30 年绕天空一圈，是唯一可靠的方位与长周期计时基准〔entail E02〕",
       "日落后天空不是黑的，而是深的钴蓝：大气中的尘在高空散射两颗恒星的红光",
-      "厄瑞玻斯升起时，地面会出现第三道极暗的影子，古人称之为「亡影」，认为它预示死亡"
+      "厄瑞玻斯升起时，地面会出现第三道极暗的影子，古人称之为「亡影」，认为它预示死亡",
+      "「没有翅膀」只有滑翔与弹跳，没有翱翔；「鸟」这个词在他们的语言里可能指虫。〔entail E09〕",
+      "「不是二十四小时的一天」他们可能睡两觉（昼中与夜中），也可能连续清醒一整个白天。〔entail E17〕",
+      "「可走的潮间带」海岸有一圈只有退潮时能走的「潮路」，城市按潮汐而非按太阳作息。〔entail E18〕",
+      "「会发光的矿」矿区的土壤颜色与别处不同；当地人用自造字写元素名，外来者念不出来。〔entail E24〕",
+      "「不用闰的年」他们的「月」不是月亮的月，而是双星合的次数；每次合都是节日，也都是税期。〔entail E30〕",
+      "「没有真正的黑夜」他们的夜空只有几十到几百颗星，银河是传说，不是景；「星图」是奢侈品，不是导航工具。〔entail E31〕"
     ],
     "calendar": {
       "day_hours": 31.4,
@@ -408,6 +547,51 @@
       "horizon_deg": 0.0,
       "ground_color": "#2a3a4a",
       "notes": "晨昏温差带上的灰阶诸城之一。坡顶海拔 300 米，是全城少数能同时看清两道影子边界的地方。"
+    },
+    "starfield": {
+      "seed": 7,
+      "count": 12000,
+      "magnitude_dist": "power-law",
+      "color_mix": {
+        "K": 0.2,
+        "G": 0.5,
+        "F": 0.2,
+        "M": 0.1
+      },
+      "galaxy": {
+        "present": true,
+        "inclination_deg": 32,
+        "width_deg": 18,
+        "brightness": 0.6
+      },
+      "constellations": [],
+      "hash": "f23c9fe2"
+    },
+    "sky": {
+      "summary": {
+        "limit_mag": 3.94,
+        "visible_stars": 219,
+        "sky_brightness": 19.05,
+        "milky_way": false,
+        "moment": "夜半",
+        "note": "天空亮度 19.05 mag/arcsec²（经验模型 ±0.5）；地平线上：远灯",
+        "generator": "sky/1.1.4"
+      },
+      "checks": [
+        {
+          "id": "S01",
+          "status": "pass"
+        },
+        {
+          "id": "S02",
+          "status": "pass"
+        },
+        {
+          "id": "S03",
+          "status": "pass"
+        }
+      ],
+      "generated": ""
     }
   },
   "physics": {
@@ -1269,26 +1453,26 @@
       "steps": 800,
       "seed": 7,
       "summary": {
-        "steady_density": 0.344,
-        "cycle_steps": 34,
+        "steady_density": 0.34,
+        "cycle_steps": 52,
         "collapse_prob": 0.0,
         "measured_at_step": 800,
         "primary_state": "rustmoss",
-        "energy_spent": 38858.9,
-        "max_drawdown": 0.235,
+        "energy_spent": 38224.9,
+        "max_drawdown": 0.242,
         "resilience": 1.0,
         "area_weighted": true,
         "map_coupled": true,
-        "final_hash": "ba802447",
+        "final_hash": "57737d61",
         "state_density": {
-          "bare": 0.067,
-          "rustmoss": 0.344,
-          "alga": 0.183,
-          "ventmat": 0.173,
-          "grazer": 0.123,
-          "hunter": 0.059,
+          "bare": 0.066,
+          "rustmoss": 0.34,
+          "alga": 0.199,
+          "ventmat": 0.174,
+          "grazer": 0.115,
+          "hunter": 0.056,
           "salt": 0.035,
-          "char": 0.016
+          "char": 0.015
         }
       },
       "figures": [
@@ -1349,7 +1533,18 @@
       "大氧化事件（约 21 亿年前）：双峰藻把大气氧含量推到 19%，硫铁簇代谢者大批灭绝，深层生态被迫退守裂缝",
       "双星合灾变（约 40 万年前）：一次罕见的双星近距互食使全球气温在 90 分钟内下降 27 度，87% 的陆生大型动物灭绝，灰民由此从采集转向储热定居",
       "长夜之疫（约 1200 年前）：厄瑞玻斯轨道共振引发的潮汐高峰，全球地震频发，文明一度退回到石器时代"
-    ]
+    ],
+    "carrying_capacity": {
+      "land_npp_gtc_yr": 637.78,
+      "mean_npp_gc_m2_yr": 618.9,
+      "land_fraction": 0.2245,
+      "harvest_fraction": 0.01,
+      "kcal_per_year": 5.74002e+16,
+      "humans_subsistence": 62904328767.0,
+      "humans_comfortable": 44931663405.0,
+      "assumptions": "Miami 模型（温度/降水取小）积分到陆地；可采收比例 1.0%；维持 2500 kcal/日、宽裕 3500 kcal/日",
+      "generator": "capacity/1.1.4"
+    }
   },
   "civilization": {
     "exists": true,
@@ -1403,6 +1598,32 @@
           "chemistry.fictional_elements",
           "biology.biochemistry",
           "biology.organisms"
+        ]
+      },
+      {
+        "version": "1.1.3",
+        "date": "2026-11-02",
+        "change": "采纳 7 张选项卡进 seed.brief；用 entail 从已定设定推出必然现象，补 5 条天象并给旧条目打上推论标记",
+        "fields": [
+          "seed.brief.choices",
+          "cosmology.sky_phenomena",
+          "meta.version"
+        ]
+      },
+      {
+        "version": "1.1.4",
+        "date": "2026-11-04",
+        "change": "1.1.4 观测层：登记星表参数",
+        "fields": [
+          "cosmology.starfield"
+        ]
+      },
+      {
+        "version": "1.1.4",
+        "date": "2026-11-04",
+        "change": "entail：回写 1 条推论到 sky_phenomena",
+        "fields": [
+          "cosmology.sky_phenomena"
         ]
       }
     ]

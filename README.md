@@ -1,12 +1,12 @@
-# 盘古 1.1.2 Pangu
+# 盘古 1.1.4 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.1.2-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.4-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-34%2F34-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-93%2F93-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -15,6 +15,69 @@
 不绑定任何平台。Claude、GPT、Gemini、本地模型，Claude Code、Codex、Cursor、Windsurf、Cline、Zed，或者你自己写的 harness —— 只要能读文件，就能用它；只要支持 MCP，就能把它当工具调。
 
 > 地球不是模板，是一个样本。
+
+---
+
+## 1.1.4 新增了什么
+
+1.1.1 有**地**，1.1.2 能**改**，1.1.3 知道**走到哪**，1.1.4 **抬头能看见**。
+
+这一版不加新物理，只把已经写在 `world.json` 里的东西算出来：观测点、自转与倾角、大气、恒星、卫星——它们本来就是「抬头」的全部输入，只是此前没人算。
+
+- **`sky` — 今夜星图**（`scripts/sky.py`）：五段输出（今夜 / 全天星图 / 关键天体 / 一年 / 判断）。天光是**经验模型**：空气辉光 21.9 mag/arcsec² 打底，叠暮光、叠明亮点光源散射、叠气压带来的尘埃散射，误差 ±0.5 等，输出全程标「简化模型」。`--at "日落后 2h"` 支持相对时刻，`--year` 出一年昼长与极昼极夜，`--allnight` 一夜六帧，`--md` 出星图 PNG + 逐月表，`--json` 给 agent。
+- **星表是程序生成的**：按 `(seed, count, color_mix, galaxy)` 确定性生成，`--check` 可复算（S01/S02/S03）。**不接** HYG / Gaia——「这是本世界的星表，不是地球的」是设定的一部分。
+- **`whatif --sky`**：反事实推演的第五层「抬头」。改倾角 → 昼长与极昼极夜怎么变；改气压 → 天光多亮、还能看见几颗星。
+- **档案第一屏换成「第一眼」**：星图 + 一句话今夜，参数表全部后移。预览页也多了一张「今夜星图」卡片（Canvas 2D，带时刻滑块，不动 3D 视图）。
+- **两个世界，两张天**：`examples/helikon/` 三颗恒星 → 夜空被压到 19 等、只剩两百来颗、银河被洗掉；`examples/aster/` 一颗 G2V → 一夜两千六百多颗、银河横过天顶。前者不是 bug，是结论。
+- 数字：`entail` 30 → 36（E31–E36 全是夜空阈值），`validate` 37 → 39（SK01/SK02），`selftest` 63 → 93，MCP 17 → 20。
+
+### 增补：对着真实世界的那一半（同日第二批）
+
+上面的星图是「好看」。这一批是「对得上」——起因是一个很直接的问题：把地球丢进去，它算得对吗？
+
+- **`benchmark earth`**：地球参数喂进引擎，六条曲线对公开数据，出目标 / 实测 / 结论。第一天就抓出两处真错：极区蒸发被 `temp<268` 一刀切归零（极地下不了雨）、副热带下沉支没建模（25° 比赤道还湿）。修完纬向降水 **r = 0.40 → 0.82**，纬向温度 **RMSE 6.7 K**，昼长对独立数值积分 **RMSE 0.02 h**。这张表现在是 `review` 的 **D9**。
+- **`capacity`**：Miami 模型（`NPP = min(f(T), f(P))`）把气候场积成陆地 NPP，再按可采收比例与人均热量折算人口上限。星夜（地球参数）算出 **56.5 Gt C/yr、约 55.8 亿人**——量级对得上。第一次能回答「这颗星球养得活多少人」。
+- **`map --season`**：用已经算好的倾角跑冬至/夏至两套气候，出四张图（北半球夏季降水 1457 mm / 冬季 391 mm，ITCZ 会跟着赤纬动）。
+- **温室由成分估**：`33 + 4.28·ln(CO₂e/560)`，CO₂ 翻倍 **+2.97 K**（AR6 最佳估计 3.0）。声明值仍然优先，所以旧世界零影响；赫利孔的 10% CO₂ 会被点名「按成分该是 55 K，你写了 33 K」——只报不改。
+- **恒星寿命与宜居带**：`t ≈ 10 Gyr × M/L`，附 Kasting 保守宜居带。
+- 数字：`selftest` 78 → 93，`review` 八项 → 九项，MCP 18 → 20。
+
+```bash
+python scripts/pangu.py sky examples/helikon/world.json            # 今夜看见什么
+python scripts/pangu.py sky examples/aster/world.json --year       # 一年昼长
+python scripts/pangu.py whatif examples/helikon/world.json --set "cosmology.bodies[0].axial_tilt_deg=80" --sky
+```
+
+## 1.1.3 新增了什么（上一版）
+
+1.1.1 让世界有了**地**，1.1.2 让**改动**可验证，1.1.3 让**流程可导航、想象力可供给**。
+
+世界不是一次写完的，也不是靠灵感堆出来的。这一版做了三件事：
+
+- **`plan` — 七斧状态机**（`scripts/rite.py`）：读 `world.json` 判定当前在第几斧，列出这一斧**还缺哪些字段**、该回答的 2–3 个问题、该做的检索，以及**按顺序的下一步命令**；另报六项交付门槛（自洽 / 反常识度 / 切片 / 红队 / 地图 / 选项卡一致）。斧位由字段完备度判定，不看自述；斧 6 可选，不写文明填 `exists:false` 就跳过。`--brief` 一行结论、`--next` 一条命令、`--json` 机读——给 agent 的循环用，别让报告吃掉上下文。
+- **`options` — 选项卡**（`references/选项卡.md`，31 个命题 / 132 个选项）：每一斧有 4–5 个**必须回答的命题**，每个命题 2–5 个**互斥选项**，每个选项五格——设定 / 代价 / 痕迹 / 连锁（要顺手写的字段）/ 标签。`--adopt "Q3.1=B"` 采纳进 `seed.brief.choices`（保留代价与痕迹），自动升版本记修订；标签里 `-` 前缀表示排除（`-有恒星` 撞上别人的 `有恒星`），有冲突直接拒绝，`--force` 才放行。**选项不是命令**：可以一个都不选，也可以自己写第六个。
+- **`entail` — 必然推论**（`scripts/entailment.py`，30 条规则）：从已立之律机械推出居民**必然**会看见什么——双影、不落的灯、恒黑之天、固定的晨昏线、碎云、没有翅膀、会沸腾的湖、没有冰的颜色、可走的潮间带、不是水的雨、会呼吸的地面、两面的叶子、不用闰的年……每条给断言 / 出处字段 / 可观测痕迹 / 强度（`必然` = 可由数值直接算出，`很可能` = 生态与社会的合理外推）。`--write --yes` 按 `〔entail E01〕` 幂等回写天象，`--check` 检出「改了设定却忘删旧天象」的失效条目。
+
+三者咬成一条循环：**`plan` 告诉你该回答哪一问，`options` 给这一问几种活法，`entail` 把你选完的结果推成居民看得见的东西。**
+
+十三条小改动（第一批）：
+
+- `validate --brief`（一行式结论）｜`plan --next`（只吐一条命令）｜`axioms --axe N`（按斧位查积木）｜`sweep --log`（等比采样，跨数量级扫参数必开）｜`patch --suggest`（给出应填的 ρ / g / R，只建议不写盘）
+- `doctor` 版本一致性（内核 / SKILL / README / CHANGELOG / MCP 五处对齐）｜`diff` 斧位对比（推进了几斧、门槛过了几个）｜`export` 新增「零 · 创作路线」｜`slice --prompt`（居民 / 孩童 / 外来者 / 敌对科学家四种视角）
+- `R01` 选项卡一致性（卡间互斥 + 卡与世界对账，进机检与评分）｜`options --check`｜MCP 12 → 15 个 tool｜selftest 34 → 52 项
+
+### 第一批之后：`review` 与 `whatif`
+
+前面三个命令负责**把世界造出来**，这两个负责**判断能不能交**、以及**如果当初选另一条会怎样**。
+
+- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完八项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
+- **`whatif` — 反事实推演**（`scripts/whatif.py`）：在内存副本上改设定，回答「世界会变成什么样」——重力怎么动、哪条必然推论消失、审查从哪一条开始崩、若采纳要重跑什么。`--set` 定点改，`--scale` 按倍率缩放并**保留单位后缀**（`4.004e-11 m3kg-1s-2` → `2.8028e-11 m3kg-1s-2`），`--recalc` 先抹平 P01 这类算术冲突。**永不写原世界**，`--write` 才另存一份假设世界。
+- 例：G × 0.7 后地表重力 1.76 → 1.23 g，E09「没有翅膀」自动消失（能飞了），恰好演示了「反常识是有代价的，代价一变，奇观就散」。
+- 与 `sweep` 的分工：`sweep` 扫**一个数**、只回答「哪一步崩了」；`whatif` 任意多字段、回答「**世界变成什么样**」。
+
+十条小开关：`plan --axe N`｜`options --unanswered` / `--md`（导出卡表）｜`validate --only`｜`patch --history`（修订历史）｜`entail --list` / `--exclude`｜`slice --cites`｜`axioms --id`｜`PANGU_ASCII=1`（符号换 ASCII，给 GBK 控制台）；MCP 15 → 17 个 tool，selftest 52 → 63 项。
+
+详见 [CHANGELOG.md](CHANGELOG.md) 与 [docs/开发文档-v1.1.3.md](docs/开发文档-v1.1.3.md)。
 
 ---
 
@@ -95,7 +158,7 @@ python install.py --print-mcp                          # 打印配置片段
 | Windsurf | `adapters/windsurf/pangu.md` | `model_decision` 触发 |
 | Gemini CLI | `adapters/gemini/GEMINI.md` | 项目根自动读取 |
 | Cline / Roo / Kilo | `AGENTS.md` | 工作区规则 |
-| Zed / Continue / Cherry Studio | `adapters/mcp/pangu_mcp.py` | MCP tool，12 个 |
+| Zed / Continue / Cherry Studio | `adapters/mcp/pangu_mcp.py` | MCP tool，15 个 |
 | 任意纯对话模型 | `adapters/generic/BOOTSTRAP.md` | 粘贴即用 |
 
 细节见 `adapters/README.md`，排错见 `docs/跨harness移植说明.md`。
@@ -105,10 +168,29 @@ python install.py --print-mcp                          # 打印配置片段
 ## 三十秒上手
 
 ```bash
-python scripts/pangu.py doctor                     # 环境自检
+python scripts/pangu.py doctor                     # 环境自检 + 版本一致性
 
 python scripts/pangu.py init --name "赫利孔" \
     --seed "三倍地球大，天上有两个太阳" --out out/helikon.json
+
+# 1.1.3：导航 + 选项 + 推论（每一轮都从这三条开始）
+python scripts/pangu.py plan     out/helikon.json            # 在第几斧 / 缺什么 / 下一步命令
+python scripts/pangu.py plan     out/helikon.json --brief    # 一行结论（循环里用）
+python scripts/pangu.py options  --axe 3 --roll 2            # 抽 2 张选项卡（带代价与痕迹）
+python scripts/pangu.py options  out/helikon.json --adopt "Q3.1=B"   # 采纳 → seed.brief
+python scripts/pangu.py options  out/helikon.json --check    # 卡间互斥 / 卡与世界对账
+python scripts/pangu.py entail   out/helikon.json            # 从已立之律推出必然现象
+python scripts/pangu.py entail   out/helikon.json --write --yes   # 幂等回写 sky_phenomena
+python scripts/pangu.py entail   out/helikon.json --check    # 改设定后哪些旧推论失效了
+python scripts/pangu.py review   out/helikon.json            # 八项体检：能不能交
+python scripts/pangu.py whatif   out/helikon.json --scale "physics.constants[0].world_value=0.7" --recalc
+                                                             # 反事实：重力再低 30% 会怎样
+python scripts/pangu.py sky      out/helikon.json             # 抬头：今夜的天光 / 极限星等 / 星图
+python scripts/pangu.py sky      out/helikon.json --year       # 一年昼长与极昼极夜
+python scripts/pangu.py sky      out/helikon.json --md out/今夜.md   # 星图 PNG + 逐月表
+python scripts/pangu.py benchmark earth                       # 六条曲线对地球，出偏差表
+python scripts/pangu.py capacity out/helikon.json             # 这颗星球养得活多少人
+python scripts/pangu.py map      out/helikon.json --season --run   # 冬至/夏至双图
 
 # 按七斧填完 world.json 后
 python scripts/pangu.py validate out/helikon.json --fix-hint
@@ -146,6 +228,10 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 | 倒因为果 | 先想要龙，再补物理，设定互相打架 | **七斧顺序**：物理层没立完，不许谈生物 |
 | 地球换皮 | 改颜色改名字，法则一模一样 | **逆行律**：至少一个底层维度必须与直觉相反 |
 | 无代价奇观 | 越夸张越没解释，一问就崩 | **代价律 + 痕迹律**：每个奇观标价，且必须留下可观测痕迹 |
+| 流程不可导航 | 每轮都要重读方法论，才知道自己在第几步、下一步干什么 | **`plan`**：斧位 + 缺口 + 该问的问题 + 下一步命令 + 六项门槛 |
+| 灵感断供 | 想得出来的都是「双星 + 超级地球」，改猛了像噪声 | **`options`**（132 个带代价的选项）+ **`entail`**（30 条从设定推现象的规则） |
+| 交付靠自觉 | 六条体检命令，漏一条就是漏一条，没人说「能交」 | **`review`**：八项一命令、一个判断、修复按顺序排好 |
+| 不敢改 | 改坏了要整轮重来，所以宁可不动 | **`whatif`**：先在副本上推演后果，代价 / 现象 / 崩点一次看清 |
 
 ---
 
@@ -165,6 +251,8 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 ```
 
 每斧三步：**问**（2–3 个有区分度的问题）→ **搜**（网页检索校准）→ **定**（写入 JSON 并自检）。
+
+推进方式从 1.1.3 起是固定的：**每轮先 `plan` 看斧位与缺口**，缺想法就用 `options --axe N` 抽张卡（带着代价与痕迹），落地走 `patch`，复检用 `validate --brief`；七斧收齐后用 `entail` 把设定推成现象，再交给 `map` / `ca` / `slice` / `redteam`，最后 `review` 一把过、`preview` / `export` 出成品。中途想试另一条路，用 `whatif` 先在副本上推演，不写原世界。
 
 ### 检索四类
 
@@ -189,26 +277,33 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── windsurf/pangu.md       Windsurf 规则
 │   ├── gemini/GEMINI.md        Gemini CLI 入口
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
-│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，12 个 tool）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，17 个 tool）
 ├── docs/
 │   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
 │   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
 │   ├── 开发文档-v1.1.1.md       1.1.1 行星地图与 CA 强化：数据契约、算法、验收
 │   ├── 开发文档-v1.1.2.md       1.1.2 调参层：patch / sweep / diff 的契约与判定
+│   ├── 开发文档-v1.1.3.md       1.1.3 导航与选项：plan / options / entail 的契约与判定
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
 │   ├── 3D预览层规范.md          渲染层技术规格
 │   └── 优化建议.md              已知短板与改进方向
 ├── references/
 │   ├── 七斧创世法.md            每斧的提问脚本 / 推导链 / 常见错误
 │   ├── 公理库.md                62 条反常识积木（含代价与痕迹）
+│   ├── 选项卡.md                31 个命题 / 132 个选项的设定菜单（按七斧分段）
 │   ├── 检索与灵感策略.md        四类检索配方与取反技巧
 │   ├── 自洽性审查协议.md        五维十六问
 │   └── world-schema.md          JSON 全字段规范 + 机检清单
 ├── scripts/
-│   ├── pangu.py                 CLI：init / validate / preview / export / axioms / doctor
-│   │                                / slice / redteam / ca / map / patch / sweep / diff
-│   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、元素与基座检验、公理库解析
-│   ├── world_tuning.py          调参层：点路径读写、参数扫描、版本对比、下游重跑推断
+│   ├── pangu.py                 CLI：plan / options / entail / review / whatif / init / validate / preview / export
+│   │                                / axioms / doctor / slice / redteam / ca / map / patch / sweep / diff
+│   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、元素与基座检验、卡间互斥与对账
+│   ├── rite.py                  七斧状态机：斧位判定、缺口、下一步命令、六项交付门槛
+│   ├── options_lib.py           选项卡解析与检索：列 / 抽 / 采纳 / 未答命题
+│   ├── entailment.py            必然推论：30 条后果规则、幂等回写、失效检测
+│   ├── review.py                交付体检：八项编排与判定（只读）
+│   ├── whatif.py                反事实推演：副本改动、现象增减、分级与下游
+│   ├── world_tuning.py          调参层：点路径读写、参数扫描（含等比）、版本对比、斧位差、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合
 │   ├── mapgen.py                行星地图引擎：板块、海平面、气候、河网、群系、出图
 │   ├── png_writer.py            零依赖 PNG 编码器（zlib + struct）
@@ -239,6 +334,8 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 - **痕迹**：两道颜色不同的影子；每 44 天一次 90 分钟的「双星合」；日落后天空是钴蓝而非黑色
 
 自洽评分 100/100（0 fatal / 0 warn）。
+
+1.1.3 起，示例也演示了新的三件工具：`seed.brief` 记录了采纳的 7 张选项卡（含每张的代价与痕迹）；`entail` 从已定设定推了 7 条必然现象进 `sky_phenomena`（带 `〔entail E01〕` 标记，可幂等复算、可检出失效）；`plan` 报「七斧已收齐、门槛 6/6」。其中「一年正好 8 个双星周期、历法不需要闰日」就是 E30 算出来的——**不是设定者的巧思，是开普勒第三定律的结算**。
 
 ---
 

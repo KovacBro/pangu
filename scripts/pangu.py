@@ -5,15 +5,21 @@
 ================
 开天辟地式造世引擎的命令行入口。
 
-    doctor                                     环境自检
+    doctor                                     环境自检（含版本一致性）
     init --name <n> [--seed <s>]               生成骨架 world.json
+    plan     <world.json> [--axe N|--brief|--next]  七斧状态机：在第几斧、缺什么、下一步
+    options  [world] [--axe N|--qid Q] [--roll]  选项卡：命题与选项（--adopt 采纳）
+    entail   <world.json> [--list|--write|--check]  必然推论：从已定设定推出可见现象
+    review   <world.json> [--fast|--strict]    交付体检：八项一条命令，给「能不能交」
+    whatif   <world.json> --set/--scale ...    反事实推演：改一条设定，世界会变成什么样
+    sky      <world.json> [--at|--year|--check] 观测层：抬头看见什么（星图 / 昼长 / 天光）
     validate <world.json> [--strict] [--json]  校验 + 自洽打分
     preview  <world.json> [-o <html>]          生成 3D 预览页
     export   <world.json> [--md <md>]          生成世界档案
-    axioms   [--domain <d>] [--cost <t>]        查公理库
+    axioms   [--domain <d>] [--cost <t>]        查公理库（--axe 按斧位）
     patch    <world.json> --set p=v [--get p]  定点改 / 增 / 查字段（自动升版本）
-    sweep    <world.json> --param <p>           参数敏感度扫描，找崩点
-    diff     <a.json> <b.json>                  版本对比 + 下游重跑清单
+    sweep    <world.json> --param <p>           参数敏感度扫描，找崩点（--log 等比）
+    diff     <a.json> <b.json>                  版本对比 + 斧位推进 + 下游重跑清单
     map      <world.json> [--run|--check]      行星地图：板块/海平面/气候/河网/群系
     ca       <world.json> [--run|--check]      生态演化：编译/跑/复算比对
 """
@@ -37,8 +43,25 @@ sys.path.insert(0, HERE)
 
 import world_schema as ws  # noqa: E402
 import world_tuning as wt  # noqa: E402
+import rite  # noqa: E402
+import options_lib as ol  # noqa: E402
+import entailment as en  # noqa: E402
+import review as rvw  # noqa: E402
+import whatif as wi  # noqa: E402
+import sky as sk  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "preview_template.html")
+
+# PANGU_ASCII=1：把 ✓ ✗ ▶ ─ 这类符号换成 ASCII 等价物。
+# 给 GBK / 老式控制台与日志采集用——不改变任何逻辑，只改字形。
+ASCII_MAP = str.maketrans({
+    "✓": "[ok]", "✗": "[x]", "▶": ">", "·": ".", "─": "-",
+    "↳": "->", "…": "...", "—": "--", "｜": "|", "　": " ",
+})
+
+
+def _ascii() -> bool:
+    return bool(os.environ.get("PANGU_ASCII"))
 
 
 # ── 编码与输出 ──────────────────────────────────────────────────────
@@ -51,20 +74,63 @@ def _init_io():
 
 
 def err(msg: str, fix: str = "") -> None:
-    sys.stderr.write(f"[ERROR] {msg}" + (f"\n   → {fix}" if fix else "") + "\n")
+    body = f"[ERROR] {msg}" + (f"\n   → {fix}" if fix else "")
+    if _ascii():
+        body = body.translate(ASCII_MAP)
+    sys.stderr.write(body + "\n")
 
 
 def say(msg: str = "") -> None:
-    sys.stdout.write(msg + "\n")
+    sys.stdout.write((msg.translate(ASCII_MAP) if _ascii() else msg) + "\n")
 
 
 def warn(msg: str) -> None:
-    sys.stdout.write(f"  ! {msg}\n")
+    body = f"  ! {msg}"
+    sys.stdout.write((body.translate(ASCII_MAP) if _ascii() else body) + "\n")
 
 
 # ════════════════════════════════════════════════════════════════════
 # doctor
 # ════════════════════════════════════════════════════════════════════
+
+def _read(rel: str) -> str:
+    p = os.path.join(ROOT, rel)
+    if not os.path.exists(p):
+        return ""
+    with open(p, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def _first(pattern: str, text: str) -> str:
+    m = re.search(pattern, text, re.MULTILINE)
+    return (m.group(1).strip() if m else "")
+
+
+def _version_audit() -> list:
+    """
+    版本一致性自检（1.1.3）。
+
+    1.1.2 之前，SKILL frontmatter / README 徽章 / CHANGELOG 首条 / MCP SERVER_VERSION
+    各写各的，发版时很容易只改其中两处。这里一次性对上 ws.VERSION。
+    """
+    skill = _read("SKILL.md")
+    readme = _read("README.md")
+    change = _read("CHANGELOG.md")
+    mcp = _read(os.path.join("adapters", "mcp", "pangu_mcp.py"))
+    rows = [
+        {"where": "内核", "value": ws.VERSION,
+         "ok": bool(ws.VERSION)},
+        {"where": "SKILL", "value": _first(r"^\s*version:\s*([0-9.]+)", skill),
+         "ok": _first(r"^\s*version:\s*([0-9.]+)", skill) == ws.VERSION},
+        {"where": "README", "value": _first(r"badge/version-([0-9.]+)-", readme),
+         "ok": _first(r"badge/version-([0-9.]+)-", readme) == ws.VERSION},
+        {"where": "CHANGELOG", "value": _first(r"^##\s*([0-9]+\.[0-9]+\.[0-9]+)", change),
+         "ok": _first(r"^##\s*([0-9]+\.[0-9]+\.[0-9]+)", change) == ws.VERSION},
+        {"where": "MCP", "value": _first(r'SERVER_VERSION\s*=\s*"([0-9.]+)"', mcp),
+         "ok": _first(r'SERVER_VERSION\s*=\s*"([0-9.]+)"', mcp) == ws.VERSION},
+    ]
+    return rows
+
 
 def cmd_doctor(args) -> int:
     say("盘古 · 环境自检")
@@ -84,10 +150,17 @@ def cmd_doctor(args) -> int:
         ("SKILL.md", "技能入口"),
         ("references/公理库.md", "公理库"),
         ("references/七斧创世法.md", "七斧流程"),
+        ("references/选项卡.md", "选项卡"),
         ("references/world-schema.md", "字段规范"),
+        ("scripts/rite.py", "七斧状态机"),
+        ("scripts/entailment.py", "推论引擎"),
+        ("scripts/review.py", "交付体检"),
+        ("scripts/whatif.py", "反事实推演"),
+        ("scripts/sky.py", "观测层"),
         ("scripts/preview_template.html", "3D 模板"),
         ("scripts/mapgen.py", "地图引擎"),
-    ]:
+        ("scripts/benchmark.py", "地球基准"),
+        ]:
         p = os.path.join(ROOT, rel)
         exist = os.path.exists(p)
         size = f"{os.path.getsize(p) / 1024:.0f} KB" if exist else "-"
@@ -100,6 +173,22 @@ def cmd_doctor(args) -> int:
         from collections import Counter
         c = Counter(a["domain_cn"] for a in lib)
         say("      " + " ｜ ".join(f"{k}{v}" for k, v in c.items()))
+
+    cards, cwarn = ol.load_cards(ROOT)
+    st = ol.stats(cards)
+    say(f"  {'✓' if cards else '✗'} 选项卡解析：{st['cards']} 个命题 / "
+        f"{st['options']} 个选项，覆盖 {st['axes']} 斧")
+    for w in cwarn[:3]:
+        warn(w)
+
+    # ── 版本一致性（1.1.3）：文档与代码各说各话时，先修这个 ──────────
+    ver = _version_audit()
+    bad = [v for v in ver if not v["ok"]]
+    say(f"  {'✓' if not bad else '!'} 版本一致性："
+        + " ｜ ".join(f"{v['where']}={v['value'] or '缺失'}" for v in ver))
+    if bad:
+        warn("版本漂移：" + "、".join(v["where"] for v in bad)
+             + "（对外声明的版本应统一为 " + ws.VERSION + "）")
 
     try:
         with open(os.path.join(ROOT, "scripts", "world_schema.py"), encoding="utf-8") as f:
@@ -236,6 +325,8 @@ FIX_HINTS = {
     "E02": "调整 trophic_levels 的 share，使其按 10% 定律递减并合计为 1。",
     "X02": "先写 physics：至少 1 条常数改动（含 why）和 1 条定律。",
     "N02": "补 seed.references，至少 4 条，每条都要有 use 字段说明怎么用的。",
+    "R01": "两张卡互斥（一正一负标签）。用 options <world> --check 看是哪两处，"
+           "改一张或删一张；采纳新卡时不要加 --force。",
 }
 
 
@@ -251,6 +342,24 @@ def cmd_validate(args) -> int:
         return 2
 
     rep = ws.validate(world, strict=bool(args.strict))
+
+    if args.only:
+        # 只跑指定检查项（1.1.3）：排查某一类问题时，不必读 37 行报告
+        want = {x.strip().upper() for x in str(args.only).replace(" ", ",").split(",") if x.strip()}
+        known = {c.id.upper() for c in rep.checks}
+        unknown = sorted(want - known)
+        rep.checks = [c for c in rep.checks if c.id.upper() in want]
+        if not rep.checks:
+            err(f"没有这些检查项：{'、'.join(unknown) or args.only}",
+                "可用项：" + "、".join(sorted(known)))
+            return 2
+        if unknown:
+            warn(f"忽略未知检查项：{'、'.join(unknown)}")
+
+    if args.brief:
+        # 一行式结论（1.1.3）：agent 在循环里反复调用时，别让报告吃掉上下文
+        say(rite.brief_line(world, path, rep))
+        return 1 if (args.strict and rep.fatal) else 0
 
     if args.json:
         say(json.dumps(rep.as_dict(), ensure_ascii=False, indent=2))
@@ -300,8 +409,15 @@ def cmd_preview(args) -> int:
     title = args.title or ws._get(world, "meta", "name", default="盘古世界") or "盘古世界"
     payload = _escape_json_for_html(world)
 
+    # 1.1.4 · 今夜星图：预先算好 6 帧，页面只负责画，不再复算天体
+    try:
+        sky_payload = _escape_json_for_html(sk.frames_for_preview(world, 6))
+    except Exception:  # noqa: BLE001 —— 算不出来就不显示卡片，不能拖垮 3D 页
+        sky_payload = "{}"
+
     # 用 split/join 而非 str.replace，避免 payload 中出现占位符导致二次替换
     html = html.replace("__PANGU_TITLE__", str(title))
+    html = html.replace("__PANGU_SKY_JSON__", sky_payload)
     html = html.replace("__PANGU_WORLD_JSON__", payload)
     html = html.replace("__PANGU_SCORE__", str(rep.score))
     html = html.replace("__PANGU_GRADE__", rep.grade)
@@ -383,7 +499,45 @@ def cmd_export(args) -> int:
         A("美学基调：" + " · ".join(f"`{x}`" for x in meta["aesthetic"]))
         A("")
 
-    # 三秒印象
+    # 第一眼（1.1.4）：档案的第一屏是天，不是参数表
+    try:
+        fr = sk.frame(world, 0.0)
+        fig = ""
+        try:
+            png = os.path.join(md_dir, "sky", "night.png")
+            sk.render_png(fr, png)
+            fig = "sky/night.png"
+        except Exception:  # noqa: BLE001 —— 出不了图不是交付事故
+            fig = ""
+        A("---")
+        A("")
+        A(_h(2, f"第一眼 · {name}"))
+        if fig:
+            A(f"![今夜星图]({fig})")
+            A("")
+        A("```")
+        for line in sk.chart_ascii(fr):
+            A(line)
+        A("```")
+        A("")
+        A(f"**今夜**：极限星等 {fr['sky']['limit_mag']:g} ｜ "
+          f"地平线上约 {fr['sky']['visible_stars']} 颗 ｜ "
+          f"银河 {'可见' if fr['sky']['milky_way'] else '不可见'} ｜ "
+          f"天空亮度 {fr['sky']['sky_brightness']:g} mag/arcsec²")
+        A("")
+        cal = sk.calendar(world)
+        A(f"一天 {cal['day_hours']:g} 小时，一年 {cal['months']} 个月"
+          f"（{cal['year_days']:g} 天）；{sk.judgement(fr)}")
+        A("")
+        A("> 星表由 seed 确定性生成、按本世界观测点实算。它是这个世界的计算结果，"
+          "不是地球的天空，也不是真实星表。")
+        A("")
+    except Exception as e:  # noqa: BLE001 —— 旧世界没有观测点也要能导出
+        A(f"> 第一眼：算不出星空（{type(e).__name__}: {e}）。"
+          "补 `cosmology.surface.observer` 与 `cosmology.stars` 后重跑 `sky`。")
+        A("")
+
+    # 三秒印象（1.1.4 起排在星图之后：先看见，再读）
     if nar.get("three_seconds") or nar.get("hook"):
         A("---")
         A("")
@@ -393,6 +547,36 @@ def cmd_export(args) -> int:
         if nar.get("three_seconds"):
             A(nar["three_seconds"])
             A("")
+
+    # 零、创作路线（1.1.3：让档案自己说明「这个世界是怎么造出来的」）
+    plan = rite.plan_report(world, path, rep)
+    A(_h(2, "零 · 创作路线"))
+    icon = {"done": "✓", "current": "**▶**", "todo": "·", "skipped": "…"}
+    A(" ｜ ".join(f"{icon.get(r['state'], '?')} 斧{r['n']} {r['cn']}（{r['verb']}）"
+                  for r in plan["states"]))
+    A("")
+    A(f"当前停在 **斧 {plan['axe']} {plan['axe_name']}**"
+      + (f"：还缺 {len(plan['missing'])} 项（" + "；".join(plan["missing"][:4]) + "）"
+         if plan["missing"] else "：缺口已清，可以交付"))
+    A("")
+    brief = seed.get("brief") if isinstance(seed.get("brief"), dict) else {}
+    choices = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+    if choices:
+        A(_h(3, "已采纳的选项卡"))
+        A(_kv_table([(c.get("qid", "—"), c.get("title", "—"),
+                      str(c.get("option", "")) + " " + str(c.get("label", "")),
+                      c.get("cost", "—"))
+                     for c in choices], ("命题", "问题", "选择", "代价")))
+    ents = en.derive(world)
+    marks = en.existing_marks(world)
+    if ents:
+        A(_h(3, f"必然推论（{len(ents)} 条，已回写 {len(marks)} 条）"))
+        rows = [(e["id"], e["name"], e["strength"], e["claim"]) for e in ents]
+        A(_kv_table(rows, ("ID", "推论", "强度", "断言")))
+        A("推论不是灵感，是从已立之律**算出来**的：设定 → 现象。\n")
+    if plan["commands"]:
+        A(f"**下一步**：`{plan['commands'][0]['cmd']}` —— {plan['commands'][0]['why']}")
+        A("")
 
     # 一、核心悖论
     A(_h(2, "一 · 核心悖论"))
@@ -589,6 +773,14 @@ def cmd_export(args) -> int:
             ("遗传载体", gc.get("name", "—")),
         ]))
 
+        cap = bio.get("carrying_capacity") if isinstance(bio.get("carrying_capacity"), dict) else {}
+        if cap.get("humans_subsistence"):
+            A(f"**承载力**：陆地 NPP {cap.get('land_npp_gtc_yr')} Gt C/yr ｜ "
+              f"可采收 {float(cap.get('harvest_fraction') or 0) * 100:.1f}% ｜ "
+              f"维持型上限约 **{_fmt_people(float(cap['humans_subsistence']))}人**")
+            A(f"> 口径：{cap.get('assumptions', 'Miami 模型')}")
+            A("")
+
         bic = bio.get("biochemistry") if isinstance(bio.get("biochemistry"), dict) else {}
         if bic:
             A(_h(3, "生命基座"))
@@ -772,6 +964,31 @@ def cmd_export(args) -> int:
           + (f" ｜ 双星间距 {d['binary_sep_au']} AU" if d.get("binary_sep_au") else ""))
         A("")
 
+        # 1.1.4 增补：温室对账（声明 vs 成分估算）
+        gh_rows = [(b["name"], f"{b['greenhouse_delta_k']} K",
+                    f"{b['greenhouse_estimated_k']} K" if b.get("greenhouse_estimated_k") else "无法估",
+                    ("声明值" if b.get("greenhouse_source") == "declared" else "成分估算"))
+                   for b in d["bodies"] if b.get("greenhouse_delta_k")]
+        if gh_rows:
+            A(_kv_table(gh_rows, ("天体", "采用温室", "成分估算", "来源")))
+            gap = [b for b in d["bodies"]
+                   if b.get("greenhouse_declared_k") and b.get("greenhouse_estimated_k")
+                   and abs(b["greenhouse_declared_k"] - b["greenhouse_estimated_k"]) > 15]
+            if gap:
+                A("> 温室对不上：声明值与成分估算差超过 15 K。"
+                  "引擎按声明值算（作者决策优先），但这个差值本身就是一个可以写的矛盾。\n")
+            A("")
+
+        if d.get("stars"):
+            rows = [(s["name"], f"{s['mass_solar']:g} M☉", f"{s['luminosity_solar']:g} L☉",
+                     f"{s['ms_lifetime_gyr']:g} Gyr" + ("（短命）" if s.get("note") else ""))
+                    for s in d["stars"]]
+            A(_kv_table(rows, ("恒星", "质量", "光度", "主序寿命")))
+            if d.get("hz_au"):
+                A(f"宜居带 {d['hz_au'][0]}–{d['hz_au'][1]} AU"
+                  "（Kasting 保守区间：1.1–0.53 倍通量）")
+            A("")
+
     # 十、参考
     refs = seed.get("references") or []
     if refs:
@@ -849,7 +1066,38 @@ def cmd_axioms(args) -> int:
         say("\n用法：axioms --cost 空间 --roll 3")
         return 0
 
+    if args.id:
+        # 点名一条积木（1.1.3）：在对话里引用编号时，直接展开全文
+        want = str(args.id).strip().upper()
+        hit = [a for a in lib if str(a.get("id")).upper() == want]
+        if not hit:
+            err(f"没有编号 {args.id} 的积木",
+                "可用编号：" + "、".join(str(a.get("id")) for a in lib[:12]) + " …")
+            return 2
+        a = hit[0]
+        if args.json:
+            say(json.dumps(a, ensure_ascii=False, indent=2))
+            return 0
+        say(f"【{a['id']}】{a['name']}  ·  {a['domain_cn']} / {a['scale']}")
+        say(f"  设定：{a['setting']}")
+        say(f"  代价：{a['cost']}")
+        say(f"  痕迹：{a['trace']}")
+        tags = "/".join(a.get("cost_tags") or []) or "—"
+        say(f"  代价类型：{tags}")
+        return 0
+
     pool = lib
+    if args.axe:
+        # 按斧位检索（1.1.3）：卡在第 3 斧时，你需要的不是「全部积木」，而是物理积木
+        if not (1 <= args.axe <= 7):
+            err(f"斧位应为 1–7，收到 {args.axe}", "斧 1 混沌 … 斧 7 演界")
+            return 2
+        doms = rite.AXE_AXIOM_DOMAINS.get(args.axe)
+        if doms:
+            pool = [a for a in pool if a["domain"] in doms]
+        if not pool:
+            err(f"斧 {args.axe} 没有对应领域的积木", "去掉 --axe 看全库")
+            return 2
     if args.domain:
         pool = [a for a in lib if a["domain"] == args.domain or a["domain_cn"] == args.domain]
         if not pool:
@@ -873,6 +1121,8 @@ def cmd_axioms(args) -> int:
         say(json.dumps(pool, ensure_ascii=False, indent=2))
         return 0
 
+    if args.axe:
+        say(f"【斧 {args.axe} · {rite.AXE_BY_N[args.axe]['cn']}】只列这一斧用得上的积木")
     cur = None
     for a in pool:
         if a["domain_cn"] != cur:
@@ -906,6 +1156,36 @@ def _fmtv(v, width: int = 0) -> str:
     return s.rjust(width) if width else s
 
 
+def _suggest_recalc(world: dict) -> list:
+    """
+    给出「如果照这个质量/半径/G 继续，密度与重力应该是多少」（1.1.3）。
+
+    只建议、不写盘——要不要接受这个自洽解，是设定决策，不是工具决策。
+    公式与 P01 同源：ρ = M×5.514/R³，g = M/R²×(G'/G)。
+    """
+    gr = ws.g_ratio(world)
+    rows = []
+    for b in (world.get("cosmology") or {}).get("bodies") or []:
+        if not isinstance(b, dict):
+            continue
+        r_e = (ws._num(b.get("radius_earth"), 0)
+               or ws._num(b.get("radius_km"), 0) / ws.EARTH_RADIUS_KM)
+        m_e = ws._num(b.get("mass_earth"), 0)
+        if r_e <= 0 or m_e <= 0:
+            continue
+        rows.append({
+            "id": b.get("id", "?"),
+            "path_density": f"cosmology.bodies[?].density_gcc",
+            "density_gcc": round(m_e * ws.EARTH_DENSITY_GCC / (r_e ** 3), 3),
+            "gravity_g": round(m_e / (r_e ** 2) * gr, 3),
+            "radius_km": round(r_e * ws.EARTH_RADIUS_KM, 1),
+            "now_density": b.get("density_gcc"),
+            "now_gravity": b.get("gravity_g"),
+            "now_radius": b.get("radius_km"),
+        })
+    return rows
+
+
 def cmd_patch(args) -> int:
     path = args.world
     if not os.path.exists(path):
@@ -916,6 +1196,28 @@ def cmd_patch(args) -> int:
     except json.JSONDecodeError as e:
         err(f"JSON 解析失败：{e}", "检查第 " + str(e.lineno) + " 行附近")
         return 2
+
+    # ── 修订历史 ──────────────────────────────────────────────────
+    if args.history:
+        revs = [r for r in (ws._get(world, "history", "revisions", default=[]) or [])
+                if isinstance(r, dict)]
+        if not revs:
+            say("· 没有修订记录（还没用过 patch / options --adopt / entail --write）")
+            return 0
+        n = max(1, int(args.limit or 10))
+        say(f"【修订历史】{ws._get(world, 'meta', 'name', default='')}"
+            f" v{ws._get(world, 'meta', 'version', default='—')}"
+            f" ｜ 共 {len(revs)} 条，显示最近 {min(n, len(revs))} 条")
+        for r in revs[-n:]:
+            ver = r.get("version") or "—"
+            date = r.get("date") or "—"
+            ch = str(r.get("change") or "")[:60]
+            fields = r.get("fields") or []
+            say(f"  {date}  {ver:<8} {ch}")
+            if fields:
+                say(f"              └ 动了 {len(fields)} 个字段：{'、'.join(map(str, fields[:4]))}"
+                    + ("…" if len(fields) > 4 else ""))
+        return 0
 
     # ── 查 ────────────────────────────────────────────────────────
     if args.get:
@@ -967,6 +1269,18 @@ def cmd_patch(args) -> int:
     say(f"  评分 {before.score} → {after.score}"
         f" ｜ fatal {before.fatal} → {after.fatal}"
         f" ｜ warn {before.warn} → {after.warn}")
+    if args.suggest and any(
+            re.search(r"mass_earth|radius_earth|radius_km|world_value", str(c["path"]))
+            for c in res["changes"]):
+        rows = _suggest_recalc(world)
+        if rows:
+            say("")
+            say("【自洽建议】照着改就不用再撞 P01（不写盘，要不要接受由你定）")
+            for i, r in enumerate(rows):
+                say(f"  {r['id']}  density_gcc: {_fmtv(r['now_density'])} → {r['density_gcc']}"
+                    f" ｜ gravity_g: {_fmtv(r['now_gravity'])} → {r['gravity_g']}"
+                    f" ｜ radius_km: {_fmtv(r['now_radius'])} → {r['radius_km']}")
+            say("  落地：patch <world> --set \"cosmology.bodies[0].density_gcc=…\" --set …")
     if after.fatal > before.fatal:
         warn("新增了致命项——这个世界现在还不可交付")
     if any(str(c["path"]).startswith(("cosmology", "physics")) for c in res["changes"]):
@@ -1018,7 +1332,7 @@ def cmd_sweep(args) -> int:
     if args.percent is not None and lo is None and hi is None:
         lo, hi = cur_num * (1 - args.percent / 100.0), cur_num * (1 + args.percent / 100.0)
 
-    values = wt.sweep_values(cur_num, lo, hi, args.steps)
+    values = wt.sweep_values(cur_num, lo, hi, args.steps, log=bool(args.log))
     result = wt.sweep_world(world, args.param, values, body_index=args.body,
                             recalc=bool(args.recalc))
     if not result["ok"]:
@@ -1032,7 +1346,8 @@ def cmd_sweep(args) -> int:
     base = result["baseline"]
     say(f"【敏感度扫描】{args.param}")
     say(f"  当前值 {_fmtv(cur_num)} ｜ 基线 评分 {base['score']} ｜ fatal {base['fatal']} ｜ warn {base['warn']}"
-        + (" ｜ 每步重算密度/重力" if result.get("recalc") else ""))
+        + (" ｜ 每步重算密度/重力" if result.get("recalc") else "")
+        + (" ｜ 等比采样" if args.log else ""))
     say("")
     say(f"  {'值':>12}  {'g':>6}  {'T_surf':>9}  {'v_esc':>7}  {'评分':>4}  {'fatal':>5}  判定")
     for r in result["rows"]:
@@ -1080,6 +1395,16 @@ def cmd_diff(args) -> int:
     say(f"【世界版本对比】{va} → {vb}")
     say(f"  改动 {len(res['changes'])} 处 ｜ 新增 {len(res['added'])} 处 ｜ 删除 {len(res['removed'])} 处"
         + ("（已达上限，用 --limit 放大）" if res["truncated"] else ""))
+
+    rd = res.get("rite") or {}
+    if rd:
+        fa, fb = rd["from"], rd["to"]
+        move = rd["advanced"]
+        tag = (f"推进 {move} 斧" if move > 0 else
+               ("斧位未变" if move == 0 else f"退步 {-move} 斧"))
+        say(f"  斧位 {fa['axe']} {fa['name']} → {fb['axe']} {fb['name']}（{tag}）"
+            f" ｜ 缺口 {fa['missing']} → {fb['missing']} 项"
+            f" ｜ 门槛 {fa['gates']}/6 → {fb['gates']}/6")
     say("")
     for c in res["changes"]:
         say(f"  ~ {c['path']}")
@@ -1105,12 +1430,521 @@ def cmd_diff(args) -> int:
         if res["new_warn"]:
             say("  ! 新增告警：" + "、".join(res["new_warn"]))
 
+    line = sk.diff_line(worlds[0], worlds[1])
+    if line:
+        say("")
+        say(f"【抬头】{line}")
+
     say("")
     say("【需要重跑】")
     for t in res["downstream"]:
         say(f"  {t['task']:<8} {t['cmd']}")
         say(f"           └ {t['why']}")
     return 1 if (args.strict and res["new_fatal"]) else 0
+
+
+def cmd_whatif(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    if not (args.set or args.scale):
+        err("没有假设", 'whatif <world> --set "physics.constants[0].world_value=2.4e-11"'
+                        ' 或 --scale "cosmology.bodies[0].mass_earth=1.5"')
+        return 2
+    try:
+        res = wi.simulate(world, args.set, args.scale, recalc=args.recalc)
+    except ValueError as e:
+        err(f"改动写法有误：{e}", '格式：path=value，如 --scale "cosmology.bodies[0].mass_earth=1.5"')
+        return 2
+    if not res.get("ok"):
+        err(str(res.get("error") or "推演失败"),
+            '检查路径与值（先 patch <world> --get "<path>" 确认它存在）')
+        return 2
+
+    cmp_sky = None
+    if args.sky:
+        try:
+            cmp_sky = sk.compare(world, res["world_after"])
+            res["sky"] = {k: v for k, v in cmp_sky.items() if k != "before"}
+        except Exception as e:  # noqa: BLE001
+            warn(f"抬头层算不出来：{type(e).__name__}: {e}")
+
+    if args.json:
+        say(json.dumps({k: v for k, v in res.items() if k != "world_after"},
+                       ensure_ascii=False, indent=2))
+    else:
+        say(wi.format_report(res, args.world))
+        if cmp_sky is not None:
+            say("")
+            say(sk.format_compare(cmp_sky, res["changes"]))
+
+    if args.write:
+        out = args.write
+        if os.path.exists(out) and not args.yes:
+            err(f"{out} 已存在", "换一个路径，或加 --yes 覆盖")
+            return 2
+        w2 = res["world_after"]
+        hist = w2.setdefault("history", {})
+        if isinstance(hist, dict):
+            hist.setdefault("revisions", []).append({
+                "version": ws._get(w2, "meta", "version", default=""),
+                "date": _dt.date.today().isoformat(),
+                "change": "whatif 假设世界：" + "、".join(
+                    f"{c['path']}={_fmtv(c['new'])}" for c in res["changes"]),
+                "fields": [str(c["path"]) for c in res["changes"]],
+            })
+        _save_world(out, w2)
+        say(f"✓ 假设世界已写出：{out}"
+            f"（{res['after']['fatal']} 个 fatal，别当成可交付版本）")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# sky（1.1.4 观测层）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_sky(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    if args.at and args.month:
+        err("--at 与 --month 互斥", "--at 是具体时刻，--month 是气候平均")
+        return 2
+
+    if any(v is not None for v in (args.lat, args.lon, args.elev)):
+        surf = world.setdefault("cosmology", {}).setdefault("surface", {})
+        obs = dict(surf.get("observer") or {})
+        if args.lat is not None:
+            obs["lat_deg"] = args.lat
+        if args.lon is not None:
+            obs["lon_deg"] = args.lon
+        if args.elev is not None:
+            obs["elev_m"] = args.elev
+        surf["observer"] = obs
+
+    try:
+        moment = sk.parse_at(args.at or "", world)
+    except ValueError as e:
+        err(str(e))
+        return 2
+
+    if args.allnight:
+        cal = sk.calendar(world)
+        for i in range(6):
+            hour = cal["day_hours"] * i / 6.0
+            fr = sk.frame(world, hour)
+            say(f"【{int(hour):02d}:{int((hour % 1) * 60):02d}】"
+                f"极限 {fr['sky']['limit_mag']:g} 等 ｜ 可见 {fr['sky']['visible_stars']} 颗"
+                f" ｜ 银河 {'可见' if fr['sky']['milky_way'] else '不可见'}")
+            for line in sk.chart_ascii(fr, 64, 18):
+                say("  " + line)
+            say("")
+        return 0
+
+    fr = sk.frame(world, moment["hour"], moment)
+    ck = sk.check(world, fr)
+
+    if args.check:
+        say(sk.format_check(ck))
+        return 0 if ck["ok"] else 1
+
+    if args.year or args.month:
+        y = sk.year_table(world)
+        if args.month:
+            i = max(1, min(y["months"], args.month)) - 1
+            one = dict(y)
+            one["rows"] = [y["rows"][i]]
+            say(sk.format_year(one))
+        else:
+            say(sk.format_year(y))
+        return 0
+
+    if args.json:
+        body = {
+            "world": fr["world"], "moment": fr["moment"], "observer": fr["observer"],
+            "sky": fr["sky"], "suns": fr["suns"], "moons": fr["moons"],
+            "milky_way": fr["milky_way"], "starfield": fr["starfield"],
+            "year": sk.year_table(world), "checks": ck["checks"], "notes": ck["notes"],
+            "stars": fr["stars"][:400], "model": fr["model"],
+        }
+        say(json.dumps(body, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.md is not None:
+        out = args.md
+        if out in ("", "-"):
+            say(sk.format_md(fr, sk.year_table(world)))
+            return 0
+        md_dir = os.path.dirname(os.path.abspath(out)) or "."
+        png = os.path.splitext(out)[0] + ".png"
+        rel = os.path.basename(png)
+        try:
+            sk.render_png(fr, png)
+        except Exception as e:  # noqa: BLE001
+            warn(f"星图 PNG 生成失败（{type(e).__name__}），只出 ASCII：{e}")
+            rel = ""
+        os.makedirs(md_dir, exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(sk.format_md(fr, sk.year_table(world), rel) + "\n")
+        say(f"✓ 星图已写出：{out}" + (f"（图 {rel}）" if rel else ""))
+        return 0
+
+    say(sk.format_report(fr, sk.year_table(world)))
+    if ck["notes"]:
+        for n in ck["notes"]:
+            warn(n)
+
+    if args.write:
+        if not args.yes:
+            err("回写星空摘要需要显式确认", "加 --yes")
+            return 2
+        done = sk.write_summary(world)
+        _save_world(args.world, world)
+        say(f"✓ 星表 hash {done['starfield']} 与 cosmology.sky.summary 已写回 {args.world}")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# plan（1.1.3 七斧状态机）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_plan(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    rep = ws.validate(world)
+    p = rite.plan_report(world, args.world, rep)
+
+    if args.json:
+        say(json.dumps(p, ensure_ascii=False, indent=2))
+        return 0
+    if args.axe:
+        say(rite.format_axe(world, args.axe, args.world, rep))
+        return 0
+    if args.next:
+        say(p["commands"][0]["cmd"] if p["commands"] else "")
+        return 0
+    if args.brief:
+        say(rite.brief_line(world, args.world, rep))
+        return 0
+    say(rite.format_plan(p, verbose=True))
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# review（1.1.3 交付体检）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_review(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    res = rvw.run(world, args.world, fast=args.fast)
+    if args.json:
+        say(json.dumps(res, ensure_ascii=False, indent=2))
+    else:
+        say(rvw.format_report(res))
+    return 1 if (args.strict and not res["ok"]) else 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# options（1.1.3 选项卡）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_options(args) -> int:
+    cards, warns = ol.load_cards(ROOT)
+    if not cards:
+        err("选项卡库为空或未找到", "确认 references/选项卡.md 存在且表格格式正确")
+        for w in warns[:3]:
+            say(f"  ! {w}")
+        return 3
+
+    if args.stats:
+        st = ol.stats(cards)
+        say(f"【选项卡】{st['cards']} 个命题 / {st['options']} 个选项 / {st['axes']} 斧")
+        for axe, (nc, no) in st["by_axe"].items():
+            name = rite.AXE_BY_N.get(axe, {}).get("cn", "?")
+            say(f"  斧 {axe} {name:<4} {nc} 个命题 {no} 个选项")
+        return 0
+
+    # ── 采纳 ──────────────────────────────────────────────────────
+    if args.adopt:
+        if not args.world:
+            err("采纳选项需要一个 world.json", 'options world.json --adopt "Q3.1=B"')
+            return 2
+        world = _load_or_fail(args.world)
+        if world is None:
+            return 2
+        picked = []
+        for ref in args.adopt:
+            card, opt, why = ol.find_option(cards, ref)
+            if why:
+                err(why, "先跑 options --axe N 看有哪些选项")
+                return 2
+            picked.append((card, opt))
+
+        today = _dt.date.today().isoformat()
+        seed = world.setdefault("seed", {})
+        brief = seed.get("brief") if isinstance(seed.get("brief"), dict) else {}
+        existing = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+        new = [ol.make_choice(c, o, today) for c, o in picked]
+        merged = ol.merge_choices(existing, new)
+
+        conflicts = ws.card_conflicts(merged)
+        if conflicts and not args.force:
+            err("这批卡与已采纳的卡互斥：" + "；".join(conflicts),
+                "换一个选项，或确认要覆盖时加 --force")
+            for c, o in picked:
+                say(f"  本次：{c['qid']}={o['id']} 标签 {' '.join(o.get('tags') or [])}")
+            return 2
+
+        before = ws.validate(copy.deepcopy(world))
+        seed["brief"] = {"choices": merged, "updated": today}
+        wt.record_revision(
+            world,
+            "options：" + "、".join(f"{c['qid']}={o['id']} {o.get('setting', '')[:24]}"
+                                   for c, o in picked),
+            fields=["seed.brief.choices"])
+        after = ws.validate(copy.deepcopy(world))
+        if not args.dry_run:
+            _save_world(args.world, world)
+
+        for c, o in picked:
+            say(f"  [采纳] {c['qid']}={o['id']}  {o.get('setting', '')}")
+            say(f"         代价：{o.get('cost') or '—'}")
+            say(f"         痕迹：{o.get('trace') or '—'}")
+            if o.get("fields"):
+                say(f"         要顺手写：{'、'.join(o['fields'])}")
+        say(f"  已采纳 {len(merged)} 张卡，"
+            f"版本 → {(world.get('meta') or {}).get('version')}"
+            f" ｜ 评分 {before.score} → {after.score}")
+        if conflicts:
+            warn("仍存在互斥（--force 覆盖）：" + "；".join(conflicts))
+        mismatch = ws.card_world_mismatch(merged, world)
+        if mismatch:
+            warn("卡与 world.json 还没对上（接下来该改数据，不是改卡）："
+                 + "；".join(mismatch))
+        say(f"✓ 已写入 {args.world}" if not args.dry_run else "  --dry-run：未写盘")
+        rest = ol.uncovered(cards, merged)
+        if rest:
+            nxt = rest[0]
+            say(f"  下一个未答命题：{nxt['qid']} {nxt['title']}（options --qid {nxt['qid']}）")
+        return 0
+
+    # ── 体检 ──────────────────────────────────────────────────────
+    if args.check:
+        if not args.world:
+            err("体检需要一个 world.json", "options world.json --check")
+            return 2
+        world = _load_or_fail(args.world)
+        if world is None:
+            return 2
+        brief = ws._get(world, "seed", "brief", default={}) or {}
+        choices = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+        say("选项卡体检")
+        say("-" * 52)
+        if not choices:
+            say("  · 未采纳任何卡（1.1.3 可选能力，不影响评分）")
+        for c in choices:
+            say(f"  {c.get('qid')}={c.get('option')}  {c.get('label', '')}")
+        conflicts = ws.card_conflicts(choices)
+        mismatch = ws.card_world_mismatch(choices, world)
+        say(f"  互斥　{'✓ 无' if not conflicts else '✗ ' + '；'.join(conflicts)}")
+        say(f"  对账　{'✓ 卡与 world.json 一致' if not mismatch else '! ' + '；'.join(mismatch)}")
+        rest = ol.uncovered(cards, choices)
+        say(f"  未答　{len(rest)} / {len(cards)} 个命题")
+        by_axe = {}
+        for c in rest:
+            by_axe[c["axe"]] = by_axe.get(c["axe"], 0) + 1
+        if by_axe:
+            say("       " + " ｜ ".join(
+                f"斧{a} {rite.AXE_BY_N.get(a, {}).get('cn', '?')} {n}"
+                for a, n in sorted(by_axe.items())))
+        return 1 if conflicts else 0
+
+    # ── 未答命题 ──────────────────────────────────────────────────
+    if args.unanswered:
+        choices = []
+        if args.world:
+            world = _load_or_fail(args.world)
+            if world is None:
+                return 2
+            brief = ws._get(world, "seed", "brief", default={}) or {}
+            choices = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+        rest = ol.uncovered(cards, choices)
+        if args.axe:
+            rest = [c for c in rest if c["axe"] == args.axe]
+        if not rest:
+            say("✓ 全部命题都已作答（想再想一遍就重采纳，后写覆盖先写）")
+            return 0
+        say(f"【未答命题】{len(rest)} / {len(cards)}"
+            + (f"（斧 {args.axe}）" if args.axe else "（按斧分组）"))
+        cur = None
+        for c in rest:
+            if c["axe"] != cur:
+                cur = c["axe"]
+                say(f"\n  斧 {cur} {rite.AXE_BY_N.get(cur, {}).get('cn', '?')}")
+            say(f"    {c['qid']}  {c['title']}（{len(c['options'])} 个选项）")
+            if c.get("why"):
+                say(f"          {c['why']}")
+        say("\n看选项：options --qid Q3.1 ｜ 抽一批：options --axe 3 --roll 2")
+        return 0
+
+    # ── 导出为 Markdown ───────────────────────────────────────────
+    if args.md is not None:
+        if not args.world:
+            err("导出需要 world.json", "options world.json --md out/选项表.md")
+            return 2
+        world = _load_or_fail(args.world)
+        if world is None:
+            return 2
+        brief = ws._get(world, "seed", "brief", default={}) or {}
+        choices = [c for c in (brief.get("choices") or []) if isinstance(c, dict)]
+        if not choices:
+            err("这个世界还没有采纳任何卡", "options <world> --adopt \"Q3.1=B\"")
+            return 2
+        name = ws._get(world, "meta", "name", default="世界")
+        titles = {c["qid"]: c["title"] for c in cards}
+
+        def _cell(s) -> str:
+            return str(s or "—").replace("|", "\\|").replace("\n", " ")
+
+        lines = [f"### {name} · 已采纳的选项卡", "",
+                 "| 命题 | 问题 | 选择 | 代价 | 痕迹 |", "|---|---|---|---|---|"]
+        for c in sorted(choices, key=lambda x: ol._qid_key(str(x.get("qid")))):
+            qid = c.get("qid")
+            lines.append(
+                f"| {qid} | {_cell(titles.get(qid, c.get('title')))} "
+                f"| {c.get('option', '')} {_cell(c.get('label'))} "
+                f"| {_cell(c.get('cost'))} | {_cell(c.get('trace'))} |")
+        lines.append("")
+        lines.append(f"> 共 {len(choices)} 张卡；每张都带代价与痕迹——没有代价的选项就是免费奇观。")
+        body = "\n".join(lines)
+        if args.md in ("", "-"):
+            say(body)
+            return 0
+        with open(args.md, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body + "\n")
+        say(f"✓ 已导出 {len(choices)} 张卡到 {args.md}")
+        return 0
+
+    # ── 列 / 抽 ───────────────────────────────────────────────────
+    pool = ol.filter_cards(cards, axe=args.axe, qid=args.qid, tag=args.tag)
+    if not pool:
+        err("没有匹配的命题", "options --stats 看全部；或去掉过滤条件")
+        return 2
+    for w in warns[:3]:
+        warn(w)
+    if args.roll:
+        picks = ol.roll(pool, args.roll, seed=args.seed)
+        say(f"【抽卡】{len(picks)} 张（代价与痕迹都带上，别只拿设定）")
+        for p in picks:
+            say(ol.format_pick(p))
+            say("")
+        say("采纳：options <world> --adopt \"Q3.1=B\"")
+        return 0
+    if args.json:
+        say(json.dumps(pool, ensure_ascii=False, indent=2))
+        return 0
+    for c in pool:
+        say(ol.format_card(c))
+    say(f"\n共 {len(pool)} 个命题 / {sum(len(c['options']) for c in pool)} 个选项。"
+        "选项不是命令：可以一个都不选，也可以自己写第六个。")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# entail（1.1.3 必然推论）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_entail(args) -> int:
+    if args.list:
+        # 规则目录（1.1.3）：想知道"它能推什么"，不用读源码
+        rows = en.meta_rows()
+        if args.json:
+            say(json.dumps(rows, ensure_ascii=False, indent=2))
+            return 0
+        say(f"【必然推论规则】{len(rows)} 条（必然 = 可由数值直接算出；很可能 = 生态与社会的合理外推）")
+        for r in rows:
+            say(f"  {r['id']}  {r['name']:<12} [{r['strength']}]  ← {r['when']}")
+        say("\n点名跑：entail <world> --only E01,E30 ｜ 反向排除：--exclude E02")
+        return 0
+
+    if not args.world:
+        err("需要一个 world.json", "entail <world.json>；只看规则目录用 --list")
+        return 2
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    rows = en.derive(world)
+
+    def _ids(text: str) -> set:
+        return {x.strip().upper() for x in str(text).replace(" ", ",").split(",") if x.strip()}
+
+    known = en.known_ids()
+    if args.only:
+        want = _ids(args.only)
+        bad = sorted(want - known)
+        if bad:
+            err(f"没有这些推论：{'、'.join(bad)}",
+                "可用：entail --list（或 --only E01,E30）")
+            return 2
+        rows = [r for r in rows if r["id"].upper() in want]
+    if args.exclude:
+        drop = _ids(args.exclude)
+        bad = sorted(drop - known)
+        if bad:
+            err(f"没有这些推论：{'、'.join(bad)}", "可用：entail --list")
+            return 2
+        rows = [r for r in rows if r["id"].upper() not in drop]
+
+    if args.json:
+        say(json.dumps(rows, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.check:
+        marks = en.existing_marks(world)
+        stale = en.stale_marks(world, en.derive(world))
+        say("推论体检")
+        say("-" * 52)
+        say(f"  现行推论　{len(en.derive(world))} 条")
+        say(f"  已回写　　{len(marks)} 条"
+            + (f"（{'、'.join(sorted(marks))}）" if marks else ""))
+        if stale:
+            say(f"  ✗ 失效 {len(stale)} 条：{'、'.join(s['id'] for s in stale)}")
+            say("     → 设定改了但旧天象还在；重跑 entail --write --yes 会按编号对齐")
+            return 1
+        say("  ✓ 没有失效条目")
+        return 0
+
+    say(en.format_report(rows, world))
+
+    if args.write:
+        if not args.yes:
+            err("回写 sky_phenomena 需要显式确认", "加 --yes；先跑一遍不带 --write 看看")
+            return 2
+        res = en.apply_marks(world, rows)
+        if not (res["added"] or res["removed"]):
+            say("\n  · 无需改动：所有仍在生效的推论都已回写")
+            return 0
+        before = ws.validate(copy.deepcopy(world))
+        wt.record_revision(world, f"entail：回写 {len(res['added'])} 条推论到 sky_phenomena",
+                           fields=["cosmology.sky_phenomena"])
+        after = ws.validate(copy.deepcopy(world))
+        _save_world(args.world, world)
+        if res["added"]:
+            say(f"\n  + 回写 {len(res['added'])} 条：{'、'.join(res['added'])}")
+        if res["removed"]:
+            say(f"  - 去掉 {len(res['removed'])} 条重复")
+        say(f"  评分 {before.score} → {after.score} ｜ 版本 → "
+            f"{(world.get('meta') or {}).get('version')}")
+        say(f"✓ 已写入 {args.world}")
+    else:
+        say("\n回写：entail <world> --write --yes（按 〔entail E01〕 标记幂等去重）")
+    return 0
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1128,24 +1962,93 @@ def _load_or_fail(path: str):
         return None
 
 
+PERSONAS = {
+    "resident": ("居民", "一个普通居民，从睁眼写到入睡。不解释设定，只写他看见什么、"
+                         "躲什么、为什么这么做。身体要参与：冷、重、渴、疼。"),
+    "child": ("孩童", "一个第一次抬头看天的孩子。让他在三句话之内问出这个世界"
+                      "最不容置疑的那条常识——大人答不上来的那种。"),
+    "outlander": ("外来者", "一个只有一天可活的地球访客。他惊讶的地方，就是这个世界"
+                            "真正与地球分岔的地方；他不惊讶的地方，说明设定还不够怪。"),
+    "skeptic": ("敌对科学家", "一个来证明「这个世界不可能存在」的物理学家。让他动手测量，"
+                              "然后被打脸——或者不。这一版切片是用来验尸的。"),
+}
+
+
+def _slice_prompt(world: dict, persona: str = "") -> str:
+    cos = world.get("cosmology") or {}
+    cal = cos.get("calendar") or {}
+    sky = [s for s in (cos.get("sky_phenomena") or []) if isinstance(s, str)]
+    picks = [persona] if persona else list(PERSONAS)
+    L = ["切片写作提示（180–260 字，第一人称，写进 narrative.slice.text）", ""]
+    L.append(f"  这个世界：一天 {cal.get('day_hours', '?')} 小时，"
+             f"一年 {cal.get('year_days', '?')} 天")
+    if sky:
+        L.append("  抬头能看见：")
+        for s in sky[:6]:
+            L.append(f"    · {s}")
+    L.append("")
+    for k in picks:
+        cn, body = PERSONAS[k]
+        L.append(f"【{cn}】{body}")
+    L.append("")
+    L.append("  硬要求：")
+    L.append("   · 至少写进两条 sky_phenomena 的现象（N05 会数）")
+    L.append("   · 数字要能对上历法：不写「24 小时」，写这个世界的一天")
+    L.append("   · 附 cites（引用了哪些字段）与 status: ok")
+    L.append("")
+    L.append('  模板：{"narrative":{"slice":{"text":"…","persona":"%s",'
+             '"cites":["cosmology.calendar.day_hours"],"status":"ok"}}}'
+             % (persona or "resident"))
+    return "\n".join(L)
+
+
 def cmd_slice(args) -> int:
     world = _load_or_fail(args.world)
     if world is None:
         return 2
 
+    if args.prompt:
+        say(_slice_prompt(world, args.persona or ""))
+        return 0
+
     rep = ws.validate(world, strict=bool(args.strict))
     by_id = {c.id: c for c in rep.checks}
     sl = ws._get(world, "narrative", "slice", default=None)
 
+    text = str(sl.get("text") or "") if isinstance(sl, dict) else ""
+
+    if args.cites:
+        # 引用清单（1.1.3）：切片到底"引用"了什么，是不是真的引用了
+        if not text.strip():
+            err("切片还没写", "先写 narrative.slice.text，再看它引用了什么")
+            return 2
+        cites = [str(c) for c in (sl.get("cites") or [])]
+        say("切片引用清单")
+        say("-" * 52)
+        if not cites:
+            say("  · cites 为空（N04 会扣分：切片必须能指回字段）")
+        ok = 0
+        for c in cites:
+            hit, _, why = ws.resolve_path(world, c)
+            say(f"  {'✓' if hit else '✗'} {c}" + ("" if hit else f"  ← {why}"))
+            ok += 1 if hit else 0
+        quoted = re.findall(r"「([^」]{2,20})」", text)
+        sky = [str(s) for s in (ws._get(world, "cosmology", "sky_phenomena", default=[]) or [])]
+        say(f"  cites {ok}/{len(cites)} 可解析 ｜ 正文引用 {len(quoted)} 处")
+        for q in quoted:
+            inside = any(q in s for s in sky)
+            say(f"    {'✓' if inside else '·'} 「{q}」" +
+                ("（在 sky_phenomena 里）" if inside else "（自由命名，未登记天象）"))
+        return 0
+
     say("切片体检（第一人称 · 两百字验尸）")
     say("-" * 52)
-    if not isinstance(sl, dict) or not str(sl.get("text") or "").strip():
+    if not text.strip():
         say("  ✗ 未定义 narrative.slice.text")
         say("   → 按 references/七斧创世法.md 第 7 斧写一段 180–260 字的「居民的一天」，")
         say("     附 cites（引用字段）、hours（时间范围）、status: ok")
         return 1 if args.strict else 0
 
-    text = str(sl.get("text") or "")
     n = ws._count_cjk(text)
     ok_n = 180 <= n <= 260
     say(f"  字数   {n} / 180–260   {'✓' if ok_n else '✗ 超出'}")
@@ -1462,8 +2365,9 @@ def cmd_map(args) -> int:
             warn(f"{c['id']} {c['note']}")
     say("-" * 56)
 
-    if not (args.run or args.write):
-        say("  只做了推演。加 --run 出图与交互页，--write 回写摘要，--check 复算。")
+    if not (args.run or args.write or getattr(args, "season", False)):
+        say("  只做了推演。加 --run 出图与交互页，--write 回写摘要，"
+            "--season 出冬夏双图，--check 复算。")
         return 0
 
     wid = str(ws._get(world, "meta", "id", default="world"))
@@ -1508,6 +2412,134 @@ def cmd_map(args) -> int:
         _save_world(args.world, world)
         say(f"✓ 地图摘要与粗粒度场已写回 {args.world}")
         say("  （summary 是真跑出来的；换 seed / 换水量后必须重跑 --write）")
+
+    # 1.1.4 增补：季节双图（冬至 / 夏至）
+    if getattr(args, "season", False):
+        bodies0 = ws._get(world, "cosmology", "bodies", default=[]) or []
+        body0 = bodies0[0] if bodies0 and isinstance(bodies0[0], dict) else {}
+        tilt = float(ws._num(body0.get("axial_tilt_deg"), 0.0) or 0.0)
+        say("")
+        say("盘古 · 季节双图（1.1.4）")
+        say("-" * 56)
+        if tilt < 0.5:
+            say("  倾角 ≈ 0：这颗行星没有季节，跳过。")
+            return 0
+        wd = os.path.dirname(os.path.abspath(args.world))
+        sdir = args.out or os.path.join(wd, "map")
+        rows = []
+        for tag, dec in (("summer", tilt), ("winter", -tilt)):
+            rs = mapgen.build(world, res=res, seed=args.seed, season_dec=dec)
+            figs = mapgen.write_season(rs, sdir, tag) if args.run else []
+            nh = [rs.temperature[i] for i in range(rs.nx * rs.ny)
+                  if rs.lat[i // rs.nx] > 0 and not rs.ocean[i]]
+            sh = [rs.temperature[i] for i in range(rs.nx * rs.ny)
+                  if rs.lat[i // rs.nx] < 0 and not rs.ocean[i]]
+            np_ = [rs.precip[i] for i in range(rs.nx * rs.ny) if rs.lat[i // rs.nx] > 0]
+            sp_ = [rs.precip[i] for i in range(rs.nx * rs.ny) if rs.lat[i // rs.nx] < 0]
+            rows.append((tag, dec, sum(nh) / len(nh) if nh else 0.0,
+                         sum(sh) / len(sh) if sh else 0.0,
+                         sum(np_) / len(np_) if np_ else 0.0,
+                         sum(sp_) / len(sp_) if sp_ else 0.0, figs))
+            say(f"  {tag:<7} 赤纬 {dec:+6.2f}° ｜ 陆均 北 "
+                f"{rows[-1][2] - 273.15:6.1f} ℃ / 南 {rows[-1][3] - 273.15:6.1f} ℃ ｜ "
+                f"降水 北 {rows[-1][4]:4.0f} / 南 {rows[-1][5]:4.0f} mm")
+            for fn in figs:
+                say(f"    {fn}")
+        dn = rows[0][2] - rows[1][2]
+        ds = rows[0][3] - rows[1][3]
+        say(f"  季节振幅：北半球 {dn:+.1f} K ｜ 南半球 {ds:+.1f} K")
+        say("  口径：同一天气模型换赤纬重跑；不算海温滞后，也不含洋流再分配。")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# benchmark（1.1.4 增补：地球基准）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_benchmark(args) -> int:
+    try:
+        import benchmark
+    except Exception as e:  # noqa: BLE001
+        err(f"基准模块加载失败：{e}")
+        return 3
+    b = benchmark.run()
+    if args.json:
+        say(json.dumps(b, ensure_ascii=False, indent=2))
+    else:
+        say(benchmark.format_report(b))
+    return 0 if b["ok"] else 1
+
+
+# ════════════════════════════════════════════════════════════════════
+# capacity（1.1.4 增补：NPP → 人口承载力）
+# ════════════════════════════════════════════════════════════════════
+
+def _fmt_people(n: float) -> str:
+    if n >= 1e8:
+        return f"{n / 1e8:.1f} 亿"
+    if n >= 1e4:
+        return f"{n / 1e4:.0f} 万"
+    return f"{n:.0f}"
+
+
+def cmd_capacity(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    try:
+        import mapgen
+    except Exception as e:  # noqa: BLE001
+        err(f"地图引擎加载失败：{e}")
+        return 3
+
+    res = mapgen.build(world, res=(144, 72))
+    st = res.stats
+    npp_total = float(st.get("land_npp_gtc_yr") or 0.0)
+    harvest = args.harvest if args.harvest is not None else 0.01
+    harvest = max(0.0001, min(0.5, harvest))
+    kcal_per_gc = 9.0          # 1 g 碳 ≈ 9 kcal（干生物量 4 kcal/g × 碳占 0.47，取整）
+    per_cap = 2500.0 * 365.0   # 维持型：2500 kcal/日
+
+    kcals = npp_total * 1e15 * kcal_per_gc * harvest
+    humans = kcals / per_cap if per_cap > 0 else 0.0
+    rich = kcals / (3500.0 * 365.0) if kcals > 0 else 0.0
+
+    out = {
+        "land_npp_gtc_yr": round(npp_total, 2),
+        "mean_npp_gc_m2_yr": st.get("mean_npp_gc_m2_yr", 0.0),
+        "land_fraction": st.get("land_fraction", 0.0),
+        "harvest_fraction": round(harvest, 4),
+        "kcal_per_year": kcals,
+        "humans_subsistence": round(humans, 0),
+        "humans_comfortable": round(rich, 0),
+        "assumptions": ("Miami 模型（温度/降水取小）积分到陆地；可采收比例 "
+                        f"{harvest:.1%}；维持 2500 kcal/日、宽裕 3500 kcal/日"),
+    }
+
+    if args.json:
+        say(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+
+    say("盘古 · 行星承载力（1.1.4）")
+    say("-" * 56)
+    say(f"  陆地 NPP  {npp_total:,.1f} Gt C/yr ｜ 平均 "
+        f"{out['mean_npp_gc_m2_yr']:.0f} g C/m²/yr ｜ 陆地 {out['land_fraction']:.1%}")
+    say(f"  可采收    {harvest:.1%} 的 NPP → {kcals:.2e} kcal/yr")
+    say(f"  上限      约 {_fmt_people(humans)}人（维持型 2500 kcal/日）")
+    say(f"            约 {_fmt_people(rich)}人（宽裕 3500 kcal/日）")
+    say("-" * 56)
+    say("  口径：Miami 模型（NPP = min(f(T), f(P))）+ 碳热值 9 kcal/g。")
+    say("        不含渔业、不含化石能源、不含贸易——这是「靠太阳养得活多少」。")
+
+    if args.write:
+        if not args.yes:
+            err("回写承载力需要显式确认", "加 --yes")
+            return 2
+        bio = world.get("biology") if isinstance(world.get("biology"), dict) else {}
+        bio["carrying_capacity"] = dict(out, generator="capacity/1.1.4")
+        world["biology"] = bio
+        _save_world(args.world, world)
+        say(f"✓ 已写入 biology.carrying_capacity → {args.world}")
     return 0
 
 
@@ -1673,10 +2705,52 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--no-stars", action="store_true", help="无恒星世界")
     i.set_defaults(func=cmd_init)
 
+    pl = sub.add_parser("plan", help="七斧状态机：在第几斧、缺什么、下一步")
+    pl.add_argument("world")
+    pl.add_argument("--axe", type=int, choices=range(1, 8),
+                    help="只看某一斧的细账：缺口 / 提问 / 检索 / 怎么收")
+    pl.add_argument("--brief", action="store_true", help="一行式结论")
+    pl.add_argument("--next", action="store_true", help="只输出下一条该跑的命令")
+    pl.add_argument("--json", action="store_true", help="机器可读输出")
+    pl.set_defaults(func=cmd_plan)
+
+    op = sub.add_parser("options", help="选项卡：命题与选项（可采纳进 seed.brief）")
+    op.add_argument("world", nargs="?", help="world.json（--adopt / --check 时必填）")
+    op.add_argument("--axe", type=int, help="只看某一斧（1–7）")
+    op.add_argument("--qid", help="只看一个命题，如 Q3.1")
+    op.add_argument("--tag", help="按标签过滤，如 双星 / 无私")
+    op.add_argument("--roll", type=int, help="随机抽 N 个命题（每个附一个选项）")
+    op.add_argument("--seed", type=int, help="抽卡随机种子（可复算）")
+    op.add_argument("--adopt", action="append", default=[], metavar="Q3.1=B",
+                    help="采纳一个选项，写进 seed.brief.choices，可重复")
+    op.add_argument("--force", action="store_true", help="与已采纳的卡互斥时仍然写入")
+    op.add_argument("--check", action="store_true", help="体检已采纳的卡：互斥 / 未答命题")
+    op.add_argument("--unanswered", action="store_true",
+                    help="只列还没作答的命题（按斧分组，带一句为什么重要）")
+    op.add_argument("--md", nargs="?", const="-", metavar="FILE",
+                    help="把已采纳的卡导出成 Markdown 表（缺省打到标准输出）")
+    op.add_argument("--stats", action="store_true", help="只看题库规模")
+    op.add_argument("--dry-run", action="store_true", help="只显示，不写盘")
+    op.add_argument("--json", action="store_true")
+    op.set_defaults(func=cmd_options)
+
+    et = sub.add_parser("entail", help="必然推论：从已定设定推出可见现象")
+    et.add_argument("world", nargs="?", help="world.json（--list 时可省）")
+    et.add_argument("--list", action="store_true", help="列 36 条规则：编号 / 名称 / 触发条件 / 强度")
+    et.add_argument("--only", help="只跑指定推论，如 E01,E04")
+    et.add_argument("--exclude", help="排除指定推论，如 E02,E09")
+    et.add_argument("--write", action="store_true", help="回写 cosmology.sky_phenomena（幂等）")
+    et.add_argument("--yes", action="store_true", help="确认回写")
+    et.add_argument("--check", action="store_true", help="体检：有没有失效的旧推论")
+    et.add_argument("--json", action="store_true")
+    et.set_defaults(func=cmd_entail)
+
     v = sub.add_parser("validate", help="校验 + 自洽打分")
     v.add_argument("world")
     v.add_argument("--strict", action="store_true", help="有 fatal 时退出码 1")
     v.add_argument("--json", action="store_true", help="机器可读输出")
+    v.add_argument("--brief", action="store_true", help="一行式结论（分数 + 斧位 + 下一步）")
+    v.add_argument("--only", metavar="ID,ID", help="只跑指定检查项，如 P01,R01（排查用）")
     v.add_argument("--fix-hint", action="store_true", help="附修补建议")
     v.set_defaults(func=cmd_validate)
 
@@ -1693,9 +2767,11 @@ def build_parser() -> argparse.ArgumentParser:
     e.set_defaults(func=cmd_export)
 
     a = sub.add_parser("axioms", help="查公理库")
+    a.add_argument("--id", help="点名一条积木，如 P03（展开设定 / 代价 / 痕迹）")
     a.add_argument("--domain", help="physics|cosmos|math|chemistry|biology|civilization")
     a.add_argument("--cost", help="按代价类型过滤：时间/空间/能量/物质/感知/社会/生命/结构")
     a.add_argument("--cost-list", action="store_true", help="列出代价类型二次索引")
+    a.add_argument("--axe", type=int, help="按斧位过滤（1–7）：卡在哪一斧就只看那一斧的积木")
     a.add_argument("--roll", type=int, help="随机抽取 N 条")
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_axioms)
@@ -1706,11 +2782,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="写入一个字段，可重复；值先按 JSON 解析，失败当字符串")
     pt.add_argument("--get", action="append", default=[], metavar="PATH",
                     help="查询一个字段，可重复")
+    pt.add_argument("--history", action="store_true", help="列出修订历史（版本 / 日期 / 改了什么）")
+    pt.add_argument("-n", "--limit", type=int, default=10, help="历史显示条数，默认 10")
     pt.add_argument("--create", action="store_true", help="允许新建不存在的字段 / 追加数组")
     pt.add_argument("--note", help="修订说明，写进 history.revisions[].change")
     pt.add_argument("--version", help="显式指定新版本号（默认补丁位 +1）")
     pt.add_argument("--no-bump", action="store_true", help="不改版本、不记修订")
     pt.add_argument("--dry-run", action="store_true", help="只显示改动，不写盘")
+    pt.add_argument("--suggest", action="store_true",
+                    help="改完质量/半径/G 后，给出密度与重力的自洽建议值（不写盘）")
     pt.add_argument("--json", action="store_true", help="机器可读输出")
     pt.add_argument("--strict", action="store_true", help="改完有 fatal 时退出码 1")
     pt.set_defaults(func=cmd_patch)
@@ -1725,6 +2805,8 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument("--body", type=int, default=0, help="看第几个天体的派生量，默认 0")
     sw.add_argument("--recalc", action="store_true",
                     help="每步重算该天体的密度/重力/半径，扫出物理自洽的邻近世界")
+    sw.add_argument("--log", action="store_true",
+                    help="等比采样（跨数量级扫 G / 光度 / 气压时必开）")
     sw.add_argument("--list", action="store_true", help="列出可扫描的数值参数")
     sw.add_argument("--json", action="store_true")
     sw.set_defaults(func=cmd_sweep)
@@ -1740,6 +2822,12 @@ def build_parser() -> argparse.ArgumentParser:
     sl = sub.add_parser("slice", help="第一人称切片体检")
     sl.add_argument("world")
     sl.add_argument("--check", action="store_true", help="只做机检（默认行为）")
+    sl.add_argument("--prompt", action="store_true",
+                    help="输出写作提示（四种视角，带本世界的天象与历法）")
+    sl.add_argument("--persona", choices=list(PERSONAS),
+                    help="resident(居民) / child(孩童) / outlander(外来者) / skeptic(敌对科学家)")
+    sl.add_argument("--cites", action="store_true",
+                    help="列切片引用的字段与「」里的现象名，检查它们真的存在")
     sl.add_argument("--strict", action="store_true", help="不达标时退出码 1")
     sl.set_defaults(func=cmd_slice)
 
@@ -1778,7 +2866,64 @@ def build_parser() -> argparse.ArgumentParser:
     mp.add_argument("--render", help="出图分辨率，如 1920x960（默认 1440x720）")
     mp.add_argument("--seed", type=int, help="覆盖随机种子")
     mp.add_argument("--out", help="图输出目录（默认 world.json 同级 map/）")
+    mp.add_argument("--season", action="store_true",
+                    help="1.1.4：再跑冬至/夏至两套气候，出季节双图")
     mp.set_defaults(func=cmd_map)
+
+    bm_ = sub.add_parser("benchmark", help="1.1.4：地球基准——把引擎算的六条曲线对公开数据")
+    bm_.add_argument("target", nargs="?", default="earth", choices=["earth"],
+                     help="目前只有 earth")
+    bm_.add_argument("--json", action="store_true")
+    bm_.set_defaults(func=cmd_benchmark)
+
+    cp_ = sub.add_parser("capacity", help="1.1.4：NPP → 这颗星球养得活多少人")
+    cp_.add_argument("world")
+    cp_.add_argument("--harvest", type=float,
+                     help="可采收的 NPP 比例（默认 0.01，即 1%%）")
+    cp_.add_argument("--write", action="store_true", help="写回 biology.carrying_capacity")
+    cp_.add_argument("--yes", action="store_true", help="确认回写")
+    cp_.add_argument("--json", action="store_true")
+    cp_.set_defaults(func=cmd_capacity)
+
+    rv = sub.add_parser("review", help="交付体检：一条命令跑完九项，给出能不能交")
+    rv.add_argument("world")
+    rv.add_argument("--fast", action="store_true", help="跳过地图与演化的复算（只看结构）")
+    rv.add_argument("--json", action="store_true")
+    rv.add_argument("--strict", action="store_true", help="有硬门槛未过时退出码 1")
+    rv.set_defaults(func=cmd_review)
+
+    wf = sub.add_parser("whatif", help="反事实推演：改一条设定，这个世界会变成什么样")
+    wf.add_argument("world")
+    wf.add_argument("--set", action="append", default=[], metavar="PATH=VALUE",
+                    help="假设改成这个值，可重复")
+    wf.add_argument("--scale", action="append", default=[], metavar="PATH=FACTOR",
+                    help="假设乘以这个倍率，可重复，如 mass_earth=1.5")
+    wf.add_argument("--recalc", action="store_true",
+                    help="按新参数重算密度 / 重力，先抹平 P01 这类算术冲突")
+    wf.add_argument("--write", metavar="OUT", help="把假设世界写成一个新文件（不覆盖原世界）")
+    wf.add_argument("--yes", action="store_true", help="输出文件已存在时覆盖")
+    wf.add_argument("--sky", action="store_true",
+                    help="第五层「抬头」：改完今夜看见什么、昼长怎么变")
+    wf.add_argument("--json", action="store_true")
+    wf.set_defaults(func=cmd_whatif)
+
+    sy = sub.add_parser("sky", help="观测层：抬头看见什么（星图 / 昼长 / 天光）")
+    sy.add_argument("world")
+    sy.add_argument("--at", metavar="T",
+                    help='时刻： "22:10" / "day=12,hour=22" / "日落后 2h" / "双星合前 30m"')
+    sy.add_argument("--lat", type=float, help="覆盖观测点纬度")
+    sy.add_argument("--lon", type=float, help="覆盖观测点经度")
+    sy.add_argument("--elev", type=float, help="覆盖观测点海拔（米）")
+    sy.add_argument("--month", type=int, help="只出这一季（按月）的一行昼长")
+    sy.add_argument("--year", action="store_true", help="一年昼长与季节表")
+    sy.add_argument("--allnight", action="store_true", help="一夜六帧")
+    sy.add_argument("--check", action="store_true", help="星空体检：S01/S02/S03")
+    sy.add_argument("--write", action="store_true", help="把派生摘要写回 cosmology.sky")
+    sy.add_argument("--yes", action="store_true", help="确认回写")
+    sy.add_argument("--md", nargs="?", const="-", metavar="FILE",
+                    help="出 Markdown（星图 PNG + 表），缺省打到标准输出")
+    sy.add_argument("--json", action="store_true")
+    sy.set_defaults(func=cmd_sky)
 
     return p
 

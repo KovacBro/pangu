@@ -1,0 +1,629 @@
+{
+  "meta": {
+    "id": "aster",
+    "name": "星夜",
+    "subtitle": "单星对照世界",
+    "version": "1.1.4",
+    "created": "2026-11-04",
+    "author": "盘古 / 自主生成",
+    "tagline": "一颗太阳，一夜两千多颗星，一条横过天顶的银河。",
+    "aesthetic": [
+      "深黛",
+      "银白",
+      "松绿",
+      "暖夜蓝"
+    ],
+    "tags": [
+      "单星",
+      "类地",
+      "对照组",
+      "可见银河"
+    ],
+    "autonomy": "auto"
+  },
+  "seed": {
+    "prompt": "造一个什么都没改的世界：一颗太阳、一天二十四小时。它存在的意义是当对照组",
+    "core_paradox": "这个世界没有异常——而它的全部神话、历法与航海都压在一件赫利孔人没有的东西上：一条看得见的银河",
+    "resolution": "不改任何常数：G、c、α 与地球相同，行星 1R⊕/1M⊕、一天 24 小时、倾角 23.4°；只用一颗 1.0 L☉ 的 G2V 和一层干净的 101 kPa 大气，把暗空还给居民",
+    "references": [
+      {
+        "title": "Earth — 天体生物学基线",
+        "url": "https://science.nasa.gov/earth/",
+        "takeaway": "1 R⊕ / 1 M⊕ / 1 AU / 1 L☉ 是最省事的自洽解，也是最好的对照组",
+        "use": "全部取地球值，不引入任何张力；差异只由「三颗恒星」与「一颗恒星」的对照产生"
+      },
+      {
+        "title": "Bortle scale — 夜空亮度分级",
+        "url": "https://en.wikipedia.org/wiki/Bortle_scale",
+        "takeaway": "暗空（Bortle 1–2）极限星等约 6.5–7.0，银河可直视",
+        "use": "把基线天光定在 21.9 mag/arcsec²，作为 sky 模块的暗空锚点"
+      },
+      {
+        "title": "Milky Way — 银河的可见条件",
+        "url": "https://en.wikipedia.org/wiki/Milky_Way",
+        "takeaway": "银河是银道面上密集暗星与尘埃的叠加，需要暗空才能成带状",
+        "use": "星表里按银道面撒 35% 的成员星，让「银河」在图上是画出来的，不是贴上去的"
+      },
+      {
+        "title": "Light pollution — 天光与极限星等的关系",
+        "url": "https://en.wikipedia.org/wiki/Light_pollution",
+        "takeaway": "天光亮 1 mag/arcsec²，肉眼极限星等约降 0.5–1 等",
+        "use": "定下 sky 模块的 −0.9 等/mag 斜率；城市灯与恒星散射走同一条公式"
+      }
+    ],
+    "forbidden": [
+      "魔法",
+      "超自然力量",
+      "外星文明干预",
+      "时间旅行"
+    ],
+    "brief": {
+      "choices": []
+    }
+  },
+  "cosmology": {
+    "frame": "single-star-terrestrial",
+    "topology": "三维欧氏空间；一颗 G2V 居于原点，行星沿圆轨道绕行",
+    "has_stars": true,
+    "stars": [
+      {
+        "id": "A",
+        "name": "孤灯",
+        "class": "G2V",
+        "mass_solar": 1.0,
+        "radius_solar": 1.0,
+        "luminosity_solar": 1.0,
+        "temp_k": 5780,
+        "color": "#FFF6E2",
+        "orbit": {
+          "parent": null,
+          "a_au": 0.0,
+          "period_days": 365.256,
+          "eccentricity": 0.0,
+          "phase_deg": 0.0,
+          "inclination_deg": 0.0
+        },
+        "note": "唯一的太阳。它的存在感来自于「只有它」，而不是「它有多亮」"
+      }
+    ],
+    "bodies": [
+      {
+        "id": "aster",
+        "name": "星夜",
+        "kind": "planet",
+        "radius_km": 6371.0,
+        "radius_earth": 1.0,
+        "mass_earth": 1.0,
+        "density_gcc": 5.514,
+        "gravity_g": 1.0,
+        "rotation_hours": 24.0,
+        "axial_tilt_deg": 23.4,
+        "albedo": 0.3,
+        "orbit": {
+          "parent": "A",
+          "a_au": 1.0,
+          "eccentricity": 0.0,
+          "inclination_deg": 0.0,
+          "period_days": 365.256
+        },
+        "atmosphere": {
+          "surface_pressure_kpa": 101.3,
+          "composition": {
+            "N2": 0.78,
+            "O2": 0.21,
+            "Ar": 0.01
+          },
+          "color": "#8FB8D9",
+          "height_km": 100,
+          "greenhouse_delta_k": 33.0
+        },
+        "biomes": [
+          {
+            "id": "deep_sea",
+            "name": "深蓝海",
+            "color": "#12324A",
+            "elevation": 0.0
+          },
+          {
+            "id": "shallow",
+            "name": "浅湾",
+            "color": "#2E6F8E",
+            "elevation": 0.28
+          },
+          {
+            "id": "plain",
+            "name": "草原",
+            "color": "#6E8B4E",
+            "elevation": 0.46
+          },
+          {
+            "id": "forest",
+            "name": "针叶林",
+            "color": "#3F6048",
+            "elevation": 0.62
+          },
+          {
+            "id": "highland",
+            "name": "裸岩",
+            "color": "#7C7368",
+            "elevation": 0.8
+          },
+          {
+            "id": "summit",
+            "name": "雪脊",
+            "color": "#D8E2EA",
+            "elevation": 0.94
+          }
+        ],
+        "rings": null,
+        "visual_radius": 1.0,
+        "sea_level": 0.46,
+        "polar_amount": 0.5,
+        "polar_color": "#E8F0F8",
+        "note": "对照组行星。全部取地球值，唯一的差别是它只有一颗太阳——于是夜空是黑的，星是满的",
+        "planet_map": {
+          "seed": 7,
+          "summary": {
+            "ocean_fraction": 0.6736,
+            "land_fraction": 0.3264,
+            "mean_elevation_km": 1.063,
+            "max_elevation_km": 8.8,
+            "mean_ocean_depth_km": 3.34,
+            "max_ocean_depth_km": 17.372,
+            "mean_temperature_k": 287.32,
+            "min_temperature_k": 232.9,
+            "max_temperature_k": 303.08,
+            "mean_land_temperature_k": 271.87,
+            "mean_sea_temperature_k": 282.77,
+            "mean_precip_mm": 899.9,
+            "max_precip_mm": 10461.5,
+            "ice_fraction": 0.1268,
+            "river_cells": 631,
+            "lake_fraction": 0.0229,
+            "habitat_mean": 0.2814,
+            "habitat_p50": 0.1299,
+            "mean_npp_gc_m2_yr": 349.9,
+            "land_npp_gtc_yr": 58.25,
+            "plates": 8,
+            "convergent_cells": 460,
+            "divergent_cells": 750,
+            "transform_cells": 470,
+            "hotspot_cells": 241,
+            "biome_shares": {
+              "深蓝海": 0.00839132450240423,
+              "浅湾": 0.6099466400886884,
+              "草原": 0.22179319452923546,
+              "针叶林": 0.027274511782576207,
+              "裸岩": 0.0055293758814460945,
+              "雪脊": 0.0002682858508201704,
+              "极冰": 0.07150077173798713,
+              "海冰": 0.05529589562686814
+            }
+          },
+          "checks": [
+            {
+              "id": "M01",
+              "ok": true,
+              "note": "海洋占比 67.4%（水量 1.15e+09 km³）"
+            },
+            {
+              "id": "M02",
+              "ok": true,
+              "note": "最高峰 8.80 km / 重力上限 8.80 km"
+            },
+            {
+              "id": "M03",
+              "ok": true,
+              "note": "均温 287.3 K / 派生 287.8 K"
+            },
+            {
+              "id": "M04",
+              "ok": true,
+              "note": "河流格 631"
+            },
+            {
+              "id": "M05",
+              "ok": true,
+              "note": "群系覆盖 100%"
+            },
+            {
+              "id": "M06",
+              "ok": true,
+              "note": "平均宜居度 0.28"
+            }
+          ],
+          "hash": "280287df",
+          "generated": "2026-11-04",
+          "generator": "mapgen/1.1.2",
+          "res": [
+            360,
+            180
+          ],
+          "sea_level_km": 1.651,
+          "relief_total_km": 18.04,
+          "inventory_km3": 1147645061.8,
+          "mean_depth_target_km": 4.5,
+          "mean_precip_target_mm": 899.9,
+          "t_mean_k": 287.8,
+          "tidal_locked": false,
+          "plates": 8,
+          "hotspots": 3,
+          "figures": [
+            "map/map-elevation.png",
+            "map/map-biome.png",
+            "map/map-temperature.png",
+            "map/map-precipitation.png",
+            "map/map-tectonics.png",
+            "map/map-habitat.png",
+            "map/map-relief.png",
+            "map/map-globe.png"
+          ],
+          "coarse": {
+            "nx": 72,
+            "ny": 36,
+            "habitat": "000000000000000000000000000000000444434444444443323332000000000000000000000000000000000000000000000014000000000000000000000000002500000000000000000000000000000000000000000400000000000000000000000000000007200000000000000000000000000000000000007000000000000000000000000000000000002a1100000000000000000010000000000000710000000000000000000112aaa000169a1100123000004221211145223hc2111110101102110001001101010001127dbb0069ccb668c44b440fcbhdlf32222224234dmd34233411712711321211211111112234ej30e9a9776fl94ee9b0blkpbq6g55qign86869eko974e3337372333325333j838333445ee0iga9658acpmagghek6fijthflleehumccmlb9gkur79d66hc57ag6cg67567b55d5579mn636fgeb88bmspba9gjk0ogekwjkpgjwrkftk9ejbchutas8ceebuaxtm9cdoi9q8hg78atnb32pvmhpwuwwtgudscop1hqf6azqyxfrxvbbw8ahabuu9ac8pornjxevabrygywtsa89tm37pt168ama9anqvvedddp3bh7cq7bcoxdxbjdaa9bqzbvaeqg4hlknpxxxeclgjspxt9eo55gceao8rzrdbcrybbcqbrp465637n6tnedcnckabdzefilxtyg1gforddkfjxqyyp988a8jvyg7cin4uyyqozmabesqsz04535435hatkqnlwyglhlwwvyyhgj76319kwnyxxymlhgaa7lvykd9acebixymfyckkfkoy19435632237dskxoxiowwwxiia6jh43596b31injxxiddfkanvwkd9bb8698vpojmxvjouvw443253211124kuioghdengk8939852547664bb0jegc9bhfqvnchdaeb747cnlnmpllvvvw0522342110011306ada68a76324l3423454547c95094acnrigfife6ab646gbkmkuvqvvvj422222111000102466344321113h43345345558542306rs97cfngaa985577erfjtktuuk0412222121100001245542221112i233344454494212u288559kvkddc85347eknhtuuuvg5322221111110001132221221111j4223344448752344305369egb9ac54546b5tjhiuuv05452222121111001121112321123v53233446564344543544457956764454588kihmuujd6544311112320233111112221233w4445426444345586650558a7556435455a93rguuw097743211112234353321112211132g5553356432245558fa59bdhd656433459h97778mupa7654211111203444541232111121i24347766635434555780iwpjd4554347dghjlgjor2qa553312132043443322222223222i334778977567466cd68htsdcbp9856448fjpznzywp77743212210323433421112111222g3434545577769dabhdgvhutarnb756868adcdfzyxwjh154323302122224532112211212i32335434677569b78gvre879bbid66899996affiwndfgb004505221111131211111111172222223332468ddbfrtk566b8gadbcbb85889cdnthgnjhb7a4563111011111111110000421122211223477bpanjmf6o8fc9b768a9797adahqfhecaea9656652100111110012111172122222212248abdgdihjhaagaa6666899879acigd88767568895453211111111111112854443333368ba89a97656786665655685456789aba88543457564322232212222233444445667666787798876555544345656666534334444433333445333222101111111344343444566654566677777643211112322334322222111112222222112222211112222223233333333445455332222211100011222222122222112211222111222111111222222222222222222222222211111111111111111111112211111111112222222222222222222222222222222222222211111111111111111111111111111111112222",
+            "temperature": "777777777777777777777777777777788888888888888888888888887777777777777777777777777777777777778888888888888888888888888887777777777887777777777777788888888888888887777777777888888888888888888888888888887668888888888887888888888888888888888888888888888888888888888888888888866788888888888888889888888999999888888888889888888888888888888888899998689999999999998888999999999999999999999998989999998888899999888899999997999999999999999999aaaa999999999aaaaaa99aa9999999999999999999999999aaaa79aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa98aaaaaaaaaaaaaaaaaaabbbbbbbbbbbbabbbbbbbbbaaababaaabaaaaaaaaaaaaaaaabbb8abbbbbbbbbbaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaa8abbbbbbbbbbbbbbbbbbababcccccbccbbbbbbcbbbbbbcccccbcccbbcccccbbbbbbbbabcb9bbcbbbbccbbbbccccccccbacccccccccccccccccccccccccccccccccccccccccbabccccbaccccccccccccccccccccccbcccccccccccccccccccccccccccccccccccccccbbcccccccaccccccccccccccccccdddddccddddcddcccccdddddddddddddddddddddddcbbcdddddddcbddddddcccccddddddddddddccddddddddddddddddddddddddddddddddddcbddddddddddadddddddddcddddddddddddddcdddddddddddddddddddddddddddddddddccdddddddddddccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddcdddddddddddddbdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddbdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddbdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddcbdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddaccccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddccbbbcdddddddddcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccbbbbbcccccccccccccccccbbcccccccbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888",
+            "elevation": "444444445555544444444444333333411000000000000000000000023333333333333333555544444444433333322221111200111001111111112223333444444015555555555555433333223333333334554454544032221000111122333443222333337di00134334433443322222221113444444443344403221121112333333223222211115hg941122000101233321222232111101233344543350233335435543343444443210006j7000000011000232300123222200100001233344556332234655654444455554300004j4000000000000100000001223332222100011221135665344456666654455554320001h50000000001000000000010332000011011100023334243354544554443144443332107d0000000000210000000000100000002200101000132313244213223323224444442000h40000000000221100000400010000011122112100122101112100222011223334521259n801100010022110000095c70000111022113102113310000010102210000134543379203l3111222002211000000006d300111202112000232200000000111110000014447d600008f0001100121100200000000c401001121010122210000000000111110000135ad3000000i4000000122200000000000085000120022221100000000000000110000013cc300000006f100000323230000000000009600000011100000000000000000000000009b2000000000i200000313321000000000000830000000000000000000000000000000058200000000007b00000221200000000000000000000000000000000000000000000000570000000000000g00121211000000000000000000000000000000000000000000000003600000000000000b700333220000000000000000000000000000000000000000000002000000000000000002g01312200000000000000000000000000000000000000000000000000000000000000000g503322000000000000000000000000000000200000000000000000000000000000000007f34332000000000000000000000000000000100000000000000000000000000000000000k7344200000000000000000000000000000000000000000000000000000000000000000038adc4000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000455200000000000000002100000000000000000000000000000000000000000000000002333200000000000000000110000000000000000000000000000000000000000000000013443220000000000000000420000000000000000000000000000000000000000000000103432210000000000000000200000000000000000000000000000000000000000000002102331000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "ocean": "000000000000000000000000000000000111111111111111111111000000000000000000000000000000000000000000000011000000000000000000000000000100000000000000000000000000000000000000000100000000000000000000000000000000100000000000000000000000000000000000001000000000000000000000000000000000000011000000000000000000000000000000001000000000000000000000001110000011000000110000000000000000001000000000000000000000000000000000000100001111111000001011110000000000000100000000000000000000000000000000000000111111110001111110100000000110000000000000000000000000000000000000000001111111110000111111110001111100000000110000000000000000000000000000011000011111110000011111011000111000000000000000010000000000000000000000000001000100000000001110000001000000000000000000011110000000100000000000001000000000110000001111110000100000000001000001111111100000100010000000111100100000100000001111111100100000000000000000111111000000000100000000111110000110100001001111111110011100000000000011111111101000011110000001111110000110000000011111111111001010110000111111111111111110011111000011111111001111000000011111111111100111111111111111111111111111111110001111111111001111000000111111111111111111111111111111111111111111111100111111111111101000000001111111111111111111111111111111111111111111111001111111111111100100000011111111111111111111111111111111111111111111101111111011111111100100000011111111111111111111111111111111111111111111111111111111111111110000000011111111111111111111111111111011111111111111111111111111111111110000000111111111111111111111111111111011111111111111111111111111111111110000000111111111111111111111111111111111111111111111111111111111111111110000000111111111111111111111111111111111111111111111111111101111111111111110000111111111111111111111111111111111111111111111111111000001111111111101000011111111111111111111111111111111111111111111111110000011111111111111000000111111111111111111111111111111111111111111111100000000111111111111110000111111111111111111111111111111111111111111111000000001111111111111110001111111111111111111111111111111111111111111100000000001111111111111110011111111111111111111111111111111111111111111111101011111111111111111101111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+          }
+        }
+      }
+    ],
+    "calendar": {
+      "day_hours": 24.0,
+      "year_days": 365.256,
+      "months": 12,
+      "month_days": 30.438,
+      "epoch": "星夜纪",
+      "month_names": [
+        "霜月",
+        "雪月",
+        "芽月",
+        "雨月",
+        "花月",
+        "长月",
+        "暑月",
+        "伏月",
+        "果月",
+        "叶月",
+        "雾月",
+        "炉月"
+      ]
+    },
+    "surface": {
+      "observer": {
+        "lat_deg": 35.0,
+        "lon_deg": 116.0,
+        "elev_m": 50
+      },
+      "horizon_deg": 0.0,
+      "ground_color": "#22303a",
+      "notes": "北纬三十五度的一座高原城。秋天夜里银河从天顶偏西横过，城里熄灯的那一小时叫「看天时」"
+    },
+    "sky_phenomena": [
+      "夜里天上全是星：地平线上数不清，天顶最密的地方连成一条灰白色的带子，那是「星河」——星图上叫银河，土名与学名都不许私占",
+      "一年四季的星图不同；霜月的夜空最清，伏月的夜最短但最暖，银河最粗的一段正在天顶",
+      "没有月亮，潮汐只有太阳那一份，很小：海边的人按星位而不是按潮水记事",
+      "「看天时」是每天熄灯的一小时，城里不许点灯，违者罚钱——为了让所有人看得见银河"
+    ],
+    "starfield": {
+      "seed": 3,
+      "count": 10000,
+      "magnitude_dist": "power-law",
+      "color_mix": {
+        "O": 0.02,
+        "B": 0.06,
+        "A": 0.12,
+        "F": 0.18,
+        "G": 0.28,
+        "K": 0.24,
+        "M": 0.1
+      },
+      "galaxy": {
+        "present": true,
+        "inclination_deg": 24.0,
+        "width_deg": 16.0,
+        "brightness": 0.85
+      },
+      "constellations": [],
+      "hash": "487dfded"
+    },
+    "sky": {
+      "summary": {
+        "limit_mag": 6.5,
+        "visible_stars": 2658,
+        "sky_brightness": 21.9,
+        "milky_way": true,
+        "moment": "夜半",
+        "note": "天空亮度 21.9 mag/arcsec²（经验模型 ±0.5）",
+        "generator": "sky/1.1.4"
+      },
+      "checks": [
+        {
+          "id": "S01",
+          "status": "pass"
+        },
+        {
+          "id": "S02",
+          "status": "pass"
+        },
+        {
+          "id": "S03",
+          "status": "pass"
+        }
+      ],
+      "generated": ""
+    }
+  },
+  "physics": {
+    "constants": [
+      {
+        "symbol": "G",
+        "earth_value": "6.674e-11 m3kg-1s-2",
+        "world_value": "6.674e-11 m3kg-1s-2",
+        "delta": "1.00",
+        "why": "未改动。对照组的意义就在于常数与地球完全一致，任何差异都只能来自「只有一颗太阳」"
+      },
+      {
+        "symbol": "c",
+        "earth_value": "2.998e8 m/s",
+        "world_value": "2.998e8 m/s",
+        "delta": "1.00",
+        "why": "未改动。星空的红移与地球同构，测距方法可直接沿用"
+      },
+      {
+        "symbol": "α",
+        "earth_value": "7.297e-3",
+        "world_value": "7.297e-3",
+        "delta": "1.00",
+        "why": "未改动。元素表与光谱线与地球同构"
+      }
+    ],
+    "laws": [
+      {
+        "name": "引力",
+        "statement": "平方反比，G 与地球相同",
+        "deviation": "无",
+        "consequence": "1 R⊕ 的岩石行星表面重力 1.0 g，无异常"
+      },
+      {
+        "name": "热力学第二定律",
+        "statement": "完整保留",
+        "deviation": "标准",
+        "consequence": "生态系统遵循能量金字塔，与地球同构"
+      }
+    ],
+    "broken_symmetries": [],
+    "new_interactions": [],
+    "conservation_notes": "能量与角动量严格守恒。这个世界的物理没有为任何人让路。"
+  },
+  "mathematics": {
+    "geometry": "欧氏几何，三维平直空间",
+    "number_system": "实数；但计数传统源自双星，采用「双进制」口算，八与十六在他们的语言里是「整」的意思",
+    "peculiarity": "由于一年恰好等于八个双星周期，他们的数论中「8」具有近乎神圣的地位，所有度量衡以 8 为基",
+    "consequence": "度量衡采用八进制：一尺 = 8 寸，一斤 = 8 两。换算成地球单位会产生持续的误差，这也是他们无法发展出精密钟表的原因之一"
+  },
+  "chemistry": {
+    "composition": {
+      "unit": "mass_fraction",
+      "note": "行星本体按整体质量计，大气按体积分数计；与地球同构，不含任何虚构元素。",
+      "planet": {
+        "氧": 0.2967,
+        "铁": 0.321,
+        "硅": 0.161,
+        "镁": 0.154,
+        "硫": 0.0188,
+        "钙": 0.0192,
+        "铝": 0.0145,
+        "镍": 0.014,
+        "碳": 0.0005,
+        "氢": 0.0003
+      },
+      "atmosphere": {
+        "氮": 0.78,
+        "氧": 0.21,
+        "氩": 0.01
+      },
+      "ocean": {
+        "水": 0.965,
+        "氯化钠": 0.035
+      }
+    },
+    "fictional_elements": [],
+    "periodic_status": "与地球同构，1–118 号元素齐全，无超重稳定岛",
+    "solvent": {
+      "name": "水",
+      "liquid_range_k": [
+        273,
+        373
+      ],
+      "notes": "101.3 kPa 下的标准相图"
+    },
+    "key_bonds": "共价键 / 离子键 / 氢键，与地球相同",
+    "signature_materials": [
+      "碳酸钙",
+      "硅酸盐",
+      "氧化铁"
+    ],
+    "abiotic_notes": "没有第二条化学通道：这个世界的「异常」不来自元素表。"
+  },
+  "biology": {
+    "biochemistry": {
+      "base": "碳基",
+      "primary_element": "碳",
+      "structural_element": "碳",
+      "solvent": "水",
+      "limits": "0.3–1.6 g 重力、240–320 K 液水窗口；与地球同构",
+      "note": "对照组不需要新化学：碳链代谢、硅氧骨架都不用，一条 DNA 走到底。",
+      "composition": {
+        "氧": 0.65,
+        "碳": 0.18,
+        "氢": 0.1,
+        "氮": 0.03,
+        "磷": 0.01,
+        "硫": 0.01,
+        "其他": 0.02
+      }
+    },
+    "organisms": [],
+    "energy_currency": {
+      "name": "ATP 等价物",
+      "note": "与地球同构的磷酸化供能；一次充放循环约 30.5 kJ/mol，效率 60–65%"
+    },
+    "metabolism_summary": "光合—摄食—分解三级，与地球同构；没有第二条能量通道",
+    "photosynthesis": {
+      "pigment": "叶绿素 a/b",
+      "peaks_nm": [
+        430,
+        662
+      ],
+      "note": "单星白光下的标准双峰，叶片是绿的——这一点常被来访者当成「没有想象力」的证据"
+    },
+    "genetic_carrier": {
+      "name": "DNA",
+      "note": "双螺旋，与地球同构；无第二套遗传载体"
+    },
+    "trophic_levels": [
+      {
+        "name": "生产者",
+        "share": 0.89
+      },
+      {
+        "name": "初级消费者",
+        "share": 0.1
+      },
+      {
+        "name": "顶级消费者",
+        "share": 0.01
+      }
+    ],
+    "sentient": {
+      "exists": true,
+      "name": "星夜人",
+      "note": "会写星图表的物种；历法是星位的副产品"
+    },
+    "mass_extinctions": [],
+    "carrying_capacity": {
+      "land_npp_gtc_yr": 56.54,
+      "mean_npp_gc_m2_yr": 407.4,
+      "land_fraction": 0.2721,
+      "harvest_fraction": 0.01,
+      "kcal_per_year": 5088600000000000.0,
+      "humans_subsistence": 5576547945.0,
+      "humans_comfortable": 3983248532.0,
+      "assumptions": "Miami 模型（温度/降水取小）积分到陆地；可采收比例 1.0%；维持 2500 kcal/日、宽裕 3500 kcal/日",
+      "generator": "capacity/1.1.4"
+    }
+  },
+  "civilization": {
+    "exists": true,
+    "name": "看天的人",
+    "tech_path": "天文—航海—钟表：先有星图，后有远洋，最后才有蒸汽机",
+    "timekeeping": "一天 24 小时，一年 12 个月；夜里用星位定时，白天用日晷",
+    "energy_source": "恒星辐照的直接存量（风、水、生物质），尚未进入化石燃料时代",
+    "social_shape": "以「守灯人」为核心的城市联盟：守灯人负责每晚熄灯一小时，违者罚钱",
+    "taboo": "不许在「看天时」点灯；不许给星起私名——星名属于全体"
+  },
+  "history": {
+    "eras": [
+      {
+        "name": "观星期",
+        "span": "约 3000 年前",
+        "note": "第一批星图刻在石柱上，至今仍在用"
+      },
+      {
+        "name": "远航期",
+        "span": "约 400 年前",
+        "note": "星图足以支撑远洋，第一次绕行全球"
+      },
+      {
+        "name": "熄灯法",
+        "span": "约 120 年前",
+        "note": "「看天时」入法，城市开始为夜空立法"
+      }
+    ],
+    "revisions": [
+      {
+        "version": "1.1.4",
+        "date": "2026-11-04",
+        "change": "作为 1.1.4 的对照组世界建立：单星、类地、可见银河",
+        "fields": [
+          "cosmology"
+        ]
+      }
+    ]
+  },
+  "consistency": {
+    "score": 0,
+    "checks": [],
+    "open_issues": [],
+    "redteam": [
+      {
+        "id": "RT01",
+        "q": "1 R⊕、1 M⊕ 却给出 5.514 g/cc——这是抄的地球，不是算出来的。",
+        "target": "cosmology.bodies[0].density_gcc",
+        "template": "数据出处",
+        "verdict": "accepted",
+        "answer": "接受。5.514 g/cc 就是地球值，本世界唯一的目的就是当对照组：任何差异都只能来自「只有一颗太阳」，不能来自行星参数。已在 body.note 写明。",
+        "fix": "cosmology.bodies[0].note=声明对照组"
+      },
+      {
+        "id": "RT02",
+        "q": "没有卫星，潮汐只有太阳那一份，凭什么说「海边的人看潮不看星」反过来？",
+        "target": "cosmology.sky_phenomena[2]",
+        "template": "因果链",
+        "verdict": "accepted",
+        "answer": "接受。太阳潮只有月球潮的 46%，且没有大小潮交替，日常几乎不可感。已把该条改成「按星位而不是按潮水记事」。",
+        "fix": "cosmology.sky_phenomena[2]=改写为按星位记事"
+      },
+      {
+        "id": "RT03",
+        "q": "一天 24 小时、倾角 23.4°、101 kPa 全是地球值，反常识度 0，这还算不算一个世界？",
+        "target": "cosmology.bodies[0].axial_tilt_deg",
+        "template": "同义反复",
+        "verdict": "accepted",
+        "answer": "接受，而且是故意的。它的作用是量尺：把 helikon 的 19 等夜空与这里的 21.9 等摆在一起，「三颗太阳看不见星」才成为结论而不是修辞。已经写进 seed.core_paradox。",
+        "fix": "seed.core_paradox=写明对照组的用途"
+      },
+      {
+        "id": "RT04",
+        "q": "10000 颗星给出地平线上 2658 颗可见，干净大气下地平附近消光 0.2 等，这个数是不是太乐观？",
+        "target": "cosmology.starfield.count",
+        "template": "数量级",
+        "verdict": "accepted",
+        "answer": "接受为量级正确。sky 已按 1/sin h 放大消光，地平 10° 处多扣约 1 等；报告里标「经验模型 ±0.5 等」，不宣称精确。",
+        "fix": ""
+      },
+      {
+        "id": "RT05",
+        "q": "银河可见性判据取天光 21.0 是硬阈值，气压升到 120 kPa 这条带子还在吗？",
+        "target": "cosmology.bodies[0].atmosphere.surface_pressure_kpa",
+        "template": "边界条件",
+        "verdict": "accepted",
+        "answer": "接受。气压每高 1 个大气，天光抬 0.40 等；120 kPa 时 21.9→21.8，仍在阈内，银河勉强保留。到 300 kPa 就会被洗掉——wider 表见 sky 输出的 haze 分量。",
+        "fix": ""
+      }
+    ],
+    "notes": "对照组不需要红队：它的问题就是「太正常」"
+  },
+  "narrative": {
+    "three_seconds": "抬头：一条灰白色的带子横过天顶，密得发糊；低头：脚边只有一道影子。",
+    "setpiece": "「看天时」那一刻，全城熄灯。城市从脚下暗下去，银河从头顶亮起来，有人当场哭。",
+    "hook": "如果一颗太阳就足够让夜空变成这样，那三颗太阳的世界里，他们抬头看见的是什么？",
+    "slice": {
+      "text": "我在第 24 小时醒。天还没亮，屋顶的石板是凉的；我先把灯拨灭——「看天时」不许点灯。抬头，整条星河从天顶偏西压下来，密得发糊，像有人把盐撒进了水里。今天是雾月十一，昼长十小时，只有十小时能干活。守灯人在巷口敲铜钟，一声一声，把整座城的灯敲灭：灯灭了，河才显出来。没有月亮，潮也不大，海边的人不看潮，看星。祖母说，星位是别人家的钟表，我们的钟在头顶。我数到第七颗，就找到那条河最粗的地方——它每夜往西挪一点，挪一年，绕回原处。我们的一年，就是这么数出来的。",
+      "cites": [
+        "cosmology.calendar.day_hours",
+        "cosmology.sky_phenomena[0]",
+        "biology.sentient.note",
+        "chemistry.signature_materials[0]",
+        "cosmology.calendar.year_days"
+      ],
+      "hours": [
+        0.0,
+        24.0
+      ],
+      "status": "ok"
+    }
+  }
+}

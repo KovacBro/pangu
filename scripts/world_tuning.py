@@ -245,8 +245,14 @@ def scan_targets(world: dict) -> list:
 
 
 def sweep_values(cur: float, lo: float = None, hi: float = None,
-                 steps: int = 7) -> list:
-    """生成扫描序列：给定上下界用线性，否则以当前值为中心 ±20%。"""
+                 steps: int = 7, log: bool = False) -> list:
+    """
+    生成扫描序列：给定上下界用线性，否则以当前值为中心 ±20%。
+
+    log=True 时按**等比**取点（1.1.3）：扫 G、光度、气压这类跨数量级的参数时，
+    线性采样会把 90% 的点挤在同一个量级里，看不出真正的相变处。
+    log 模式下上下界都必须为正，否则自动退回线性。
+    """
     steps = max(3, min(31, int(steps)))
     if lo is None and hi is None:
         lo, hi = cur * 0.8, cur * 1.2
@@ -258,6 +264,10 @@ def sweep_values(cur: float, lo: float = None, hi: float = None,
         lo, hi = hi, lo
     if steps == 1:
         return [cur]
+    if log and lo > 0 and hi > 0:
+        import math
+        a, b = math.log(lo), math.log(hi)
+        return [math.exp(a + (b - a) * i / (steps - 1)) for i in range(steps)]
     return [lo + (hi - lo) * i / (steps - 1) for i in range(steps)]
 
 
@@ -458,12 +468,35 @@ def diff_worlds(a: dict, b: dict, limit: int = 200) -> dict:
         "ok": True,
         "version": {"from": (a.get("meta") or {}).get("version"),
                     "to": (b.get("meta") or {}).get("version")},
+        "rite": _rite_delta(a, b),
         "changes": changes, "added": added, "removed": removed,
         "truncated": truncated[0],
         "derived": derived,
         "new_fatal": sorted(fb - fa), "fixed": sorted(fa - fb),
         "new_warn": sorted(wb - wa),
         "downstream": downstream_tasks(paths),
+    }
+
+
+def _rite_delta(a: dict, b: dict) -> dict:
+    """
+    两版各在第几斧（1.1.3）。diff 除了「改了什么数」，还要回答「进度推进了吗」。
+
+    局部 import：rite 依赖 world_schema，本模块也被 pangu 依赖，
+    放在函数里可以避免任何潜在的导入顺序问题。
+    """
+    try:
+        import rite
+    except Exception:      # noqa: BLE001
+        return {}
+    pa = rite.plan_report(a)
+    pb = rite.plan_report(b)
+    return {
+        "from": {"axe": pa["axe"], "name": pa["axe_name"], "missing": len(pa["missing"]),
+                 "gates": sum(1 for g in pa["gates"] if g["ok"])},
+        "to": {"axe": pb["axe"], "name": pb["axe_name"], "missing": len(pb["missing"]),
+               "gates": sum(1 for g in pb["gates"] if g["ok"])},
+        "advanced": pb["axe"] - pa["axe"],
     }
 
 
