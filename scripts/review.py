@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9）
-==============================================
-一条命令跑完九项体检，给出「能不能交」的单一结论。
+盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9，1.1.5 加 D10/D11）
+================================================================
+一条命令跑完十一项体检，给出「能不能交」的单一结论。
 
 设计约束
 --------
@@ -169,6 +169,46 @@ def _bench_item(fast: bool = False) -> dict:
                  "对不上地球的模型，只能叫美术")
 
 
+def _ledger_item(world: dict) -> dict:
+    """D10 守恒：账本配不平，说明某条声明与模型打架。"""
+    try:
+        import conservation
+        d = conservation.ledger(world)
+    except Exception as e:  # noqa: BLE001
+        return _item("D10", "守恒", SOFT, False, f"跑不起来：{type(e).__name__}",
+                     "ledger <world>", "账本挂了，说明引擎有回归")
+    if not d["scored"]:
+        return _item("D10", "守恒", SKIP, None, "可算的账不足（缺半径/大气/水量）",
+                     "ledger <world>", "地图与大气补齐之后才有账可算")
+    bad = [r for r in d["rows"] if r["status"] == "warn"]
+    brief = f"{d['scored']} 本账 ｜ 不平 {len(bad)}"
+    if bad:
+        brief += " ｜ " + "、".join(f"{r['id']} {r['residual']:+.0%}" for r in bad[:3])
+    if d.get("explained"):
+        brief += f"（{'、'.join(d['explained'])} 为声明压过模型）"
+    return _item("D10", "守恒", SOFT, not d.get("unexplained"), brief, "ledger <world>",
+                 "常见的不平是「声明温室与大气成分打架」——改写法，或改成成分算出来的值")
+
+
+def _certify_item(world: dict, fast: bool) -> dict:
+    """D11 适用域：多少结论是算出来的。"""
+    if fast:
+        return _item("D11", "适用域", SKIP, None, "--fast 未评估",
+                     "certify <world>", "覆盖率是「这世界能不能当定量模型」的粗判")
+    try:
+        import certify
+        d = certify.run(world, bench=False)
+    except Exception as e:  # noqa: BLE001
+        return _item("D11", "适用域", SOFT, False, f"跑不起来：{type(e).__name__}",
+                     "certify <world>", "适用域挂了，说明推演层有回归")
+    bk = d["by_kind"]
+    return _item("D11", "适用域", SOFT, d["ok"],
+                 f"覆盖率 {d['coverage']:.0%} ｜ 算 {len(bk['computed'])}"
+                 f" / 半算 {len(bk['mixed'])} / 声明 {len(bk['declared'])}",
+                 "certify <world>",
+                 "覆盖率低于 30% 时，这个世界的数字大多还是「拍的」，别当模型用")
+
+
 def run(world: dict, path: str = "", fast: bool = False) -> dict:
     """跑完九项体检。返回 {items, ok, hard_fail, soft_warn, conclusion, ...}。"""
     rep = ws.validate(world)
@@ -188,6 +228,8 @@ def run(world: dict, path: str = "", fast: bool = False) -> dict:
     items.append(_entail_item(world))
     items.append(_cards_item(world))
     items.append(_bench_item(fast))
+    items.append(_ledger_item(world))
+    items.append(_certify_item(world, fast))
 
     hard_fail = [i for i in items if i["level"] == HARD and i["ok"] is False]
     soft_warn = [i for i in items if i["level"] == SOFT and i["ok"] is False]

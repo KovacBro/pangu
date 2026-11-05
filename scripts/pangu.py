@@ -160,6 +160,16 @@ def cmd_doctor(args) -> int:
         ("scripts/preview_template.html", "3D 模板"),
         ("scripts/mapgen.py", "地图引擎"),
         ("scripts/benchmark.py", "地球基准"),
+        ("scripts/pde.py", "PDE 内核"),
+        ("scripts/radiation.py", "辐射层"),
+        ("scripts/geo.py", "固体地球"),
+        ("scripts/orbit.py", "轨道层"),
+        ("scripts/chem.py", "碳循环"),
+        ("scripts/life.py", "生命层"),
+        ("scripts/units.py", "量纲层"),
+        ("scripts/conservation.py", "守恒账本"),
+        ("scripts/uq.py", "误差传播"),
+        ("scripts/certify.py", "适用域"),
         ]:
         p = os.path.join(ROOT, rel)
         exist = os.path.exists(p)
@@ -387,6 +397,116 @@ def _escape_json_for_html(obj) -> str:
     return s.replace("</", "<\\/").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
+def _map_stored_row(world) -> dict:
+    """只读存档里的 map hash——不重算，用来告诉页面「记了什么」。"""
+    ok_pm, pm, _why = ws.resolve_path(world, "cosmology.bodies[0].planet_map")
+    pm = pm if ok_pm and isinstance(pm, dict) else {}
+    stored = pm.get("hash")
+    if not stored:
+        return {"layer": "map", "status": "skip", "seed": pm.get("seed"),
+                "stored": "—", "got": "—", "note": "还没跑过 map"}
+    return {"layer": "map", "status": "skip", "seed": pm.get("seed"),
+            "stored": stored, "got": "—",
+            "note": "存档已记 hash；跑 replay 逐位核对"}
+
+
+def _ca_stored_row(world) -> dict:
+    """只读存档里的 CA final_hash。"""
+    evo = ws._get(world, "biology", "evolution", default=None)
+    summ = (evo or {}).get("summary") if isinstance(evo, dict) else None
+    if not isinstance(summ, dict):
+        return {"layer": "ca", "status": "skip", "seed": "—",
+                "stored": "—", "got": "—", "note": "没有跑过 CA"}
+    return {"layer": "ca", "status": "skip", "seed": evo.get("seed"),
+            "stored": str(summ.get("final_hash") or "—")[:14], "got": "—",
+            "note": "存档已记 final_hash；跑 replay 逐格核对"}
+
+
+def _books_payload(world, fast: bool = False, replay: bool = False) -> dict:
+    """1.1.5 · 把「错多少」这一层算成一份可画的数据。
+
+    各段独立 try——任何一段算不出来（缺字段、内核挂掉）只让那张卡片空着，
+    不能让 3D 预览整页打不开。
+    """
+    out = {"version": ws.VERSION, "fast": bool(fast)}
+
+    if not fast:
+        try:
+            rows = _kernel_rows()
+            out["kernel"] = {"rows": rows,
+                             "passed": sum(1 for r in rows if r["ok"]),
+                             "total": len(rows),
+                             "ok": bool(rows) and all(r["ok"] for r in rows)}
+        except Exception as e:  # noqa: BLE001
+            out["kernel"] = {"error": f"{type(e).__name__}: {e}"}
+
+    try:
+        import conservation
+        out["ledger"] = conservation.ledger(world)
+    except Exception as e:  # noqa: BLE001
+        out["ledger"] = {"error": f"{type(e).__name__}: {e}"}
+
+    try:
+        import uq
+        out["uq"] = uq.propagate(world)
+    except Exception as e:  # noqa: BLE001
+        out["uq"] = {"rows": [], "error": f"{type(e).__name__}: {e}"}
+
+    try:
+        import certify
+        out["certify"] = certify.run(world, bench=not fast)
+    except Exception as e:  # noqa: BLE001
+        out["certify"] = {"error": f"{type(e).__name__}: {e}"}
+
+    try:
+        import units
+        out["units"] = units.demo()
+    except Exception as e:  # noqa: BLE001
+        out["units"] = {"rows": [], "ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    # 重放很贵（map 约 90 s、ca 约 40 s）：预览默认只读存档里的 hash，
+    # 给 --replay 才算真的重放。卡片会明说「没核」还是「核过」。
+    verified = bool(getattr(_books_payload, "_replay", False)) and not fast
+    try:
+        rows = _replay_rows(world, {"map", "ca"}) if verified else \
+            [_map_stored_row(world), _ca_stored_row(world)]
+        out["replay"] = {"rows": rows, "verified": verified,
+                         "ok": all(r["status"] != "fail" for r in rows)}
+    except Exception as e:  # noqa: BLE001
+        out["replay"] = {"rows": [], "ok": False, "verified": False,
+                         "error": f"{type(e).__name__}: {e}"}
+
+    # 定量体检：C01–C03 走 validate（便宜），D10/D11 复用 review 的判定函数
+    checks = []
+    try:
+        rep = ws.validate(world)
+        ct = out.get("certify") or {}
+        for c in rep.checks:
+            if c.id not in ("C01", "C02", "C03"):
+                continue
+            verdict, note = c.verdict, c.note
+            # C03 读的是 world.certification；本页刚现算过，就用现算的覆盖率，别显示 skip
+            if c.id == "C03" and ct.get("total"):
+                cov = ct.get("coverage") or 0
+                verdict = "pass" if cov >= 0.3 else "warn"
+                note = f"覆盖率 {cov:.0%}（本页现算：算出来 {len(ct['by_kind']['computed'])} 条 / 共 {ct['total']} 条）"
+            checks.append({"id": c.id, "question": c.question, "verdict": verdict,
+                           "note": note, "level": "hard" if verdict == "fatal" else "soft"})
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import review
+        # 这两项都很便宜，即使 --fast 也照算：账本与适用域本来就不是重活
+        for it in (review._ledger_item(world), review._certify_item(world, False)):
+            verdict = "skip" if it["ok"] is None else ("pass" if it["ok"] else "warn")
+            checks.append({"id": it["id"], "question": it["name"] + "：" + it["brief"],
+                           "verdict": verdict, "note": it["hint"], "level": it["level"]})
+    except Exception:  # noqa: BLE001
+        pass
+    out["checks"] = checks
+    return out
+
+
 def cmd_preview(args) -> int:
     path = args.world
     if not os.path.exists(path):
@@ -415,9 +535,18 @@ def cmd_preview(args) -> int:
     except Exception:  # noqa: BLE001 —— 算不出来就不显示卡片，不能拖垮 3D 页
         sky_payload = "{}"
 
+    # 1.1.5 · 定量账本：内核 / 守恒 / 误差 / 适用域 / 重放，一次算好交给页面画
+    fast = bool(getattr(args, "fast", False))
+    try:
+        books = _books_payload(world, fast=fast, replay=bool(getattr(args, "replay", False)))
+        books_payload = _escape_json_for_html(books)
+    except Exception:  # noqa: BLE001 —— 账算不出来就不显示「账本」页，不能拖垮预览
+        books, books_payload = {}, "{}"
+
     # 用 split/join 而非 str.replace，避免 payload 中出现占位符导致二次替换
     html = html.replace("__PANGU_TITLE__", str(title))
     html = html.replace("__PANGU_SKY_JSON__", sky_payload)
+    html = html.replace("__PANGU_BOOKS_JSON__", books_payload)
     html = html.replace("__PANGU_WORLD_JSON__", payload)
     html = html.replace("__PANGU_SCORE__", str(rep.score))
     html = html.replace("__PANGU_GRADE__", rep.grade)
@@ -432,6 +561,25 @@ def cmd_preview(args) -> int:
     if rep.fatal:
         warn(f"该世界有 {rep.fatal} 项 fatal，预览仅供观感参考")
     say(f"  双击打开即可。自洽评分 {rep.score}/100 [{rep.grade}]")
+
+    # 1.1.5 汇报：账本页里画了什么
+    if books:
+        bits = []
+        kn = books.get("kernel") or {}
+        if kn.get("total"):
+            bits.append(f"内核 {kn.get('passed')}/{kn.get('total')}")
+        led = books.get("ledger") or {}
+        if led.get("scored"):
+            bits.append(f"账本 {led['scored'] - len(led.get('bad') or [])}/{led['scored']} 平")
+        cd = books.get("certify") or {}
+        if cd.get("total"):
+            bits.append(f"适用域 {cd.get('coverage', 0):.0%}")
+        rp = books.get("replay") or {}
+        if rp.get("rows"):
+            bits.append(("可复算" if rp.get("ok") else "复算对不上")
+                        if rp.get("verified") else "hash 已记录（未重算）")
+        if bits:
+            say("  账本页：" + " ｜ ".join(bits) + ("  （--fast 已跳过内核与重放）" if fast else ""))
     return 0
 
 
@@ -989,10 +1137,62 @@ def cmd_export(args) -> int:
                   "（Kasting 保守区间：1.1–0.53 倍通量）")
             A("")
 
+    # 十一、误差表（1.1.5）
+    A(_h(2, "十一 · 误差表与适用域"))
+    A("每个派生量带 ±。输入区间是**假定**（反照率 ±0.05、光度 ±1%、半径 ±1%、"
+      "质量 ±1%、CO₂ ±20%），一阶线性、按独立处理——所以这是**敏感度**，不是置信区间。")
+    A("")
+    try:
+        import uq
+        ud = uq.propagate(world)
+        rows = [(r["name"], uq.format_value(r), f"{r['rel']:.1%}",
+                 "、".join(x["label"] for x in r["drivers"][:2]) or "—")
+                for r in ud["rows"]]
+        if rows:
+            A(_kv_table(rows, ("量", "值 ± 不确定度", "相对", "主要来源")))
+        A("")
+    except Exception as e:  # noqa: BLE001 —— 档案不能因为误差层挂了就写不出来
+        A(f"> 误差传播没跑起来：{type(e).__name__}")
+        A("")
+
+    try:
+        import conservation
+        led = conservation.ledger(world)
+        A(f"**守恒账本**：{led['scored']} 本可算、{led['info']} 本储库只报不算、"
+          f"{led['skipped']} 本缺数据 ｜ "
+          + ("全部配平。" if led["ok"] else
+             "不配平 " + "、".join(r["id"] for r in led["rows"]
+                                 if r["status"] == "warn") + "。"))
+        for r in led["rows"]:
+            if r["status"] == "warn":
+                A(f"> {r['name']}：{r['note']}")
+        A("")
+    except Exception as e:  # noqa: BLE001
+        A(f"> 守恒账本没跑起来：{type(e).__name__}")
+        A("")
+
+    try:
+        import certify
+        cd = certify.run(world, bench=False)
+        bk = cd["by_kind"]
+        A(f"**适用域**：{cd['total']} 条关键结论——算出来 {len(bk['computed'])}、"
+          f"半算半填 {len(bk['mixed'])}、经验式 {len(bk['empirical'])}、"
+          f"作者声明 {len(bk['declared'])} ｜ 覆盖率 **{cd['coverage']:.0%}**")
+        for r in cd["rows"]:
+            if r["kind"] in ("declared", "mixed"):
+                A(f"> `{r['path']}` 是{r['kind'] == 'declared' and '作者拍的' or '半算半填'}，"
+                  f"不是算出来的（{r['note'] or '—'}）。")
+        A("")
+        A("**没建模**：" + "；".join(cd["domains"]["not_modeled"]) + "。")
+        A("")
+    except Exception as e:  # noqa: BLE001
+        A(f"> 适用域没跑起来：{type(e).__name__}")
+        A("")
+
     # 十、参考
     refs = seed.get("references") or []
     if refs:
-        A(_h(2, "十一 · 灵感来源"))
+        A(_h(2, "十二 · 灵感来源"))
         for r in refs:
             if not isinstance(r, dict):
                 continue
@@ -1012,7 +1212,7 @@ def cmd_export(args) -> int:
     plates = [(fn, cap) for fn, cap in plates
               if os.path.exists(os.path.join(base_dir, fn))]
     if plates:
-        A(_h(2, "十二 · 图版"))
+        A(_h(2, "十三 · 图版"))
         for fn, cap in plates:
             img = os.path.join(base_dir, fn)
             try:
@@ -1234,6 +1434,37 @@ def cmd_patch(args) -> int:
     if not args.set:
         err("没有改动", '用 --set "physics.constants[0].world_value=4.0e-11"；查值用 --get')
         return 2
+
+    # ── 1.1.5 量纲硬域：把 10⁹ 写进温度字段，在写盘之前就拦住 ──────
+    if not getattr(args, "force_unit", False):
+        try:
+            import units as un
+        except Exception:  # noqa: BLE001
+            un = None
+        if un is not None:
+            hard, soft = [], []
+            for item in args.set:
+                text = str(item)
+                if "=" not in text:
+                    continue
+                p, _, raw = text.partition("=")
+                try:
+                    num = float(raw.strip())
+                except ValueError:
+                    continue
+                field = p.strip().split(".")[-1].split("[")[0]
+                status, msg = un.check(field, num)
+                if status == "hard":
+                    hard.append(msg)
+                elif status == "soft":
+                    soft.append(msg)
+            if hard:
+                err("量纲硬域检查没过，拒绝写入", "改成物理上可能的数；明知故犯加 --force-unit")
+                for m in hard:
+                    say(f"  × {m}")
+                return 2
+            for m in soft:
+                warn(m)
 
     before = ws.validate(copy.deepcopy(world))
     res = wt.apply_patches(world, args.set, create=args.create, note=args.note or "",
@@ -2544,6 +2775,233 @@ def cmd_capacity(args) -> int:
 
 
 # ════════════════════════════════════════════════════════════════════
+# kernel（1.1.5：1.2–1.8 的物理内核，一条命令全跑）
+# ════════════════════════════════════════════════════════════════════
+
+KERNELS = [
+    ("pde", "连续介质内核", "1.2"),
+    ("atmos", "能量平衡与冰-反照率", "1.3"),
+    ("radiation", "辐射与温室", "1.4"),
+    ("geo", "固体地球", "1.5"),
+    ("orbit", "轨道与潮汐", "1.6"),
+    ("chem", "碳-硅酸盐循环", "1.7"),
+    ("life", "生命的动力学", "1.8"),
+    ("units", "量纲与取值域", "1.1.5"),
+]
+
+
+def _kernel_rows(only=None) -> list:
+    """跑 1.2–1.8 的八个内核自检；返回 [{module,label,since,ok,report}]。"""
+    import importlib
+
+    rows = []
+    for name, label, since in KERNELS:
+        if only and name not in only:
+            continue
+        try:
+            m = importlib.import_module(name)
+            d = m.demo()
+            rows.append({"module": name, "label": label, "since": since,
+                         "ok": bool(d.get("ok")), "report": m.report(d)})
+        except Exception as e:  # noqa: BLE001 —— 一个内核挂了不该拖垮其余
+            rows.append({"module": name, "label": label, "since": since,
+                         "ok": False, "report": f"{type(e).__name__}: {e}"})
+    return rows
+
+
+def cmd_kernel(args) -> int:
+    """把散在 1.2–1.8 的内核收成一条命令：跑自检、给指标、判过没过。"""
+    only = None
+    if args.only:
+        only = {s.strip() for s in str(args.only).replace("，", ",").split(",") if s.strip()}
+    rows = _kernel_rows(only)
+    ok = bool(rows) and all(r["ok"] for r in rows)
+    if args.json:
+        say(json.dumps({"rows": rows, "ok": ok,
+                        "passed": sum(1 for r in rows if r["ok"]), "total": len(rows)},
+                       ensure_ascii=False, indent=2))
+        return 0 if ok else 1
+
+    say("盘古 · 物理内核自检（1.2–1.8）")
+    say("=" * 62)
+    for r in rows:
+        mark = "✓" if r["ok"] else "×"
+        say(f"\n[{mark}] {r['label']}（{r['module']}.py，自 {r['since']}）")
+        for line in r["report"].splitlines()[1:]:
+            say(line)
+    say("\n" + "=" * 62)
+    say(f"  通过 {sum(1 for r in rows if r['ok'])}/{len(rows)} ｜ "
+        f"结论：{'数值地基可用' if ok else '有内核没过——先修它，再谈上层'}")
+    return 0 if ok else 1
+
+
+# ════════════════════════════════════════════════════════════════════
+# ledger（1.1.5：守恒账本）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_ledger(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    try:
+        import conservation
+    except Exception as e:  # noqa: BLE001
+        err(f"守恒账本加载失败：{e}")
+        return 3
+    d = conservation.ledger(world)
+    if args.json:
+        say(json.dumps(d, ensure_ascii=False, indent=2))
+    else:
+        say(conservation.report(d))
+
+    if args.write:
+        if not args.yes:
+            err("回写账本需要显式确认", "加 --yes")
+            return 2
+        world["conservation"] = {
+            "ledger": d["rows"], "ok": d["ok"], "scored": d["scored"],
+            "skipped": d["skipped"], "generator": f"conservation/{ws.VERSION}",
+        }
+        _save_world(args.world, world)
+        say(f"\n✓ 已写入 conservation.ledger → {args.world}")
+    return (0 if d["ok"] else 1) if args.strict else 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# certify（1.1.5 / 2.0 收口：适用域声明）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_certify(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    try:
+        import certify
+    except Exception as e:  # noqa: BLE001
+        err(f"适用域模块加载失败：{e}")
+        return 3
+    d = certify.run(world, bench=not args.no_bench)
+    if args.json:
+        say(json.dumps(d, ensure_ascii=False, indent=2))
+    else:
+        say(certify.format_report(d))
+
+    if args.md:
+        with open(args.md, "w", encoding="utf-8") as f:
+            f.write(certify.to_markdown(d) + "\n")
+        say(f"\n✓ 已写出 {args.md}")
+
+    if args.write:
+        if not args.yes:
+            err("回写适用域需要显式确认", "加 --yes")
+            return 2
+        world["certification"] = {
+            "coverage": round(d["coverage"], 3),
+            "total": d["total"],
+            "computed": len(d["by_kind"]["computed"]),
+            "mixed": len(d["by_kind"]["mixed"]),
+            "empirical": len(d["by_kind"]["empirical"]),
+            "declared": len(d["by_kind"]["declared"]),
+            "claims": d["rows"],
+            "not_modeled": d["domains"]["not_modeled"],
+            "generator": f"certify/{ws.VERSION}",
+        }
+        _save_world(args.world, world)
+        say(f"\n✓ 已写入 certification → {args.world}")
+    return 0 if d["ok"] else 1
+
+
+# ════════════════════════════════════════════════════════════════════
+# replay（1.1.5：从 seed 重放）
+# ════════════════════════════════════════════════════════════════════
+
+def _replay_rows(world, layers, seed=None) -> list:
+    """同 seed 重放 map / ca，与存档 hash 对账。返回每层的判定行。"""
+    rows = []
+
+    if "map" in layers:
+        ok_pm, pm, _why = ws.resolve_path(world, "cosmology.bodies[0].planet_map")
+        pm = pm if ok_pm and isinstance(pm, dict) else {}
+        stored = pm.get("hash")
+        got_seed = pm.get("seed")
+        if seed is not None:
+            got_seed = seed
+        if not stored:
+            rows.append({"layer": "map", "status": "skip", "seed": got_seed,
+                         "stored": "—", "got": "—", "note": "还没跑过 map"})
+        else:
+            try:
+                import mapgen
+                got = mapgen.check(world, seed=seed)
+                h = got.get("hash_a")
+                match = bool(got.get("ok")) and not got.get("diffs")
+                if seed is not None and seed != pm.get("seed"):
+                    match = h != stored          # 换 seed 就该不同
+                    note = "换了 seed：hash 变了，这是预期"
+                else:
+                    note = "同 seed 逐位一致" if match else "同 seed 不一致——被手改过？"
+                rows.append({"layer": "map", "status": "ok" if match else "fail",
+                             "seed": got_seed, "stored": stored, "got": h, "note": note})
+            except Exception as e:  # noqa: BLE001
+                rows.append({"layer": "map", "status": "fail", "seed": got_seed,
+                             "stored": stored, "got": "—",
+                             "note": f"{type(e).__name__}: {e}"})
+
+    if "ca" in layers:
+        evo = ws._get(world, "biology", "evolution", default=None)
+        if not isinstance(evo, dict) or not isinstance(evo.get("summary"), dict):
+            rows.append({"layer": "ca", "status": "skip", "seed": "—",
+                         "stored": "—", "got": "—", "note": "没有跑过 CA"})
+        else:
+            try:
+                import ca_engine
+                res = ca_engine.check_evolution(evo, world, seed=seed)
+                diffs = res.get("diffs") or []
+                same_seed = seed is None or seed == evo.get("seed")
+                stored = (res.get("declared") or {}).get("final_hash") or "—"
+                got = (res.get("actual") or {}).get("final_hash") or "—"
+                if not same_seed:
+                    status, note = "ok", "换了 seed：与声明不同是预期"
+                else:
+                    status = "ok" if not diffs else "fail"
+                    note = "同 seed 逐格一致" if not diffs else f"{len(diffs)} 处不符"
+                rows.append({"layer": "ca", "status": status,
+                             "seed": seed if seed is not None else evo.get("seed"),
+                             "stored": str(stored)[:14], "got": str(got)[:14],
+                             "note": note})
+            except Exception as e:  # noqa: BLE001
+                rows.append({"layer": "ca", "status": "fail", "seed": "—",
+                             "stored": "—", "got": "—", "note": f"{type(e).__name__}: {e}"})
+    return rows
+
+
+def cmd_replay(args) -> int:
+    """同 seed 重放某一层，和存档里的 hash 对。可复算是「可证伪」的前提。"""
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+    layers = set(s.strip() for s in str(args.layer or "map,ca").replace("，", ",").split(",")
+                 if s.strip())
+    rows = _replay_rows(world, layers, args.seed)
+    ok = all(r["status"] != "fail" for r in rows)
+    if args.json:
+        say(json.dumps({"rows": rows, "ok": ok}, ensure_ascii=False, indent=2))
+        return 0 if ok else 1
+
+    say("盘古 · 从 seed 重放")
+    say("-" * 62)
+    say(f"  {'层':<6}{'seed':<10}{'存档 hash':<16}{'重放 hash':<16}判定")
+    for r in rows:
+        mark = {"ok": "✓", "fail": "×", "skip": "·"}[r["status"]]
+        say(f"  {mark} {r['layer']:<5}{str(r['seed']):<10}"
+            f"{str(r['stored'])[:14]:<16}{str(r['got'])[:14]:<16}{r['note']}")
+    say("-" * 62)
+    say(f"  结论：{'可复算' if ok else '复算对不上——先查是谁改了存档'}")
+    say("  口径：map / ca 各自持 seed；换 seed 就该不同，同 seed 必须逐位一致。")
+    return 0 if ok else 1
+
+
+# ════════════════════════════════════════════════════════════════════
 # ca
 # ════════════════════════════════════════════════════════════════════
 
@@ -2754,10 +3212,14 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--fix-hint", action="store_true", help="附修补建议")
     v.set_defaults(func=cmd_validate)
 
-    pr = sub.add_parser("preview", help="生成 3D 预览页")
+    pr = sub.add_parser("preview", help="生成 3D 预览页（1.1.5 起含账本页）")
     pr.add_argument("world")
     pr.add_argument("-o", "--out", help="输出 html 路径")
     pr.add_argument("--title", help="页面标题")
+    pr.add_argument("--fast", action="store_true",
+                    help="只算账本/误差/适用域，跳过内核自检与地球基准（约 0.3 秒）")
+    pr.add_argument("--replay", action="store_true",
+                    help="真的重放 map 与 ca 对 hash（两分钟左右，默认只读存档 hash）")
     pr.set_defaults(func=cmd_preview)
 
     e = sub.add_parser("export", help="生成世界档案 Markdown")
@@ -2793,6 +3255,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="改完质量/半径/G 后，给出密度与重力的自洽建议值（不写盘）")
     pt.add_argument("--json", action="store_true", help="机器可读输出")
     pt.add_argument("--strict", action="store_true", help="改完有 fatal 时退出码 1")
+    pt.add_argument("--force-unit", action="store_true",
+                    help="1.1.5：跳过量纲硬域检查（明知故犯时才用）")
     pt.set_defaults(func=cmd_patch)
 
     sw = sub.add_parser("sweep", help="参数敏感度扫描：沿一个数值找崩点")
@@ -2870,11 +3334,40 @@ def build_parser() -> argparse.ArgumentParser:
                     help="1.1.4：再跑冬至/夏至两套气候，出季节双图")
     mp.set_defaults(func=cmd_map)
 
-    bm_ = sub.add_parser("benchmark", help="1.1.4：地球基准——把引擎算的六条曲线对公开数据")
+    bm_ = sub.add_parser("benchmark", help="1.1.4/1.1.5：地球基准——25 条曲线对公开数据")
     bm_.add_argument("target", nargs="?", default="earth", choices=["earth"],
                      help="目前只有 earth")
     bm_.add_argument("--json", action="store_true")
     bm_.set_defaults(func=cmd_benchmark)
+
+    kn = sub.add_parser("kernel", help="1.1.5：1.2–1.8 的物理内核一轮自检")
+    kn.add_argument("--only", help="只跑这几项，逗号分隔：pde,atmos,radiation,geo,orbit,chem,life")
+    kn.add_argument("--json", action="store_true")
+    kn.set_defaults(func=cmd_kernel)
+
+    lg = sub.add_parser("ledger", help="1.1.5：守恒账本（能量/水/碳/元素）")
+    lg.add_argument("world")
+    lg.add_argument("--json", action="store_true")
+    lg.add_argument("--write", action="store_true", help="写回 conservation.ledger")
+    lg.add_argument("--yes", action="store_true", help="确认回写")
+    lg.add_argument("--strict", action="store_true", help="不配平时退出码 1")
+    lg.set_defaults(func=cmd_ledger)
+
+    ct = sub.add_parser("certify", help="1.1.5：适用域声明——哪些是算的、哪些是拍的")
+    ct.add_argument("world")
+    ct.add_argument("--json", action="store_true")
+    ct.add_argument("--md", help="另存一份 Markdown（可并进世界档案）")
+    ct.add_argument("--no-bench", action="store_true", help="跳过地球基准偏差表")
+    ct.add_argument("--write", action="store_true", help="写回 certification")
+    ct.add_argument("--yes", action="store_true", help="确认回写")
+    ct.set_defaults(func=cmd_certify)
+
+    rp = sub.add_parser("replay", help="1.1.5：从 seed 重放 map / ca，与存档 hash 对账")
+    rp.add_argument("world")
+    rp.add_argument("--layer", default="map,ca", help="要重放的层：map,ca（默认两层都跑）")
+    rp.add_argument("--seed", type=int, help="覆盖 seed（用来验证「换 seed 就该不同」）")
+    rp.add_argument("--json", action="store_true")
+    rp.set_defaults(func=cmd_replay)
 
     cp_ = sub.add_parser("capacity", help="1.1.4：NPP → 这颗星球养得活多少人")
     cp_.add_argument("world")

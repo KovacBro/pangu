@@ -1,16 +1,16 @@
 ---
 name: pangu
-description: 盘古 1.1.4 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。能从设定推演整颗行星的地图（板块→盆地→水量定海平面→年辐照定温度→风带与迎风坡定降水→洼地填充定河网→群系），再让元胞自动机按宜居度长生态；1.1.2 把"改设定"变成可验证的操作（patch 定点改/增/查并自动升版本记修订，sweep 沿单个参数扫出连续谱与崩点，diff 对比两版并列出必须重跑的下游产物，公理库按代价类型检索，反常识度指数给出"换皮还是过度"的量化参照），同时补上"人"：用第一人称寄宿行星上的某一物种、在低多边形地表行走（WASD/鼠标可操控），为行星与生物声明元素含量配比与生命基座（碳基/硅基/碳硅杂合/其他），并按「气」半包围 +「钅」+ 单字的造字法设计世界特有的新元素及其相态、丰度、生态作用与代价。1.1.3 把七斧流程做成了可执行的状态机：`plan` 读 world.json 判定当前在第几斧、还缺哪些字段、这一斧该问什么、下一步该跑哪条命令，并给出六项交付门槛；`options` 提供按斧分段的「命题 → 互斥选项 → 代价」菜单（31 个命题 / 132 个选项，含 5 个标签的互斥机制，采纳后写进 seed.brief 并自动升版本）；`entail` 从已立之律机械推出居民必然会看见的现象（30 条后果规则：双影、恒黑之天、固定的晨昏线、没有翅膀、不用闰的年……），并按编号幂等回写天象、检出被改设定弄失效的旧推论；`review` 把八项体检（自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致）汇成一条命令与一个「能不能交」的判断，`whatif` 在内存副本上改设定、推演「世界会变成什么样」（重力怎么动、哪条必然推论消失、先崩在哪一环）且永不写原世界；1.1.4 补上"抬头"这一层：`sky` 把 world.json 里已经写好的观测点、倾角、大气、恒星、卫星算成一张今夜星图（天光亮度、极限星等、地平线上可见星数、银河可见性、每颗恒星的 alt-az 与视星等）与一张一年昼长表，星表按 seed 确定性生成、不引真实星表；`whatif --sky` 让「改一个数，今夜星空会怎样」当场可见；世界档案的第一屏换成「第一眼·星图」。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案、行星地图与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览""推演一张星球地图""改一下这个世界的重力/参数看看会怎样""对比这两版设定""让我用这个星球上生物的视角走一走""这个世界的生物是碳基还是硅基""设计几种这个世界独有的元素""我现在造到第几步了""下一步该干什么""给我一些设定选项""这个设定必然导致什么现象""这个世界能交付了吗""全部体检一遍""如果当初选另一条会怎样""把重力再调低 30% 会崩吗""这个世界的夜空有多亮""抬头能看见什么星""画一张星图""这个星球养得活多少人""这东西离地球有多远"等需求时使用。
+description: 盘古 1.1.5 · 开天辟地式造世引擎。以"律先于物"为原则，先设定世界底层的数学/物理/化学/生物法则，再推导其宏观与中观形态，突破"行星绕恒星、碳基需氧"的地球桎梏，造出三倍地球大的双日照地、无恒星的能量世界、非欧几何宇宙等"理论上不该存在却完全自洽"的虚拟世界。能从设定推演整颗行星的地图（板块→盆地→水量定海平面→年辐照定温度→风带与迎风坡定降水→洼地填充定河网→群系），再让元胞自动机按宜居度长生态；1.1.2 把"改设定"变成可验证的操作（patch 定点改/增/查并自动升版本记修订，sweep 沿单个参数扫出连续谱与崩点，diff 对比两版并列出必须重跑的下游产物，公理库按代价类型检索，反常识度指数给出"换皮还是过度"的量化参照），同时补上"人"：用第一人称寄宿行星上的某一物种、在低多边形地表行走（WASD/鼠标可操控），为行星与生物声明元素含量配比与生命基座（碳基/硅基/碳硅杂合/其他），并按「气」半包围 +「钅」+ 单字的造字法设计世界特有的新元素及其相态、丰度、生态作用与代价。1.1.3 把七斧流程做成了可执行的状态机：`plan` 读 world.json 判定当前在第几斧、还缺哪些字段、这一斧该问什么、下一步该跑哪条命令，并给出六项交付门槛；`options` 提供按斧分段的「命题 → 互斥选项 → 代价」菜单（31 个命题 / 132 个选项，含 5 个标签的互斥机制，采纳后写进 seed.brief 并自动升版本）；`entail` 从已立之律机械推出居民必然会看见的现象（30 条后果规则：双影、恒黑之天、固定的晨昏线、没有翅膀、不用闰的年……），并按编号幂等回写天象、检出被改设定弄失效的旧推论；`review` 把八项体检（自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致）汇成一条命令与一个「能不能交」的判断，`whatif` 在内存副本上改设定、推演「世界会变成什么样」（重力怎么动、哪条必然推论消失、先崩在哪一环）且永不写原世界；1.1.4 补上"抬头"这一层：`sky` 把 world.json 里已经写好的观测点、倾角、大气、恒星、卫星算成一张今夜星图（天光亮度、极限星等、地平线上可见星数、银河可见性、每颗恒星的 alt-az 与视星等）与一张一年昼长表，星表按 seed 确定性生成、不引真实星表；`whatif --sky` 让「改一个数，今夜星空会怎样」当场可见；世界档案的第一屏换成「第一眼·星图」。1.1.5 把「离地球差多少」变成可执行的账：`kernel` 一条命令跑完八个物理内核（PDE 热传导/平流/浅水、Budyko–Sellers 能量平衡、灰体辐射与水汽反馈、固体地球边界层标度、辛积分轨道与潮汐、碳-硅酸盐恒温器、Hubbell 中性群落的物种-面积指数、量纲硬域）并对解析解与公开数；`ledger` 出四本守恒账（能量/水/碳/元素，残差带容差），不平就点名——它建账第一天就抓到「声明温室 33 K 与 10% CO₂ 该有的 51.5 K 差 18.6 K」；`uq` 给每个派生量配 ±（地球平衡温度 254.3 ± 4.6 K），`certify` 把关键结论分成算出来的 / 半算半填 / 经验式 / 作者拍的并给覆盖率，`replay` 从 seed 重放 map 与 ca 对账 hash；`patch` 接入量纲硬域（把 1e9 写进温度字段直接拒绝），`benchmark` 从 6 条扩到 25 条，`review` 九项扩到十一项；生成的预览页多一个「账本」页签，把覆盖率环形图、误差条、四本守恒账、八个内核格子、可复算 hash 与基准偏差表全部画出来。全程以多轮对话与用户共创、以网页检索抓取前沿科学与奇想作为灵感对照，产出自洽性审查报告、结构化 world.json、通俗世界档案、行星地图与可交互 3D 预览页。当用户提出"造一个世界/宇宙""设计一个星球的物理法则""如果重力反过来会怎样""做一个不靠太阳的生物圈""写一个双恒星世界的设定""给小说/游戏做底层宇宙规则""做个能转的 3D 星球预览""推演一张星球地图""改一下这个世界的重力/参数看看会怎样""对比这两版设定""让我用这个星球上生物的视角走一走""这个世界的生物是碳基还是硅基""设计几种这个世界独有的元素""我现在造到第几步了""下一步该干什么""给我一些设定选项""这个设定必然导致什么现象""这个世界能交付了吗""全部体检一遍""如果当初选另一条会怎样""把重力再调低 30% 会崩吗""这个世界的夜空有多亮""抬头能看见什么星""画一张星图""这个星球养得活多少人""这东西离地球有多远"等需求时使用。
 license: MIT
 metadata:
-  title: 盘古 1.1.4 · 开天辟地造世引擎
-  version: 1.1.4
+  title: 盘古 1.1.5 · 开天辟地造世引擎
+  version: 1.1.5
   entrypoint: scripts/pangu.py
   runtime: python>=3.9 (仅标准库)
   install: python install.py --target all
 ---
 
-# 盘古 1.1.4 · 开天辟地造世引擎
+# 盘古 1.1.5 · 开天辟地造世引擎
 
 盘古不是"写设定"，是**立律**。区别在于：设定回答"这个世界有什么"，律回答"这个世界为什么只能长成这样"。
 
@@ -104,7 +104,7 @@ plan ──▶ options（选或自创）──▶ patch（落地）──▶ val
 三条铁律：
 
 1. **斧位由字段决定，不由自述决定**。你说「我写到第 5 斧了」不算，`plan` 说算才算。
-2. **`plan` 报告 ≠ 审查通过**。它只回答「能不能往下走」，能不能交付看 `review`（八项体检，一个判断）。
+2. **`plan` 报告 ≠ 审查通过**。它只回答「能不能往下走」，能不能交付看 `review`（九项体检，一个判断）。
 3. **每斧都要能答出「代价」**。答不出的选项，用 `options` 换一张，别硬写。
 
 ## 第一步永远是确认"自主度"
@@ -185,10 +185,10 @@ entail world.json --check         # 改了设定后，哪些旧推论已经失�
 
 ### 收尾与试错：`review` 与 `whatif`
 
-**`review` — 交付体检。** 交付前跑过六条命令的人都知道漏一条有多容易。`review` 把它们汇成一条：八项（自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致）+ 一个判断 + 按修复顺序排好的清单。**只读**，可以反复跑。
+**`review` — 交付体检。** 交付前跑过六条命令的人都知道漏一条有多容易。`review` 把它们汇成一条：九项（自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致）+ 一个判断 + 按修复顺序排好的清单。**只读**，可以反复跑。
 
 ```bash
-review world.json            # 八项体检，给「能不能交」
+review world.json            # 九项体检，给「能不能交」
 review world.json --fast     # 跳过地图/演化复算，秒级（循环末尾用）
 review world.json --strict   # 硬门槛未过即退出码 1（CI 用）
 ```
@@ -248,7 +248,7 @@ python scripts/pangu.py entail --list                        # 36 条规则：�
 python scripts/pangu.py entail out/world.json --exclude E02  # 反向点名（与 --only 互补）
 
 # 0.6 收尾与试错
-python scripts/pangu.py review out/world.json                # 九项体检，一个「能不能交」的结论
+python scripts/pangu.py review out/world.json                # 十一项体检，一个「能不能交」的结论
 python scripts/pangu.py review out/world.json --fast         # 跳过地图/演化复算（秒级）
 python scripts/pangu.py review out/world.json --strict       # 硬门槛未过即退出码 1
 python scripts/pangu.py whatif out/world.json --scale "physics.constants[0].world_value=0.7" --recalc
@@ -265,11 +265,24 @@ python scripts/pangu.py sky out/world.json --md out/今夜.md   # 星图 PNG + �
 python scripts/pangu.py sky out/world.json --write --yes     # 回写 cosmology.sky 与 starfield.hash
 
 # 0.8 对表与承载（1.1.4 增补）：引擎离地球多远 / 这颗星球养得活多少人
-python scripts/pangu.py benchmark earth                      # 六条曲线对公开数据，出偏差表
+python scripts/pangu.py benchmark earth                      # 25 条曲线对公开数据，出偏差表
 python scripts/pangu.py benchmark earth --json               # 给 agent
 python scripts/pangu.py capacity out/world.json              # NPP → 人口上限
 python scripts/pangu.py capacity out/world.json --write --yes  # 回写 biology.carrying_capacity
 python scripts/pangu.py map out/world.json --season --run    # 冬至 / 夏至双图
+
+# 0.9 守恒与误差（1.1.5）：把「我错多少」变成可读的表
+python scripts/pangu.py kernel                               # 八个物理内核一轮自检（1.2–1.8）
+python scripts/pangu.py kernel --only pde,radiation --json    # 只跑这两项
+python scripts/pangu.py ledger out/world.json                 # 四本账：能量/水/碳/元素，带容差
+python scripts/pangu.py ledger out/world.json --write --yes   # 回写 conservation.ledger
+python scripts/pangu.py certify out/world.json                # 哪些是算的、哪些是拍的（含覆盖率）
+python scripts/pangu.py certify out/world.json --md out/误差表.md  # 出表，可直接并进档案
+python scripts/pangu.py certify out/world.json --write --yes  # 回写 certification
+python scripts/pangu.py replay out/world.json                 # 从 seed 重放 map / ca，对 hash
+python scripts/pangu.py replay out/world.json --seed 12345    # 换 seed 就该不同（预期）
+python scripts/pangu.py preview out/world.json --fast          # 预览页的「账本」页签（0.3 秒）
+python scripts/pangu.py preview out/world.json --replay        # 同上，但真重放对 hash（两分钟）
 
 # 1. 从种子生成骨架 world.json（先填 meta/cosmology 占位，后续斧头逐段补写）
 python scripts/pangu.py init --name "赫利孔" --seed "三倍地球大，天上有两个太阳" --out out/world.json
@@ -390,7 +403,7 @@ $env:PANGU_ASCII=1   # 或 export PANGU_ASCII=1：符号换 ASCII，给 GBK 控�
 | `scripts/entailment.py` | 必然推论：36 条后果规则、幂等回写、失效检测 | `entail` 调用 |
 | `scripts/sky.py` | 观测层：星表生成、天球坐标、天光与极限星等、昼长、星图（ASCII/PNG）、星空体检 | `sky` / `whatif --sky` / `export` 调用 |
 | `scripts/benchmark.py` | 地球基准：六条曲线对公开数据，出偏差表 | `benchmark` / `review` D9 调用 |
-| `scripts/review.py` | 交付体检：八项编排与判定（只读） | `review` 调用 |
+| `scripts/review.py` | 交付体检：九项编排与判定（只读） | `review` 调用 |
 | `scripts/whatif.py` | 反事实推演：副本改动、现象增减、分级与下游 | `whatif` 调用 |
 | `scripts/world_tuning.py` | 调参层：点路径读写、参数扫描（含等比）、版本对比、斧位差、下游重跑推断 | `patch` / `sweep` / `diff` 调用 |
 | `scripts/ca_engine.py` | 生态演化引擎：编译、跑、复算比对、快照出图、地图耦合 | `ca` 子命令调用 |
@@ -401,7 +414,7 @@ $env:PANGU_ASCII=1   # 或 export PANGU_ASCII=1：符号换 ASCII，给 GBK 控�
 | `examples/aster/` | 对照示例：「星夜」单星世界（满天星、银河可见） | 星图该长什么样时对照 |
 | `AGENTS.md` | 通用 agent 指令文件（Codex/Amp/Jules 等直接读） | 宿主只认 `AGENTS.md` 时 |
 | `install.py` | 一键把入口铺到各 harness | 首次安装 / 换宿主 |
-| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 17 个 tool | 客户端只支持 MCP |
+| `adapters/mcp/pangu_mcp.py` | MCP stdio 服务器，把引擎暴露为 20 个 tool | 客户端只支持 MCP |
 | `docs/开发文档-v1.1.3.md` | 本版的范围、数据契约、算法、验收与已知限制 | 维护引擎时 |
 | `adapters/generic/BOOTSTRAP.md` | 纯对话版启动提示词（无文件系统也能用） | 宿主不能读文件 |
 | `docs/跨harness移植说明.md` | 兼容矩阵、各宿主配置样例、排错 | 装载失败时 |

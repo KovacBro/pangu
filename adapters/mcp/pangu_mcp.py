@@ -46,7 +46,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 CLI = os.path.join(ROOT, "scripts", "pangu.py")
 
 SERVER_NAME = "pangu"
-SERVER_VERSION = "1.1.4"
+SERVER_VERSION = "1.1.5"
 DEFAULT_PROTOCOL = "2024-11-05"
 SUPPORTED_PROTOCOLS = ("2024-11-05", "2024-10-07", "2025-03-26", "2025-06-18")
 

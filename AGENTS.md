@@ -9,7 +9,9 @@
 
 1.1.3 起多了三件东西：**路标**（`plan`：现在第几斧、缺什么、下一步跑什么）、**菜单**（`options`：31 个命题 / 132 个选项，每项带代价与痕迹）、**推导**（`entail`：从已立之律推出居民必然看见的现象）。
 
-1.1.4 起多了第四件：**抬头**（`sky`：把 world.json 里已写好的观测点、倾角、大气、恒星、卫星算成一张今夜星图、一张一年昼长表）。星表按 seed 确定性生成、可复算，**不是真实星表**；天光是经验模型（±0.5 等）；天球位置是圆轨道近似。`whatif --sky` 让「改一个数，今夜星空会怎样」当场可见；世界档案与预览页的第一屏是星图。
+1.1.4 起多了第四件：**抬头**（`sky`：把 world.json 里已写好的观测点、倾角、大气、恒星、卫星算成一张今夜星图、一张一年昼长表）。
+
+1.1.5 起多了第五件：**账本**（`kernel` / `ledger` / `certify` / `replay`）。前四件解决「像不像、自不自洽」，这一件解决「错多少、哪些数根本不是算的」：八个物理内核各自对解析解或公开数，四本守恒账带容差，每个派生量带 ±，每条关键结论标明是算出来的、半算半填、经验式还是作者拍的。星表按 seed 确定性生成、可复算，**不是真实星表**；天光是经验模型（±0.5 等）；天球位置是圆轨道近似。`whatif --sky` 让「改一个数，今夜星空会怎样」当场可见；世界档案与预览页的第一屏是星图。
 
 ## 何时触发
 
@@ -48,13 +50,24 @@ python scripts/pangu.py sky out/world.json --md out/今夜.md   # 星图 PNG + �
 python scripts/pangu.py whatif out/world.json --set "cosmology.bodies[0].axial_tilt_deg=80" --sky
 
 # —— 对表与承载（1.1.4 增补）——
-python scripts/pangu.py benchmark earth                # 六条曲线对地球，出偏差表（review D9 同源）
+python scripts/pangu.py benchmark earth                # 25 条曲线对地球，出偏差表（review D9 同源）
 python scripts/pangu.py capacity out/world.json        # NPP → 人口上限
 python scripts/pangu.py capacity out/world.json --write --yes   # 回写 biology.carrying_capacity
 python scripts/pangu.py map out/world.json --season --run       # 冬至/夏至双图
 
+# —— 守恒与误差（1.1.5）——
+python scripts/pangu.py kernel                         # 八个物理内核一轮自检（1.2–1.8）
+python scripts/pangu.py kernel --only pde,geo --json    # 只跑指定内核
+python scripts/pangu.py ledger out/world.json          # 四本账：能量/水/碳/元素 + 残差与容差
+python scripts/pangu.py ledger out/world.json --write --yes   # 回写 conservation.ledger
+python scripts/pangu.py certify out/world.json         # 算的 / 半算半填 / 经验式 / 拍的 + 覆盖率
+python scripts/pangu.py certify out/world.json --md out/误差表.md
+python scripts/pangu.py replay out/world.json          # 从 seed 重放 map 与 ca，对存档 hash
+python scripts/pangu.py patch out/world.json --set "cosmology.bodies[0].radius_km=1e9"
+                                                       # ↑ 1.1.5 起会被量纲硬域直接拒绝（--force-unit 放行）
+
 # —— 收尾与试错 ——
-python scripts/pangu.py review out/world.json          # 八项体检：能不能交（只读）
+python scripts/pangu.py review out/world.json          # 九项体检：能不能交（只读）
 python scripts/pangu.py review out/world.json --fast   # 跳过地图/演化复算，秒级
 python scripts/pangu.py review out/world.json --strict # 硬门槛未过即退出码 1
 python scripts/pangu.py whatif out/world.json --scale "physics.constants[0].world_value=0.7" --recalc
@@ -124,7 +137,7 @@ python scripts/pangu.py ca out/world.json --check                 # 生态演化
 
 ## 交付体检与反事实推演（1.1.3 第二批）
 
-- **`review`** 一条命令跑八项：D1 自洽 / D2 反常识度 / D3 切片 / D4 红队 / D5 地图复算 / D6 演化复算 / D7 推论失效 / D8 选项卡一致，最后给一个「能不能交」。**只读**，可反复跑。硬失败即不可交付，`--strict` 退出码 1。
+- **`review`** 一条命令跑九项：D1 自洽 / D2 反常识度 / D3 切片 / D4 红队 / D5 地图复算 / D6 演化复算 / D7 推论失效 / D8 选项卡一致 / D9 地球基准，最后给一个「能不能交」。**只读**，可反复跑。硬失败即不可交付，`--strict` 退出码 1。
 - **`whatif`** 在内存副本上改设定（`--set` 定点改、`--scale` 倍率缩放且保留单位后缀），输出四层：代价（重力/温度/反常识度）、审查（评分 + 先崩的那一条）、现象（少了/多了/仍成立）、下游（若采纳要重跑什么）。`--recalc` 先抹平 P01 这类算术冲突。**永不写原世界**，`--write` 才另存一份假设世界。
 - 与 `sweep` 的分工：`sweep` 扫一个数、只答「哪一步崩了」；`whatif` 任意多字段、答「世界变成什么样」。
 - 一批小开关：`plan --axe N`、`options --unanswered` / `--md`、`validate --only`、`patch --history`、`entail --list` / `--exclude`、`slice --cites`、`axioms --id`、`PANGU_ASCII=1`（符号换 ASCII，GBK 控制台用）。
@@ -145,6 +158,17 @@ python scripts/pangu.py ca out/world.json --check                 # 生态演化
 - **温室**：`atmosphere.greenhouse_delta_k` 是**声明值，优先**；没写才由成分估（`33 + 4.28·ln(CO₂e/560)`）。声明与估算差 >15 K 时档案里会点名，这是提示不是错误。
 - **洋流**：`planet_map.climate.ocean_heat_transport` 0–1，默认 0；开了就把纬向梯度压平最多 35%。
 - 已建模 / 未建模要分清楚：温度、降水、昼长、NPP、温室、恒星寿命**有模型**；板块速度、洋流环流、季节海温、文明层**没有**。对外不许说「精确模拟行星」。
+
+## 守恒与误差（1.1.5）
+
+- **`kernel`**：一条命令跑完八个物理内核（PDE 热传导/平流/浅水、Budyko–Sellers、灰体辐射、固体地球标度律、辛积分轨道、碳-硅酸盐、中性群落、量纲）。每项都有解析解或公开数对表，不过就是退出码 1。**改任何内核之后先跑它。**
+- **`ledger`**：四本账，残差按相对值判（能量 ±1%、水 ±5%、碳 ±10%、元素 1e-6）。`skip` 表示缺字段，不算分也不假装；`info` 是储库（只报不判）。账不平最常见的原因是「声明温室与大气成分打架」——那是作者的设定决策，账本只负责摆出来。
+- **`certify`**：把关键结论分四类——**算出来的 / 半算半填 / 经验式 / 作者拍的**，给覆盖率。半算半填专指「算一半、填一半」（如 地表温度 = 平衡温度 + 声明温室）。覆盖率 < 30% 的世界，别拿它的数字当模型结论。
+- **`uq`**：派生量带 ±，来自假定输入区间（反照率 ±0.05、光度 ±1%、半径/质量 ±1%、CO₂ ±20%）。这是**敏感度**不是置信区间，一阶线性、按独立处理。
+- **`replay`**：同 seed 逐位一致才算可复算；`--seed` 覆盖后按「应该不同」判定。可复算是「可证伪」的前提。
+- **`patch` 量纲硬域**：`1e9` 写进温度字段会被拒（退出码 2）。`--force-unit` 是明知故犯的出口，不是常规操作。
+- **两个新维度**：`validate` 的 C01–C03（守恒/量纲/适用域），`review` 的 D10/D11。都是软门槛——账不平会红，但不拦交付。
+- **预览页的「账本」页签**：`preview` 生成的 HTML 里，1.1.5 的每一样都有画面（覆盖率环、误差条、守恒残差条、内核格子、hash 三列、基准偏差）。默认 6 秒；`--fast` 只算账本与适用域（0.3 秒），`--replay` 才真重放（约两分钟）。给用户看「错多少」时用它，不要只贴命令行输出。
 
 ## 更多
 

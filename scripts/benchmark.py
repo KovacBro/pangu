@@ -1,7 +1,7 @@
 """
-盘古 · 地球基准（1.1.4 增补）
+盘古 · 地球基准（1.1.4 起步 / 1.1.5 扩到 25 条）
 
-把地球参数喂进引擎，拿引擎算出来的六条曲线去对公开数据。
+把地球参数喂进引擎，拿引擎算出来的曲线去对公开数据。
 这张表是「模型」与「美术」的分界线：能对表，才谈得上误差；对不上，就老实写偏差。
 
 口径（全部写死在输出里）：
@@ -11,7 +11,11 @@
   · 逃逸速度   —— 引擎派生值 vs 11.186 km/s
   · 平衡温度   —— 引擎派生值 vs 255 K（(1−α)S/4σ 标准解）
   · 陆地 NPP   —— 引擎 Miami 模型积分 vs 56 Gt C/yr（IPCC 量级）
-  · 板块速度   —— 未建模（声明式字段），只报不算分
+  · B08–B22    —— 1.2–1.8 六个内核各自的对表指标（辐射、PDE、固体地球、能量平衡、
+                  轨道、碳循环、生态），见 `_engine_rows`
+  · B23–B25    —— 守恒账本给出的储库量（大气柱、CO₂、海水）
+
+规矩：**曲线只增不减**。删一条 = 承认退步，必须写进 CHANGELOG 的「已知退步」。
 
 用法：
     python scripts/pangu.py benchmark earth
@@ -53,6 +57,25 @@ TARGET_DAY_RMSE = 0.10    # h
 TARGET_ANALYTIC_REL = 0.02
 TARGET_NPP_REL = 0.35
 
+# 1.1.5 新增曲线的靶（每条都对着公开数或解析解）
+TARGET_GH = 33.0          # K，地球温室
+TARGET_2XCO2 = 3.0        # K，AR6 2.5–4.0
+TARGET_MARS_T = 210.0     # K，火星年均地表
+TARGET_HEAT_FLUX = (60.0, 90.0)     # mW/m²
+TARGET_PLATE_SPEED = (1.0, 10.0)    # cm/yr
+TARGET_T_GLOBAL = (12.0, 17.0)      # ℃
+TARGET_AMP = (2.0, 3.0)             # 极地放大比
+TARGET_LEAPFROG = 1e-6
+TARGET_PRECESS = 43.0     # ″/世纪
+TARGET_TIDE_MS = 1.8      # ms/世纪
+TARGET_RELAX = (1e5, 5e6)  # yr
+TARGET_SPECIES_AREA = (0.15, 0.40)
+EARTH_ATM_MASS = 5.148e18  # kg
+EARTH_CO2_MASS = 3.2e15    # kg
+EARTH_OCEAN_MASS = 1.4e21  # kg
+
+PLATE_SPEED_DECLARED = 5.0  # 仅作旧字段的兜底
+
 
 def earth_world() -> dict:
     """构造一个只有必要字段的地球，用引擎自己的路径算。"""
@@ -79,7 +102,8 @@ def earth_world() -> dict:
                 },
                 "planet_map": {
                     "tectonics": {"plates": 12, "hotspots": 4, "sea_level": 0.46},
-                    "hydrosphere": {"mean_depth_km": 3.7},
+                    "hydrosphere": {"mean_depth_km": 3.7, "ocean_fraction": 0.708,
+                                    "inventory_km3": 1.338e9},
                     "climate": {"mean_precip_mm": 900},
                 },
             }],
@@ -136,6 +160,121 @@ def _daylight_numeric(lat_deg, dec_deg, day_hours, steps=720):
         if sin_alt > 0:
             up += 1
     return day_hours * up / steps
+
+
+# ── 1.1.5：六个内核的对表指标 ─────────────────────────────────────
+def _row(iid, name, target, got, unit, ok, note=""):
+    return {"id": iid, "name": name, "target": target, "got": got,
+            "unit": unit, "ok": bool(ok), "note": note}
+
+
+def _between(x, lo_hi):
+    return lo_hi[0] <= x <= lo_hi[1]
+
+
+def _engine_rows(earth: dict) -> list:
+    """把 1.2–1.8 的内核并进同一张表。每个模块只跑一次。"""
+    import atmos
+    import chem
+    import conservation
+    import geo
+    import life
+    import orbit
+    import pde
+    import radiation
+
+    rows = []
+
+    # 辐射（1.4）
+    e = radiation.solve()
+    gh = e["greenhouse_k"]
+    rows.append(_row("B08", "温室强度", TARGET_GH, gh, "K",
+                     abs(gh - TARGET_GH) <= 3.0,
+                     f"T_e {e['t_effective_k']} K，τ={e['tau']}"))
+    dbl = radiation.sensitivity()["dt"]
+    rows.append(_row("B09", "CO₂ 翻倍", TARGET_2XCO2, dbl, "K",
+                     2.0 <= dbl <= 4.0, "AR6 2.5–4.0，含水汽反馈"))
+    mars = radiation.solve(co2_ppm=950000.0, s0=586.0, albedo=0.25)["t_surface_k"]
+    rows.append(_row("B10", "火星地表温度", TARGET_MARS_T, mars, "K",
+                     abs(mars - TARGET_MARS_T) <= 40.0,
+                     "95% CO₂、586 W/m²、α=0.25；没有沙尘与云"))
+
+    # PDE（1.2）
+    p = pde.demo()
+    linf = p["heat"][-1]["l_inf"]
+    rows.append(_row("B11", "一维热传导", 1e-2, linf, "L∞",
+                     linf < 1e-2, "sin(πx) 初始场 vs 解析解，nx=96"))
+    order = p["advect"]["order"]
+    rows.append(_row("B12", "平流收敛阶", 1.0, order, "阶",
+                     0.8 <= order <= 1.2, "一阶迎风，60→120 格"))
+    drift = p["shallow"]["drift"]
+    rows.append(_row("B13", "浅水能量漂移", 0.02, drift, "rel",
+                     drift < 0.02, f"{p['shallow']['steps']} 步交错网格"))
+
+    # 固体地球（1.5）
+    g = geo.demo()
+    v = g["velocity"]["speed_cm_yr"]
+    rows.append(_row("B07", "板块速度", PLATE_SPEED_DECLARED, v, "cm/yr",
+                     _between(v, TARGET_PLATE_SPEED),
+                     f"Ra={g['velocity']['ra']:.2e}（{g['velocity']['ra_over_rc']:.0f}×Ra_c），"
+                     "边界层标度而非对流求解"))
+    q = g["flux_mw_m2"]
+    rows.append(_row("B14", "地幔热流", 75.0, q, "mW/m²",
+                     _between(q, TARGET_HEAT_FLUX), "q = kΔT/δ，δ = d/Nu"))
+
+    # 能量平衡与冰-反照率（1.3）
+    a = atmos.demo()
+    tg = a["base"]["t_global_c"]
+    rows.append(_row("B15", "全球均温", 14.0, tg, "℃",
+                     _between(tg, TARGET_T_GLOBAL),
+                     f"冰线 {a['base']['ice_line_deg']:.0f}°（实测 ~72°）"))
+    amp = a["amp"]["ratio"]
+    rows.append(_row("B16", "极地放大", 2.5, amp, "×",
+                     _between(amp, TARGET_AMP), "S+2% 时 极地ΔT/全球ΔT"))
+    th = a["snow"]["threshold"]
+    rows.append(_row("B17", "雪球阈值", 0.98, th or 0.0, "S/S₀",
+                     th is not None and th >= 0.93,
+                     "Budyko 给 ~2%（即 0.98）；阈值过低 = 反馈太弱"))
+
+    # 轨道（1.6）
+    o = orbit.demo()
+    le = o["leapfrog"]["drift"]
+    rows.append(_row("B18", "辛积分能量漂移", TARGET_LEAPFROG, le, "rel",
+                     le < TARGET_LEAPFROG, "KDK leapfrog，2 万步应有界"))
+    pre = o["mercury"]["per_century_arcsec"]
+    rows.append(_row("B19", "水星近日点进动", TARGET_PRECESS, pre, "″/cy",
+                     abs(pre - TARGET_PRECESS) <= 1.0, "6πGM/(c²a(1−e²))"))
+    tide = o["tide"]["day_gain_ms_per_century"]
+    rows.append(_row("B20", "潮汐去旋", TARGET_TIDE_MS, tide, "ms/cy",
+                     abs(tide - TARGET_TIDE_MS) <= 0.6, "地球-月球，k₂=0.3、Q=12"))
+
+    # 碳-硅酸盐（1.7）
+    ry = chem.relax()["relax_yr"] or 0.0
+    rows.append(_row("B21", "恒温器回落时标", 2e5, round(ry), "yr",
+                     _between(ry, TARGET_RELAX), "4×CO₂ 扰动回落到 63%"))
+
+    # 生命（1.8）
+    z = life.demo()["species_area"]["z"]
+    rows.append(_row("B22", "物种-面积指数", 0.25, z, "z",
+                     _between(z, TARGET_SPECIES_AREA), "Ewens 抽样，窗口 32–8192 个体"))
+
+    # 守恒（1.1.5）
+    led = conservation.ledger(earth)
+    by = {r["id"]: r for r in led["rows"]}
+    atm = (by.get("C05") or {}).get("inflow") or 0.0
+    rows.append(_row("B23", "大气柱质量", EARTH_ATM_MASS, atm, "kg",
+                     abs(atm - EARTH_ATM_MASS) / EARTH_ATM_MASS <= 0.03,
+                     "4πR²P/g"))
+    co2 = (by.get("C06") or {}).get("inflow") or 0.0
+    rows.append(_row("B24", "CO₂ 储库", EARTH_CO2_MASS, co2, "kg",
+                     abs(co2 - EARTH_CO2_MASS) / EARTH_CO2_MASS <= 0.15,
+                     "总质量 × 摩尔分数 × 44/28.97"))
+    vol = (by.get("C03") or {}).get("inflow") or 0.0
+    ocean = vol * 1e9 * 1024.0
+    rows.append(_row("B25", "海水质量", EARTH_OCEAN_MASS, round(ocean), "kg",
+                     abs(ocean - EARTH_OCEAN_MASS) / EARTH_OCEAN_MASS <= 0.10,
+                     "库存 km³ × 1024 kg/m³"))
+    return rows
 
 
 # ── 主流程 ────────────────────────────────────────────────────────
@@ -202,13 +341,15 @@ def run(earth: dict = None, res=(144, 72)) -> dict:
          "ok": npp_rel <= TARGET_NPP_REL,
          "note": f"相对误差 {npp_rel:.1%}"},
     ]
+    rows += _engine_rows(earth)
+    rows.sort(key=lambda r: r["id"])
     passed = sum(1 for r in rows if r["ok"])
     return {
         "rows": rows, "pairs": {"t": t_pairs, "p": p_pairs},
         "passed": passed, "total": len(rows),
         "ok": passed >= len(rows) - 1,
-        "plate_speed": {"modeled": False, "reference": EARTH_PLATE_SPEED,
-                        "note": "板块速度尚未建模（声明式字段，默认 3 cm/yr）"},
+        "plate_speed": {"modeled": True, "reference": EARTH_PLATE_SPEED,
+                        "note": "1.1.5 起由 geo 的边界层标度算出（B07）"},
         "map_stats": {"t_mean_k": res_map.stats.get("mean_temperature_k"),
                       "precip_mm": res_map.stats.get("mean_precip_mm"),
                       "land_fraction": res_map.stats.get("land_fraction")},
@@ -217,23 +358,24 @@ def run(earth: dict = None, res=(144, 72)) -> dict:
 
 def format_report(b: dict) -> str:
     L = ["盘古 · 地球基准（benchmark earth）",
-         "-" * 58,
-         "  把地球参数喂进引擎，拿六条曲线去对公开数据。",
+         "-" * 62,
+         f"  把地球参数喂进引擎，拿 {b['total']} 条曲线去对公开数据。",
          ""]
     for r in b["rows"]:
         mark = "✓" if r["ok"] else "×"
-        L.append(f"  {mark} {r['id']} {r['name']:<8} 目标 {r['target']:<8g} "
-                 f"实测 {r['got']:<8g} {r['unit']}")
+        tgt = r["target"]
+        got = r["got"]
+        L.append(f"  {mark} {r['id']} {r['name']:<10} 目标 {tgt:<9g} "
+                 f"实测 {got:<9g} {r['unit']}")
         if r["note"]:
             L.append(f"       └ {r['note']}")
-    L.append(f"  · B07 板块速度     未建模（参考 {b['plate_speed']['reference']:g} cm/yr，"
-             "声明式字段，不计分）")
     L.append("")
     L.append(f"  通过 {b['passed']}/{b['total']} ｜ "
              f"结论：{'经得起对表' if b['ok'] else '有偏差，已如实列出'}")
     L.append("")
-    L.append("  口径：温度/降水/昼长是模型实算，NPP 是 Miami 模型积分；")
-    L.append("        板块速度、洋流、季节场尚未建模——已知偏差，不假装。")
+    L.append("  口径：B01–B06 是地图与几何，B07–B22 是六个内核各自的解析解/公开数，")
+    L.append("        B23–B25 是守恒账本的储库量。没建模的（洋流、云、季节海温、")
+    L.append("        板块时间演化、文明）不在这张表里——不建就不打分，不假装。")
     return "\n".join(L)
 
 

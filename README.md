@@ -1,12 +1,12 @@
-# 盘古 1.1.4 Pangu
+# 盘古 1.1.5 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.1.4-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.5-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-93%2F93-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-105%2F105-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -17,6 +17,31 @@
 > 地球不是模板，是一个样本。
 
 ---
+
+## 1.1.5 新增了什么
+
+1.1.1 有**地**，1.1.2 能**改**，1.1.3 知道**走到哪**，1.1.4 **抬头能看见**，1.1.5 **知道自己错多少**。
+
+这一版把 `docs/1.1.5-更新方案.md` 里画到 2.0 的十一个版本一次并了进来。要说清的是：**并进来的是内核与账本，不是一台全耦合的地球系统模式**。八个物理内核各自对解析解或公开数，四本守恒账带容差，每个派生量带 ±，每条关键结论标明来源。
+
+- **`kernel` — 八个内核，一条命令**：PDE（热传导/平流/浅水）、Budyko–Sellers 能量平衡与冰-反照率、灰体辐射与水汽反馈、固体地球边界层标度、辛积分轨道与潮汐、碳-硅酸盐恒温器、Hubbell 中性群落与物种-面积、量纲硬域。任何一项不过就退出码 1。
+- **`ledger` — 四本账**：能量（吸收 vs 出射长波）、水（库存 vs 面积×海深）、碳（`4πR²P/g` 与 CO₂ 储库）、元素（三本分账合计为 1）。能量 ±1%、水 ±5%、碳 ±10%。**建账第一天就抓到赫利孔一处矛盾**：它声明温室 33 K，但 10% CO₂、118 kPa 的大气按辐射解该有 51.5 K，均温差 18.6 K。账本只摆出来——按 1.1.4 的口径「声明优先、只报不改」，这条不平由作者定夺，不扣分。
+- **`uq` — 每个数带 ±**：中心差分把输入区间推到输出。地球平衡温度 **254.3 ± 4.6 K**，主要来自反照率 ±0.05。这是**敏感度**不是置信区间，一阶线性、按独立处理。
+- **`certify` — 适用域声明**：关键结论分四类——**算出来的 / 半算半填 / 经验式 / 作者拍的**，给覆盖率。「半算半填」专指算一半填一半：地表温度 = 平衡温度（算）+ 声明温室（拍）。赫利孔 16 条结论，算出来 8、半算半填 1、经验式 3、声明 4，覆盖率 **50%**。
+- **`replay` — 可复算**：从存档 seed 重放 map 与 ca，对 hash 逐位核；`--seed` 覆盖时按「换 seed 就该不同」判定。
+- **`benchmark` 6 → 25 条**：B07 板块速度从「未建模、只报不算」升级成真的标度律（1.72 cm/yr），新增曲线覆盖辐射、PDE、固体地球、能量平衡、轨道、碳循环、生态与守恒储库。**曲线只增不减。**
+- **量纲进写盘路径**：`patch --set "…surface_temperature_k=1e9"` 直接拒绝（退出码 2），`--force-unit` 才放行。`validate` 加 C01–C03（新维度「定量」），`review` 九项 → 十一项（D10 守恒、D11 适用域）。
+- **预览页多一个「账本」页签**：覆盖率环形图、误差表（值 ± 与相对条）、四本守恒账（残差条 + 容差竖线）、八个内核格子（点开看完整自检）、可复算三列 hash、量纲硬域与定量体检、地球/火星两个靶的偏差表。纯 DOM，不动 3D；3D 挂了降级页上也有入口。`preview --fast` 约 0.3 秒，`--replay` 才真重放。
+- 数字：`selftest` 93 → **105**，`benchmark` 6 → **25**，`validate` 39 → 44，`review` 9 → 11。
+
+```bash
+python scripts/pangu.py kernel                                # 八个内核一轮自检
+python scripts/pangu.py ledger examples/helikon/world.json    # 四本账，残差带容差
+python scripts/pangu.py certify examples/helikon/world.json   # 哪些是算的、哪些是拍的
+python scripts/pangu.py replay examples/helikon/world.json    # 从 seed 重放，对 hash
+```
+
+**没有做的**：三维环流、云、板块时间演化、生物地球化学、文明层、全耦合时间步。这些是方案里 1.3/1.5/1.7/1.9/1.10 的内容，1.1.5 只立了它们的**最小可验证内核**与对表口径。对外仍然不能说「精确模拟行星」。
 
 ## 1.1.4 新增了什么
 
@@ -70,7 +95,7 @@ python scripts/pangu.py whatif examples/helikon/world.json --set "cosmology.bodi
 
 前面三个命令负责**把世界造出来**，这两个负责**判断能不能交**、以及**如果当初选另一条会怎样**。
 
-- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完八项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
+- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完九项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
 - **`whatif` — 反事实推演**（`scripts/whatif.py`）：在内存副本上改设定，回答「世界会变成什么样」——重力怎么动、哪条必然推论消失、审查从哪一条开始崩、若采纳要重跑什么。`--set` 定点改，`--scale` 按倍率缩放并**保留单位后缀**（`4.004e-11 m3kg-1s-2` → `2.8028e-11 m3kg-1s-2`），`--recalc` 先抹平 P01 这类算术冲突。**永不写原世界**，`--write` 才另存一份假设世界。
 - 例：G × 0.7 后地表重力 1.76 → 1.23 g，E09「没有翅膀」自动消失（能飞了），恰好演示了「反常识是有代价的，代价一变，奇观就散」。
 - 与 `sweep` 的分工：`sweep` 扫**一个数**、只回答「哪一步崩了」；`whatif` 任意多字段、回答「**世界变成什么样**」。
@@ -182,15 +207,24 @@ python scripts/pangu.py options  out/helikon.json --check    # 卡间互斥 / �
 python scripts/pangu.py entail   out/helikon.json            # 从已立之律推出必然现象
 python scripts/pangu.py entail   out/helikon.json --write --yes   # 幂等回写 sky_phenomena
 python scripts/pangu.py entail   out/helikon.json --check    # 改设定后哪些旧推论失效了
-python scripts/pangu.py review   out/helikon.json            # 八项体检：能不能交
+python scripts/pangu.py review   out/helikon.json            # 十一项体检：能不能交
 python scripts/pangu.py whatif   out/helikon.json --scale "physics.constants[0].world_value=0.7" --recalc
                                                              # 反事实：重力再低 30% 会怎样
 python scripts/pangu.py sky      out/helikon.json             # 抬头：今夜的天光 / 极限星等 / 星图
 python scripts/pangu.py sky      out/helikon.json --year       # 一年昼长与极昼极夜
 python scripts/pangu.py sky      out/helikon.json --md out/今夜.md   # 星图 PNG + 逐月表
-python scripts/pangu.py benchmark earth                       # 六条曲线对地球，出偏差表
+python scripts/pangu.py benchmark earth                       # 25 条曲线对地球，出偏差表
 python scripts/pangu.py capacity out/helikon.json             # 这颗星球养得活多少人
 python scripts/pangu.py map      out/helikon.json --season --run   # 冬至/夏至双图
+
+# 1.1.5：守恒、误差与可复算
+python scripts/pangu.py kernel   --json                       # 八个内核一轮自检
+python scripts/pangu.py ledger   out/helikon.json             # 四本账：能量/水/碳/元素
+python scripts/pangu.py certify  out/helikon.json --md out/误差表.md   # 算的 / 拍的 / 覆盖率
+python scripts/pangu.py replay   out/helikon.json             # 从 seed 重放 map 与 ca
+python scripts/pangu.py preview  out/helikon.json             # 3D 预览 + 「账本」页（1.1.5）
+python scripts/pangu.py preview  out/helikon.json --fast      # 账本只在，跳过内核/基准（0.3 s）
+python scripts/pangu.py preview  out/helikon.json --replay    # 真重放核对 hash（约两分钟）
 
 # 按七斧填完 world.json 后
 python scripts/pangu.py validate out/helikon.json --fix-hint
@@ -230,7 +264,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 | 无代价奇观 | 越夸张越没解释，一问就崩 | **代价律 + 痕迹律**：每个奇观标价，且必须留下可观测痕迹 |
 | 流程不可导航 | 每轮都要重读方法论，才知道自己在第几步、下一步干什么 | **`plan`**：斧位 + 缺口 + 该问的问题 + 下一步命令 + 六项门槛 |
 | 灵感断供 | 想得出来的都是「双星 + 超级地球」，改猛了像噪声 | **`options`**（132 个带代价的选项）+ **`entail`**（30 条从设定推现象的规则） |
-| 交付靠自觉 | 六条体检命令，漏一条就是漏一条，没人说「能交」 | **`review`**：八项一命令、一个判断、修复按顺序排好 |
+| 交付靠自觉 | 六条体检命令，漏一条就是漏一条，没人说「能交」 | **`review`**：九项一命令、一个判断、修复按顺序排好 |
 | 不敢改 | 改坏了要整轮重来，所以宁可不动 | **`whatif`**：先在副本上推演后果，代价 / 现象 / 崩点一次看清 |
 
 ---
@@ -277,13 +311,17 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── windsurf/pangu.md       Windsurf 规则
 │   ├── gemini/GEMINI.md        Gemini CLI 入口
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
-│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，17 个 tool）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，20 个 tool）
 ├── docs/
 │   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
 │   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
 │   ├── 开发文档-v1.1.1.md       1.1.1 行星地图与 CA 强化：数据契约、算法、验收
 │   ├── 开发文档-v1.1.2.md       1.1.2 调参层：patch / sweep / diff 的契约与判定
 │   ├── 开发文档-v1.1.3.md       1.1.3 导航与选项：plan / options / entail 的契约与判定
+│   ├── 开发文档-v1.1.4.md       1.1.4 观测层与增补层：sky / benchmark / capacity 的口径
+│   ├── 开发文档-v1.1.5.md       1.1.5 守恒与误差：八个内核、四本账、± 与适用域
+│   ├── 1.1.4-更新方案.md        1.1.4 的立稿与落地复盘（§15 差距清单、§16 增补）
+│   ├── 1.1.5-更新方案.md        通往真实世界模型的十一个大版本路线图（1.1.5 全量并入）
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
 │   ├── 3D预览层规范.md          渲染层技术规格
 │   └── 优化建议.md              已知短板与改进方向
@@ -301,13 +339,24 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── rite.py                  七斧状态机：斧位判定、缺口、下一步命令、六项交付门槛
 │   ├── options_lib.py           选项卡解析与检索：列 / 抽 / 采纳 / 未答命题
 │   ├── entailment.py            必然推论：30 条后果规则、幂等回写、失效检测
-│   ├── review.py                交付体检：八项编排与判定（只读）
+│   ├── review.py                交付体检：十一项编排与判定（只读）
 │   ├── whatif.py                反事实推演：副本改动、现象增减、分级与下游
 │   ├── world_tuning.py          调参层：点路径读写、参数扫描（含等比）、版本对比、斧位差、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合
 │   ├── mapgen.py                行星地图引擎：板块、海平面、气候、河网、群系、出图
 │   ├── png_writer.py            零依赖 PNG 编码器（zlib + struct）
 │   ├── preview_template.html    单文件预览模板（3D + 地面视角 + 演化视图 + 可操控生物视角）
+│   ├── pde.py                   1.2 连续介质内核：热传导 / 平流 / 浅水（对解析解）
+│   ├── atmos.py                 1.3 能量平衡 + 冰-反照率：全球均温、极地放大、雪球分岔
+│   ├── radiation.py             1.4 灰体两流 + 水汽反馈：温室、CO₂ 敏感性
+│   ├── geo.py                   1.5 固体地球标度：瑞利数、板块速度、地幔热流
+│   ├── orbit.py                 1.6 轨道：辛积分、近日点进动、潮汐去旋
+│   ├── chem.py                  1.7 碳-硅酸盐恒温器：CO₂ ODE、暗淡年轻太阳
+│   ├── life.py                  1.8 生命动力学：中性群落、物种-面积、营养级
+│   ├── units.py                 1.1.5 量纲与取值域：硬域拒绝、软域提示
+│   ├── conservation.py          1.1.5 守恒账本：能量 / 水 / 碳 / 元素
+│   ├── uq.py                    1.1.5 误差传播：输入区间 → 输出 ±
+│   ├── certify.py               1.1.5 适用域声明：算的 / 半算半填 / 经验 / 拍的
 │   └── selftest.py              验收自测（对齐开发文档 §9）
 └── examples/helikon/            完整示例「赫利孔」三阳世界
     ├── world.json

@@ -38,10 +38,11 @@ TOL_ROTATION = 0.10          # 自转一致容差
 BINARY_SAFE = 2.5            # 双星稳定保守系数
 BINARY_MIN = 2.0             # 双星稳定绝对下限
 
-DIMENSIONS = ("structure", "energy", "observation", "evolution", "narrative")
+DIMENSIONS = ("structure", "energy", "observation", "evolution", "narrative",
+              "quantitative")
 
 # 引擎版本：doctor 用它和 SKILL / README / CHANGELOG / MCP 对齐（1.1.3）
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -1261,6 +1262,63 @@ def validate(world: dict, strict: bool = False) -> Report:
                     add("N11", "evolution", "周期性灾变有演化证据吗？", "warn",
                         "clock.hours_per_step 缺失，演化周期无法换算成天")
 
+    # ── C01–C03 守恒与定量（1.1.5）──────────────────────────────────
+    try:
+        import conservation as _cons
+        led = _cons.ledger(world)
+    except Exception:  # noqa: BLE001 —— 账本跑不动不该把整个校验拖死
+        led = None
+    if led is None or not led["scored"]:
+        add("C01", "quantitative", "守恒账本配平了吗？", "skip",
+            "可算的账不足（缺半径 / 大气 / 水量）")
+    elif led["ok"]:
+        add("C01", "quantitative", "守恒账本配平了吗？", "pass",
+            f"{led['scored']} 本账配平，{led['info']} 本储库只报不算")
+    elif not led.get("unexplained"):
+        # 声明值压过模型（如声明温室）→ 1.1.4 的口径是「只报不改」，不算自相矛盾
+        add("C01", "quantitative", "守恒账本配平了吗？", "pass",
+            f"{led['scored']} 本账，{len(led['explained'])} 本由声明值压过模型"
+            f"（{'、'.join(led['explained'])}；只报不改，改不改由你定）")
+    else:
+        bad = [r for r in led["rows"]
+               if r["status"] == "warn" and not r.get("explained")]
+        add("C01", "quantitative", "守恒账本配平了吗？", "warn",
+            "；".join(f"{r['id']} {r['name']} 残差 {r['residual']:+.1%}" for r in bad[:3]))
+
+    try:
+        import units as _un
+        hard = []
+        _bodies = _get(world, "cosmology", "bodies", default=[]) or []
+        _b0 = _bodies[0] if _bodies and isinstance(_bodies[0], dict) else {}
+        _atm = _get(_b0, "atmosphere", default={}) or {}
+        for _src in (_b0, _atm):
+            if not isinstance(_src, dict):
+                continue
+            for _k, _v in _src.items():
+                if isinstance(_v, bool) or not isinstance(_v, (int, float)):
+                    continue
+                _st, _msg = _un.check(_k, _v)
+                if _st == "hard":
+                    hard.append(_msg)
+        if hard:
+            add("C02", "quantitative", "数值落在物理硬域内吗？", "warn",
+                "；".join(hard[:3]))
+        else:
+            add("C02", "quantitative", "数值落在物理硬域内吗？", "pass",
+                "天体与大气字段均通过量纲硬域")
+    except Exception:  # noqa: BLE001
+        add("C02", "quantitative", "数值落在物理硬域内吗？", "skip", "量纲层不可用")
+
+    cert = world.get("certification") if isinstance(world, dict) else None
+    if not isinstance(cert, dict):
+        add("C03", "quantitative", "定量结论标注了来源吗？", "skip",
+            "还没跑 certify：哪些是算的、哪些是拍的还没分开")
+    else:
+        cov = _num(cert.get("coverage"), 0)
+        add("C03", "quantitative", "定量结论标注了来源吗？",
+            "pass" if cov >= 0.3 else "warn",
+            f"覆盖率 {cov:.0%}（算出来的 / 关键结论）")
+
     # ── X01 遗留问题 ────────────────────────────────────────────────
     issues = con.get("open_issues") or []
     add("X01", "structure", "是否有未解决的遗留问题？", "pass" if not issues else "warn",
@@ -1291,7 +1349,7 @@ def gr_ratio_ok(derived: dict) -> bool:
 
 ICON = {"pass": "✓", "warn": "!", "fatal": "✗", "skip": "·"}
 DIM_CN = {"structure": "结构", "energy": "能量", "observation": "观测",
-          "evolution": "演化", "narrative": "叙事"}
+          "evolution": "演化", "narrative": "叙事", "quantitative": "定量"}
 
 
 def format_report(rep: Report, verbose: bool = True) -> str:

@@ -506,7 +506,7 @@ def test_review(tmp):
     except Exception:
         res = {}
     check("V2", "review --json 给出 items / hard_fail / ok",
-          r.returncode == 0 and len(res.get("items") or []) == 9
+          r.returncode == 0 and len(res.get("items") or []) == 11
           and res.get("ok") is True and res.get("hard_fail") == [],
           f"items={len(res.get('items') or [])} ok={res.get('ok')}")
 
@@ -792,9 +792,10 @@ def test_earth(tmp):
     except Exception:
         bm = {}
     rows = bm.get("rows") or []
-    check("B2", "benchmark --json 六条曲线齐全且全部达标",
-          len(rows) == 6 and all(x.get("ok") for x in rows) and bm.get("ok"),
-          f"rows={[x.get('id') for x in rows]} passed={bm.get('passed')}")
+    check("B2", "benchmark --json 25 条曲线齐全且全部达标",
+          len(rows) == 25 and all(x.get("ok") for x in rows) and bm.get("ok"),
+          f"failed={[x.get('id') for x in rows if not x.get('ok')]} "
+          f"passed={bm.get('passed')}/{bm.get('total')}")
 
     t_row = next((x for x in rows if x.get("id") == "B01"), {})
     check("B3", "纬向温度 RMSE ≤ 8 K、降水相关 ≥ 0.70",
@@ -1004,6 +1005,135 @@ def test_mcp():
           str(res5)[:120])
 
 
+def test_v115(tmp):
+    print("\n§1.1.5 守恒 / 量纲 / 误差 / 适用域 / 重放")
+
+    # ── 内核 ──────────────────────────────────────────────────
+    r = run([CLI, "kernel", "--json"])
+    try:
+        kn = json.loads(r.stdout)
+    except Exception:
+        kn = {}
+    rows = kn.get("rows") or []
+    check("V1", "kernel 一条命令跑完 8 个内核且全过",
+          r.returncode == 0 and kn.get("ok") and len(rows) == 8
+          and all(x.get("ok") for x in rows),
+          f"passed={kn.get('passed')}/{kn.get('total')}")
+
+    # ── 守恒账本 ──────────────────────────────────────────────
+    r = run([CLI, "ledger", EXAMPLE, "--json"])
+    try:
+        led = json.loads(r.stdout)
+    except Exception:
+        led = {}
+    c02 = next((x for x in led.get("rows") or [] if x.get("id") == "C02"), {})
+    check("V2", "ledger 抓到「声明温室 33 K ≠ 辐射解 51.5 K」",
+          r.returncode == 0 and led.get("rows")
+          and c02.get("status") in ("warn", "ok") and "C02" in str(led.get("bad")),
+          f"bad={led.get('bad')} c02={c02.get('residual')}")
+
+    import benchmark
+    import conservation
+    led2 = conservation.ledger(benchmark.earth_world())
+    check("V3", "地球参数的世界账本能配平（辐射/水/碳/元素）",
+          led2.get("ok") is True and led2.get("scored", 0) >= 2
+          and led2.get("info", 0) >= 2,
+          f"scored={led2.get('scored')} info={led2.get('info')} bad={led2.get('bad')}")
+
+    # ── 量纲硬域 ──────────────────────────────────────────────
+    wp = os.path.join(tmp, "unit.json")
+    with open(wp, "w", encoding="utf-8") as f:
+        json.dump(jload(EXAMPLE), f, ensure_ascii=False)
+    r = run([CLI, "patch", wp, "--set",
+             "cosmology.bodies[0].surface_temperature_k=1e9", "--dry-run"])
+    check("V4", "patch 拒绝把 1e9 写进温度字段（量纲硬域）",
+          r.returncode == 2 and ("量纲" in r.stdout + r.stderr),
+          (r.stdout + r.stderr)[-120:])
+
+    r = run([CLI, "patch", wp, "--set",
+             "cosmology.bodies[0].radius_km=1e9", "--dry-run", "--force-unit"])
+    out5 = r.stdout + r.stderr
+    check("V5", "--force-unit 可以明知故犯地放行",
+          r.returncode == 0 and "量纲硬域" not in out5,
+          out5[-100:])
+
+    # ── 误差传播 ──────────────────────────────────────────────
+    import uq
+    u = uq.propagate(uq._earth())
+    t_eq = next((x for x in u["rows"] if x["id"] == "U01"), {})
+    check("V6", "误差传播：地球平衡温度 254 ± 3–6 K（反照率 ±0.05 主导）",
+          3.0 <= t_eq.get("pm", 0) <= 6.0
+          and abs(t_eq.get("value", 0) - 254.3) < 1.0,
+          f"t_eq={t_eq.get('value')}±{t_eq.get('pm')}")
+
+    # ── 适用域 ────────────────────────────────────────────────
+    r = run([CLI, "certify", EXAMPLE, "--json", "--no-bench"])
+    try:
+        cert = json.loads(r.stdout)
+    except Exception:
+        cert = {}
+    bk = cert.get("by_kind") or {}
+    check("V7", "certify 把结论分成算的/半算/经验/拍的，并给覆盖率",
+          r.returncode == 0 and cert.get("total", 0) >= 10
+          and len(bk.get("computed") or []) >= 5
+          and 0.0 < cert.get("coverage", -1) <= 1.0,
+          f"total={cert.get('total')} cov={cert.get('coverage')}")
+
+    # ── 重放 ──────────────────────────────────────────────────
+    r = run([CLI, "replay", EXAMPLE, "--json"])
+    try:
+        rp = json.loads(r.stdout)
+    except Exception:
+        rp = {}
+    check("V8", "replay：map 与 ca 同 seed 逐位一致",
+          r.returncode == 0 and rp.get("ok")
+          and {x.get("layer") for x in rp.get("rows") or []} == {"map", "ca"},
+          str(rp.get("rows"))[:120])
+
+    r = run([CLI, "replay", EXAMPLE, "--layer", "ca", "--seed", "12345", "--json"])
+    try:
+        rp2 = json.loads(r.stdout)
+    except Exception:
+        rp2 = {}
+    check("V9", "replay --seed：换 seed 后与存档不同（预期）",
+          r.returncode == 0 and rp2.get("ok")
+          and "预期" in str(rp2.get("rows")), str(rp2.get("rows"))[:120])
+
+    # ── validate 的 C 系 ──────────────────────────────────────
+    rep = ws.validate(jload(EXAMPLE))
+    ids = {c.id for c in rep.checks}
+    check("V10", "validate 里 C01–C03 三件套在位",
+          {"C01", "C02", "C03"} <= ids,
+          f"missing={ {'C01', 'C02', 'C03'} - ids }")
+
+    # ── review 的 D10/D11 ─────────────────────────────────────
+    r = run([CLI, "review", EXAMPLE, "--fast"])
+    check("V11", "review 十一项（含 D10 守恒 / D11 适用域）",
+          "D10" in r.stdout and "D11" in r.stdout,
+          (r.stdout or "")[-120:])
+
+    # ── 预览页里的账本（可视化）────────────────────────────────
+    prev = os.path.join(tmp, "pv.html")
+    r = run([CLI, "preview", ASTER, "-o", prev, "--fast"])
+    html = ""
+    try:
+        with open(prev, encoding="utf-8") as f:
+            html = f.read()
+    except Exception:
+        pass
+    m = re.search(r'<script id="pangu-books"[^>]*>(.*?)</script>', html, re.S)
+    books = {}
+    if m:
+        try:
+            books = json.loads(m.group(1))
+        except Exception:
+            books = {}
+    check("V12", "preview 内置账本页：占位符已替换、数据已注入",
+          r.returncode == 0 and 'id="books-view"' in html
+          and bool(books.get("ledger")) and "__PANGU_BOOKS_JSON__" not in html,
+          f"size={len(html)} keys={sorted(books)[:5]}")
+
+
 # ════════════════════════════════════════════════════════════════════
 
 def main() -> int:
@@ -1032,6 +1162,7 @@ def main() -> int:
         test_ca(tmp)
         test_install(tmp)
         test_mcp()
+        test_v115(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

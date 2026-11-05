@@ -192,6 +192,113 @@
              color:var(--ink);border-radius:8px;padding:6px 9px;
              font-family:var(--font);font-size:11px;letter-spacing:.04em}
 
+  /* ══ 1.1.5 · 账本：定量体检 / 误差 / 守恒 / 内核 / 重放 ══ */
+  #books-view{display:none;overflow-y:auto;overscroll-behavior:contain}
+  #books-view.show{display:block}
+  #books-view::-webkit-scrollbar{width:9px}
+  #books-view::-webkit-scrollbar-thumb{background:rgba(140,170,210,.22);border-radius:9px}
+  .bk-wrap{max-width:1240px;margin:0 auto;padding:24px 24px 88px}
+  .bk-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;margin-bottom:16px}
+  .bk-head .t{font-size:10px;letter-spacing:.32em;color:var(--ink-faint);text-transform:uppercase}
+  .bk-head h2{margin:7px 0 0;font-size:22px;font-weight:600;letter-spacing:.1em}
+  .bk-head .sub{margin-top:6px;font-size:11.5px;color:var(--ink-dim);letter-spacing:.06em}
+  .bk-chips{display:flex;flex-wrap:wrap;gap:7px;margin-left:auto}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:20px;
+        border:1px solid var(--line);background:var(--glass);font-size:11px;color:var(--ink-dim);
+        letter-spacing:.05em;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .chip b{color:var(--ink);font-weight:500}
+  .chip.ok{border-color:rgba(127,224,168,.32);color:#9fe9bf}
+  .chip.warn{border-color:rgba(255,178,107,.34);color:#ffc38a}
+  .chip.bad{border-color:rgba(255,122,107,.38);color:#ff9d92}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+
+  .bk-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;align-items:start}
+  .bk-card{border:1px solid var(--line);border-radius:14px;background:rgba(8,12,20,.74);overflow:hidden}
+  .bk-card.span2{grid-column:span 2}
+  .bk-card h3{margin:0;padding:10px 14px;font-size:9.5px;letter-spacing:.22em;color:var(--ink-faint);
+              font-weight:500;border-bottom:1px solid var(--line);display:flex;
+              justify-content:space-between;gap:10px;align-items:baseline}
+  .bk-card h3 em{font-style:normal;letter-spacing:.04em;color:var(--ink-faint);font-size:10px;
+                 font-variant-numeric:tabular-nums;white-space:nowrap}
+  .bk-body{padding:13px 14px 15px}
+
+  .bk-donut{position:relative;width:152px;height:152px;margin:2px auto 12px}
+  .bk-donut canvas{display:block}
+  .bk-donut .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+                 justify-content:center;pointer-events:none}
+  .bk-donut .mid b{font-size:26px;font-weight:300;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+  .bk-donut .mid span{font-size:9px;letter-spacing:.22em;color:var(--ink-faint);margin-top:5px}
+  .bk-stack{display:flex;height:7px;border-radius:5px;overflow:hidden;background:rgba(255,255,255,.06);margin:0 0 10px}
+  .bk-stack i{height:100%;display:block}
+  .bk-legend{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--ink-dim)}
+  .bk-legend .row{display:flex;align-items:center;gap:8px}
+  .bk-legend .sw{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+  .bk-legend .n{margin-left:auto;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  .bk-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+  .bk-tbl th{text-align:left;font-weight:500;font-size:9px;letter-spacing:.16em;color:var(--ink-faint);
+             padding:0 8px 7px 0;white-space:nowrap}
+  .bk-tbl th.r,.bk-tbl td.r{text-align:right}
+  .bk-tbl td{padding:6px 8px 6px 0;border-top:1px solid rgba(140,170,210,.09);color:var(--ink-dim);
+             vertical-align:middle}
+  .bk-tbl tr:first-child td{border-top:0}
+  .bk-tbl td.num{font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  .bk-tbl td.nm{color:var(--ink)}
+
+  .bk-bar{position:relative;height:5px;border-radius:3px;background:rgba(255,255,255,.07);min-width:70px}
+  .bk-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+  .bk-bar i.ok{background:linear-gradient(90deg,#3f9d70,#7fe0a8)}
+  .bk-bar i.warn{background:linear-gradient(90deg,#c07f36,#ffb26b)}
+  .bk-bar i.info{background:linear-gradient(90deg,#41536b,#7b8ea8)}
+  .bk-bar i.skip{background:rgba(255,255,255,.14)}
+  .bk-bar u{position:absolute;top:-2px;bottom:-2px;width:1px;background:rgba(232,238,247,.55)}
+
+  .bk-kern{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .kn{position:relative;padding:9px 10px;border:1px solid var(--line);border-radius:10px;
+      background:rgba(255,255,255,.03);cursor:pointer;transition:.18s;text-align:left;
+      font-family:var(--font);color:var(--ink-dim)}
+  .kn:hover{background:rgba(255,207,138,.07);border-color:rgba(255,207,138,.28)}
+  .kn.sel{border-color:rgba(255,207,138,.55);background:rgba(255,207,138,.1)}
+  .kn .m{font-size:11.5px;color:var(--ink);letter-spacing:.03em;padding-right:14px}
+  .kn .s{font-size:9px;color:var(--ink-faint);margin-top:4px;letter-spacing:.14em}
+  .kn .f{position:absolute;right:8px;top:7px;font-size:11px}
+  .kn.ok .f{color:#7fe0a8}
+  .kn.bad .f{color:#ff7a6b}
+  .bk-pre{margin:10px 0 0;padding:10px 12px;border-radius:9px;background:rgba(0,0,0,.34);
+          border:1px solid rgba(140,170,210,.1);font-size:10.5px;line-height:1.85;
+          color:var(--ink-dim);white-space:pre-wrap;max-height:180px;overflow:auto;
+          font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .bk-pre::-webkit-scrollbar{width:7px}
+  .bk-pre::-webkit-scrollbar-thumb{background:rgba(140,170,210,.2);border-radius:7px}
+
+  .bk-checks{display:flex;flex-direction:column;gap:6px}
+  .chk{display:flex;gap:9px;padding:7px 10px;border-radius:9px;background:rgba(255,255,255,.028);
+       border-left:2px solid var(--line);font-size:11px;color:var(--ink-dim);line-height:1.65}
+  .chk.pass{border-left-color:#5fc98f}
+  .chk.warn{border-left-color:#ffb26b}
+  .chk.fatal{border-left-color:#ff7a6b}
+  .chk.skip{border-left-color:#41536b}
+  .chk .id{color:var(--ink);font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .chk .q{flex:1 1 auto}
+  .chk .v{flex:0 0 auto;font-size:9.5px;letter-spacing:.14em;color:var(--ink-faint)}
+  .chk.pass .v{color:#7fe0a8}
+  .chk.warn .v{color:#ffb26b}
+  .chk.fatal .v{color:#ff7a6b}
+
+  .bk-note{margin-top:11px;font-size:10.5px;line-height:1.85;color:var(--ink-faint)}
+  .bk-note b{color:var(--ink-dim);font-weight:500}
+  .bk-scroll{max-height:236px;overflow-y:auto;padding-right:4px}
+  .bk-scroll::-webkit-scrollbar{width:7px}
+  .bk-scroll::-webkit-scrollbar-thumb{background:rgba(140,170,210,.2);border-radius:7px}
+  .bk-flag{margin-top:9px;font-size:10.5px;line-height:1.8;color:#ffb26b}
+
+  @media (max-width:900px){
+    .bk-grid{grid-template-columns:1fr}
+    .bk-card.span2{grid-column:auto}
+    .bk-wrap{padding:16px 14px 80px}
+    .bk-chips{margin-left:0}
+  }
+
   @media (max-width:900px){
     #life-view{grid-template-columns:1fr;grid-template-rows:1.3fr 1fr auto auto;overflow-y:auto}
     .ov-hint{font-size:10px}
@@ -229,6 +336,7 @@
   <button id="v-surface">地面</button>
   <button id="v-life">演化</button>
   <button id="v-creature">生物</button>
+  <button id="v-books">账本</button>
   <div class="sep"></div>
   <button id="btn-reset" title="R">复位</button>
 </div>
@@ -248,6 +356,7 @@
   </div>
 </div>
 <script id="pangu-sky" type="application/json">__PANGU_SKY_JSON__</script>
+<script id="pangu-books" type="application/json">__PANGU_BOOKS_JSON__</script>
 
 <!-- 1.1 · 地面视角：站在地表抬头，两颗星按真实方位角/高度角走 -->
 <div id="surface-view" class="overlay">
@@ -272,6 +381,22 @@
     <button id="lf-reset">重置</button>
     <button id="lf-spd">1×</button>
     <span class="read" id="lf-clock">第 0 步</span>
+  </div>
+</div>
+
+<!-- 1.1.5 · 账本：内核 / 守恒 / 误差 / 适用域 / 可复算（纯 DOM，不占 3D） -->
+<div id="books-view" class="overlay">
+  <div class="bk-wrap">
+    <div class="bk-head">
+      <div>
+        <div class="t">1.1.5 · 定量体检</div>
+        <h2>这个世界的数字，错多少</h2>
+        <div class="sub" id="bk-sub">—</div>
+      </div>
+      <div class="bk-chips" id="bk-chips"></div>
+    </div>
+    <div class="bk-grid" id="bk-grid"></div>
+    <div class="bk-note" id="bk-foot"></div>
   </div>
 </div>
 
@@ -1802,15 +1927,351 @@ function makeCreature(THREE) {
   return { open, close, canOpen, get ready() { return !!renderer; } };
 }
 
+/* ══ 1.1.5 · 账本：把「错多少」画出来（纯 DOM，不动 3D）══ */
+const BOOKS = (function () {
+  const view = $('books-view');
+  const grid = $('bk-grid');
+  const chipsBox = $('bk-chips');
+  const subEl = $('bk-sub');
+  const foot = $('bk-foot');
+  let DATA = null, built = false;
+
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const KIND = [
+    ['computed', '算出来的', '#7fe0a8'],
+    ['mixed', '半算半填', '#ffcf8a'],
+    ['empirical', '经验式', '#7fb6d9'],
+    ['declared', '作者拍的', '#8a7bd6'],
+  ];
+
+  function fmt(v) {
+    if (typeof v === 'string') return v;
+    if (v == null || !isFinite(v)) return '—';
+    const a = Math.abs(v);
+    if (a >= 1e9) return (v / 1e8).toFixed(1) + ' 亿';
+    if (a >= 1e5) return (v / 1e4).toFixed(0) + ' 万';
+    if (a >= 100) return v.toFixed(0);
+    if (a >= 1) return String(+v.toFixed(2));
+    if (a >= 0.01) return String(+v.toFixed(3));
+    return String(+v.toPrecision(2));
+  }
+
+  function card(title, meta, body, cls) {
+    return `<section class="bk-card${cls ? ' ' + cls : ''}">
+      <h3>${esc(title)}${meta ? `<em>${esc(meta)}</em>` : ''}</h3>
+      <div class="bk-body">${body}</div></section>`;
+  }
+
+  /* ── 适用域：环形 + 四类堆叠 ── */
+  function cardCertify(c) {
+    if (!c || c.error) return card('适用域 · 这些数从哪来', '算不出', `<div class="bk-note">${esc(c && c.error || '缺数据')}</div>`);
+    const bk = c.by_kind || {};
+    const parts = KIND.map(([k, label, color]) => ({ k, label, color, n: (bk[k] || []).length }));
+    const total = c.total || parts.reduce((s, p) => s + p.n, 0) || 1;
+    const shots = (c.rows || []).filter(r => r.kind === 'declared' || r.kind === 'mixed').slice(0, 4);
+    const list = shots.length
+      ? `<div class="bk-note"><b>不是算出来的：</b>` +
+        shots.map(r => `<br>· ${esc(r.name)}${r.kind === 'mixed' ? '（半算）' : ''} — ${esc(r.note || '作者设定值')}`).join('') +
+        `</div>`
+      : '';
+    const body = `
+      <div class="bk-donut"><canvas id="bk-donut" width="152" height="152"></canvas>
+        <div class="mid"><b>${Math.round((c.coverage || 0) * 100)}%</b><span>算出来的</span></div></div>
+      <div class="bk-stack">${parts.map(p => `<i style="width:${(p.n / total * 100).toFixed(2)}%;background:${p.color};opacity:${p.n ? 1 : .16}"></i>`).join('')}</div>
+      <div class="bk-legend">${parts.map(p => `<div class="row"><span class="sw" style="background:${p.color}"></span>${p.label}<span class="n">${p.n}</span></div>`).join('')}</div>
+      ${list}`;
+    return card('适用域 · 这些数从哪来', `${c.total || 0} 条关键结论`, body);
+  }
+
+  /* ── 误差：值 ± ── */
+  function cardUq(u) {
+    const rows = (u && u.rows) || [];
+    if (!rows.length) {
+      return card('误差 · 每个数带 ±', '缺输入',
+        `<div class="bk-note">${esc(u && u.error || '没有可推的派生量（缺半径 / 质量 / 大气）')}</div>`);
+    }
+    const maxRel = Math.max.apply(null, rows.map(r => r.rel || 0).concat([0.01]));
+    const tr = rows.map(r => {
+      const drv = (r.drivers || []).map(d => `${d.label}（${d.d > 0 ? '+' : ''}${(d.d).toFixed(1)}${esc(r.unit || '')}）`).join(' ｜ ');
+      return `<tr title="${esc(drv)}">
+        <td class="nm">${esc(r.name)}</td>
+        <td class="num r">${fmt(r.value)} <span style="color:var(--ink-faint)">± ${fmt(r.pm)} ${esc(r.unit || '')}</span></td>
+        <td class="r" style="width:30%">
+          <div class="bk-bar"><i class="ok" style="width:${Math.min(100, (r.rel / maxRel) * 100).toFixed(0)}%"></i></div>
+          <div style="font-size:9.5px;color:var(--ink-faint);margin-top:3px;font-variant-numeric:tabular-nums">${(r.rel * 100).toFixed(1)}%</div>
+        </td></tr>`;
+    }).join('');
+    const body = `<table class="bk-tbl">
+        <tr><th>量</th><th class="r">值 ±</th><th class="r">相对</th></tr>${tr}</table>
+      <div class="bk-note">按 <b>假定输入区间</b> 传播（反照率 ±0.05、光度 ±1%、半径/质量 ±1%、CO₂ ±20%）。${esc(u.note || '')}。</div>`;
+    const top = rows[0] && rows[0].drivers && rows[0].drivers[0];
+    return card('误差 · 每个数带 ±', top ? '最大来源 ' + top.label : '一阶线性', body);
+  }
+
+  /* ── 守恒：残差与容差 ── */
+  function cardLedger(l) {
+    if (!l || l.error) return card('守恒账本', '算不出', `<div class="bk-note">${esc(l && l.error || '缺数据')}</div>`);
+    const rows = l.rows || [];
+    if (!rows.length) return card('守恒账本', '无账可算', '<div class="bk-note">缺半径 / 大气 / 水量，账本开不起来。</div>');
+    const bar = r => {
+      const tol = r.tol || 0.01;
+      const ratio = Math.abs(r.residual || 0) / tol;
+      const w = Math.min(100, ratio * 50);
+      const cls = r.status === 'warn' ? 'warn' : r.status === 'info' ? 'info'
+        : r.status === 'skip' ? 'skip' : 'ok';
+      return `<div class="bk-bar"><i class="${cls}" style="width:${w.toFixed(0)}%"></i><u style="left:50%"></u></div>`;
+    };
+    const tr = rows.map(r => {
+      const ic = r.status === 'warn' ? '!' : r.status === 'skip' ? '·' : '✓';
+      const col = r.status === 'warn' ? '#ffb26b' : r.status === 'skip' ? 'var(--ink-faint)' : '#7fe0a8';
+      return `<tr title="${esc(r.note)}">
+        <td style="color:${col};width:14px">${ic}</td>
+        <td class="nm">${esc(r.id)} ${esc(r.name)}</td>
+        <td class="num r">${r.status === 'skip' ? '—' : (r.residual >= 0 ? '+' : '') + (r.residual * 100).toFixed(1) + '%'}</td>
+        <td class="r" style="width:30%">${bar(r)}</td></tr>`;
+    }).join('');
+    const bad = (l.bad || []).length;
+    const expl = (l.explained || []).length;
+    const tail = l.ok ? '全部配平。'
+      : (expl ? `${bad} 本不平，其中 ${expl} 本由声明压过模型（只报不改）。` : `${bad} 本不平。`);
+    return card('守恒账本', `${l.scored || 0} 本可算 ｜ ${l.info || 0} 本储库`,
+      `<table class="bk-tbl"><tr><th></th><th>账</th><th class="r">残差</th><th class="r">容差</th></tr>${tr}</table>
+       <div class="bk-note">${esc(tail)} 竖线 = 容差；条越过竖线就是不平。</div>`);
+  }
+
+  /* ── 八个内核 ── */
+  function cardKernel(k) {
+    if (!k) return card('物理内核 · 1.2–1.8', '--fast 跳过',
+      '<div class="bk-note">本次用 --fast 生成：内核自检没跑。去掉 --fast 重跑 preview 就能看到。</div>', 'span2');
+    if (k.error) return card('物理内核 · 1.2–1.8', '跑不起来', `<div class="bk-note">${esc(k.error)}</div>`, 'span2');
+    const rows = k.rows || [];
+    const tiles = rows.map((r, i) => `<button class="kn ${r.ok ? 'ok' : 'bad'}" data-i="${i}">
+        <div class="f">${r.ok ? '✓' : '×'}</div>
+        <div class="m">${esc(r.label)}</div>
+        <div class="s">${esc(r.module)}.py · 自 ${esc(r.since)}</div></button>`).join('');
+    const body = `<div class="bk-kern">${tiles}</div><pre class="bk-pre" id="bk-pre"></pre>`;
+    return card('物理内核 · 1.2–1.8', `${k.passed || 0}/${k.total || 0} 通过`, body, 'span2');
+  }
+
+  /* ── 可复算 ── */
+  function cardReplay(r) {
+    if (!r) return card('可复算 · 同 seed 重放', '--fast 跳过',
+      '<div class="bk-note">本次用 --fast 生成：重放没跑。</div>');
+    const rows = r.rows || [];
+    if (!rows.length) return card('可复算 · 同 seed 重放', '无',
+      `<div class="bk-note">${esc(r.error || '没有 map / ca 存档可以重放')}</div>`);
+    const tr = rows.map(x => {
+      const ic = x.status === 'ok' ? '✓' : x.status === 'fail' ? '×' : '·';
+      const col = x.status === 'ok' ? '#7fe0a8' : x.status === 'fail' ? '#ff7a6b' : 'var(--ink-faint)';
+      return `<tr title="${esc(x.note)}">
+        <td style="color:${col};width:14px">${ic}</td>
+        <td class="nm">${esc(x.layer)}</td>
+        <td class="num">${esc(String(x.seed))}</td>
+        <td class="num" style="color:var(--ink-faint)">${esc(String(x.stored).slice(0, 8))}</td>
+        <td class="num">${esc(String(x.got).slice(0, 8))}</td></tr>`;
+    }).join('');
+    const tail = r.verified
+      ? '同 seed 逐位一致，才算「可复算」——存档被手改过就在这里露馅。'
+      : '本次只读存档 hash，<b>没有重算</b>。要真核一遍：<code>pangu replay &lt;world&gt;</code>，或 <code>preview --replay</code>（约两分钟）。';
+    return card('可复算 · 同 seed 重放', r.verified ? (r.ok ? '逐位一致' : '对不上') : '未重算',
+      `<table class="bk-tbl"><tr><th></th><th>层</th><th>seed</th><th>存档</th><th>重放</th></tr>${tr}</table>
+       <div class="bk-note">${tail}</div>`);
+  }
+
+  /* ── 量纲硬域 ── */
+  function cardUnits(u) {
+    const rows = (u && u.rows) || [];
+    if (!rows.length) return card('量纲硬域', '无', '<div class="bk-note">量纲层不可用。</div>');
+    const tr = rows.map(r => {
+      const short = String(r.path || '').split('.').pop();
+      const col = r.got === 'hard' ? '#ffb26b' : r.got === 'soft' ? '#ffcf8a' : 'var(--ink-faint)';
+      const val = (typeof r.value === 'number' && Math.abs(r.value) >= 1e6)
+        ? r.value.toExponential(0) : fmt(r.value);
+      return `<tr title="${esc(r.path)}">
+        <td class="nm">${esc(short)}</td>
+        <td class="num r">${esc(val)}</td>
+        <td class="r" style="color:${col}">${esc(r.got)}${r.ok ? '' : ' ×'}</td></tr>`;
+    }).join('');
+    return card('量纲硬域 · 什么数会被拒', `${(u.bad || 0) === 0 ? '全部按预期' : (u.bad + ' 条不符')}`,
+      `<table class="bk-tbl"><tr><th>字段</th><th class="r">给的数</th><th class="r">判定</th></tr>${tr}</table>
+       <div class="bk-note">hard = 直接拒绝写盘（patch 退出码 2）；soft = 提示；ok = 放行。</div>`);
+  }
+
+  /* ── 定量体检 ── */
+  function cardChecks(list, cert) {
+    if (!list || !list.length) return card('定量体检', '无', '<div class="bk-note">缺数据。</div>');
+    const rows = list.map(c => `<div class="chk ${c.verdict}">
+        <span class="id">${esc(c.id)}</span>
+        <span class="q">${esc(c.question)}<br><span style="color:var(--ink-faint)">${esc(c.note || '')}</span></span>
+        <span class="v">${esc(c.verdict)}</span></div>`).join('');
+    const nm = cert && cert.domains && cert.domains.not_modeled;
+    const tail = nm && nm.length
+      ? `<div class="bk-note"><b>没建模：</b>${esc(nm.join('；'))}</div>` : '';
+    const warn = list.filter(c => c.verdict === 'warn' || c.verdict === 'fatal').length;
+    return card('定量体检 · C / D', warn ? `${warn} 项要留意` : '全绿',
+      `<div class="bk-checks">${rows}</div>${tail}`);
+  }
+
+  /* ── 基准偏差 ── */
+  function cardBench(c) {
+    const dev = (c && c.deviations) || [];
+    if (!dev.length) return '';
+    const tr = dev.map(x => {
+      const col = x.ok ? '#7fe0a8' : (x.ok === false ? '#ffb26b' : 'var(--ink-faint)');
+      return `<tr title="${esc(x.curve)}（${esc(x.unit || '')}）">
+        <td style="color:${col};width:14px">${x.ok ? '✓' : (x.ok === false ? '!' : '·')}</td>
+        <td class="nm">${esc(x.target || '')} · ${esc(x.curve)}</td>
+        <td class="num r" style="color:var(--ink-faint)">${esc(fmt(x.reference))}<span style="font-size:9px"> ${esc(x.unit || '')}</span></td>
+        <td class="num r">${esc(fmt(x.model))}<span style="font-size:9px;color:var(--ink-faint)"> ${esc(x.unit || '')}</span></td></tr>`;
+    }).join('');
+    const okN = dev.filter(x => x.ok).length;
+    return card('基准对表 · ' + dev.length + ' 条', `${okN}/${dev.length} 达标`,
+      `<div class="bk-scroll"><table class="bk-tbl">
+        <tr><th></th><th>靶 · 曲线</th><th class="r">参考</th><th class="r">实测</th></tr>${tr}</table></div>
+       <div class="bk-note">地球与火星是仅有的两个"知道答案"的靶；偏差表是回归网，不是宣传图。--fast 时只算火星那一条。</div>`);
+  }
+
+  function drawDonut(cert) {
+    const cv = $('bk-donut');
+    if (!cv || !cert || !cert.by_kind) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = 152;
+    cv.width = W * dpr; cv.height = W * dpr;
+    cv.style.width = W + 'px'; cv.style.height = W + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, W);
+    const parts = KIND.map(([k, , color]) => ({ n: (cert.by_kind[k] || []).length, color }));
+    const total = parts.reduce((s, p) => s + p.n, 0) || 1;
+    const cx = W / 2, cy = W / 2, R = 68, r = 54, gap = 0.03;
+    let a0 = -Math.PI / 2;
+    parts.forEach(p => {
+      const a1 = a0 + (p.n / total) * Math.PI * 2;
+      if (p.n) {
+        g.beginPath();
+        g.arc(cx, cy, R, a0 + gap, Math.max(a0 + gap, a1 - gap));
+        g.arc(cx, cy, r, Math.max(a0 + gap, a1 - gap), a0 + gap, true);
+        g.closePath();
+        g.fillStyle = p.color;
+        g.globalAlpha = .9;
+        g.fill();
+        g.globalAlpha = 1;
+      }
+      a0 = a1;
+    });
+  }
+
+  function build() {
+    const d = DATA || {};
+    const kn = d.kernel || null;
+    const lg = d.ledger || null;
+    const uq = d.uq || null;
+    const ct = d.certify || null;
+    const rp = d.replay || null;
+    const un = d.units || null;
+
+    const bits = [];
+    if (d.fast) bits.push('--fast：内核自检与地球基准未跑');
+    if (rp && !rp.verified) bits.push('重放未核（只读存档 hash）');
+    bits.push('账本只报不改', '± 是敏感度不是置信区间');
+    subEl.textContent = bits.join(' ｜ ');
+
+    // 顶部徽章
+    const chips = [];
+    if (kn && kn.total) {
+      chips.push(`<span class="chip ${kn.ok ? 'ok' : 'bad'}"><span class="dot"></span>内核 <b>${kn.passed}/${kn.total}</b></span>`);
+    }
+    if (lg && lg.scored) {
+      const bad = (lg.bad || []).length, expl = (lg.explained || []).length;
+      const cls = bad - expl === 0 ? 'ok' : 'warn';
+      chips.push(`<span class="chip ${cls}"><span class="dot"></span>账本 <b>${lg.scored - bad}/${lg.scored}</b> 平</span>`);
+    }
+    if (ct && ct.total) {
+      const cov = ct.coverage || 0;
+      chips.push(`<span class="chip ${cov >= .5 ? 'ok' : cov >= .3 ? 'warn' : 'bad'}"><span class="dot"></span>算出来 <b>${Math.round(cov * 100)}%</b></span>`);
+    }
+    if (rp && (rp.rows || []).length) {
+      const txt = rp.verified ? (rp.ok ? '可复算' : '复算对不上') : 'hash 已记录';
+      const cls = rp.verified ? (rp.ok ? 'ok' : 'bad') : '';
+      chips.push(`<span class="chip ${cls}"><span class="dot"></span>${txt}</span>`);
+    }
+    const warnN = (d.checks || []).filter(c => c.verdict === 'warn' || c.verdict === 'fatal').length;
+    if ((d.checks || []).length) {
+      chips.push(`<span class="chip ${warnN ? 'warn' : 'ok'}"><span class="dot"></span>` +
+        (warnN ? `体检 <b>${warnN}</b> 项留意` : '体检全绿') + `</span>`);
+    }
+    chipsBox.innerHTML = chips.join('');
+
+    grid.innerHTML = [
+      cardCertify(ct),
+      cardUq(uq),
+      cardLedger(lg),
+      cardKernel(kn),
+      cardReplay(rp),
+      cardUnits(un),
+      cardChecks(d.checks, ct),
+      cardBench(ct),
+    ].join('');
+
+    drawDonut(ct);
+
+    // 内核格子：点一下看它的报告
+    const tiles = Array.from(grid.querySelectorAll('.kn'));
+    const pre = $('bk-pre');
+    const pick = i => {
+      tiles.forEach((t, j) => t.classList.toggle('sel', j === i));
+      const r = (kn.rows || [])[i];
+      pre.textContent = r ? r.report : '';
+      pre.scrollTop = 0;
+    };
+    tiles.forEach((t, i) => { t.onclick = () => pick(i); });
+    if (tiles.length) {
+      const firstBad = (kn.rows || []).findIndex(r => !r.ok);
+      pick(firstBad >= 0 ? firstBad : 0);
+    }
+
+    foot.innerHTML = '口径：<b>±</b> 是敏感度，不是置信区间（一阶线性、按独立处理，强非线性处偏低）；' +
+      '<b>账本</b> 只报不改，不平点出来由你定夺；<b>覆盖率</b> 低于 30% 时，这个世界的数字大多还是「拍的」，别当模型用。';
+
+    built = true;
+  }
+
+  function open() {
+    if (!DATA) {
+      const el = $('pangu-books');
+      try { DATA = JSON.parse((el && el.textContent) || '{}'); } catch (e) { DATA = {}; }
+    }
+    if (!DATA || (!DATA.ledger && !DATA.certify && !DATA.kernel)) {
+      // 没有任何账本数据：不显示这个视图
+      return false;
+    }
+    if (!built) build();
+    SURF.close();
+    LIFE.close();
+    if (CREATURE) CREATURE.close();
+    view.classList.add('show');
+    UI.mark('v-books');
+    return true;
+  }
+
+  function close() { view.classList.remove('show'); }
+
+  return { open, close, get ready() { return built; } };
+})();
+
 /* ── 视图调度：3D 三个太空视图与 1.1 两个新视图互斥 ── */
 const UI = {
   hideOverlays() {
     SURF.close();
     LIFE.close();
     if (CREATURE) CREATURE.close();
+    BOOKS.close();
   },
   mark(id) {
-    ['v-sys', 'v-body', 'v-far', 'v-surface', 'v-life', 'v-creature']
+    if (id !== 'v-books') BOOKS.close();   // 账本是互斥视图，别的视图一开就收起来
+    ['v-sys', 'v-body', 'v-far', 'v-surface', 'v-life', 'v-creature', 'v-books']
       .forEach(x => { const el = $(x); if (el) el.classList.toggle('on', x === id); });
   },
 };
@@ -1818,6 +2279,17 @@ const UI = {
 $('v-surface').onclick = () => SURF.open();
 $('v-life').onclick = () => LIFE.open();
 $('v-creature').onclick = () => { if (CREATURE) CREATURE.open(); };
+$('v-books').onclick = () => { BOOKS.open(); };
+
+/* 没有账本数据（旧产物 / 没跑 1.1.5）就把按钮藏起来，别给一个点了没反应的入口 */
+(function hideBooksButtonIfEmpty() {
+  let ok = false;
+  try {
+    const d = JSON.parse(($('pangu-books') || {}).textContent || '{}');
+    ok = !!(d.ledger || d.certify || d.kernel || d.checks);
+  } catch (e) { ok = false; }
+  if (!ok) { const b = $('v-books'); if (b) b.style.display = 'none'; }
+})();
 
 /* ── 降级页 ─────────────────────────────────────────────────── */
 function showFallback(reason) {
@@ -1877,6 +2349,17 @@ function showFallback(reason) {
       b.onclick = () => { fb.classList.remove('show'); CREATURE.open(); };
       bar.appendChild(b);
     }
+    // 1.1.5：账本是纯 DOM，3D 挂了也照样能看
+    try {
+      const bd = JSON.parse(($('pangu-books') || {}).textContent || '{}');
+      if (bd && (bd.ledger || bd.certify || bd.kernel)) {
+        const b = document.createElement('button');
+        b.textContent = '账本';
+        b.className = 'fb-go';
+        b.onclick = () => { fb.classList.remove('show'); BOOKS.open(); };
+        bar.appendChild(b);
+      }
+    } catch (e) { /* 没有账本数据就不加按钮 */ }
     $('fb-body').insertBefore(bar, $('fb-body').firstChild);
   }
 }

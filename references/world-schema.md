@@ -283,7 +283,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `score` | num | 0–100，由 `validate` 计算 |
-| `checks` | obj[] | `{id, dim, question, verdict, note}`，`dim` ∈ `structure|energy|observation|evolution|narrative`，`verdict` ∈ `pass|warn|fatal` |
+| `checks` | obj[] | `{id, dim, question, verdict, note}`，`dim` ∈ `structure|energy|observation|evolution|narrative|quantitative`，`verdict` ∈ `pass|warn|fatal|skip` |
 | `open_issues` | str[] | 未解决的遗留问题，交付时必须为空或经用户确认 |
 
 ### 3.11 `narrative`
@@ -293,6 +293,33 @@
 | `three_seconds` | str | 三秒讲完的印象 |
 | `setpiece` | str | 最想拍成电影的一幕 |
 | `hook` | str | 一句话钩子 |
+
+### 3.12 `conservation`（1.1.5，可选）
+
+由 `pangu ledger <world> --write --yes` 生成，**不要手填**。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `ledger` | obj[] | `{id, book, name, inflow, outflow, residual, unit, tol, ok, status, note}`，`status` ∈ `ok|warn|info|skip` |
+| `ok` | bool | 所有**可算**账是否配平（`info` 储库不计） |
+| `scored` / `skipped` | int | 参与判定的账数 / 缺字段的账数 |
+| `generator` | str | `conservation/<version>` |
+
+`residual` 是相对值；`info` 表示「储库，只报不判」；`skip` 表示缺字段，不算分也不假装。
+
+### 3.13 `certification`（1.1.5，可选）
+
+由 `pangu certify <world> --write --yes` 生成，**不要手填**。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `coverage` | num | 算出来的 / 关键结论，0–1 |
+| `total` / `computed` / `mixed` / `empirical` / `declared` | int | 四类计数（`mixed` = 半算半填） |
+| `claims` | obj[] | `{path, name, kind, value, pm, note}`，`kind` ∈ `computed|mixed|empirical|declared` |
+| `not_modeled` | str[] | 这个引擎**明确没有**建模的部分 |
+| `generator` | str | `certify/<version>` |
+
+`mixed` 专指算一半填一半（如 地表温度 = 平衡温度 + 声明温室）。**不要**把 `mixed` 当 `computed` 引用。
 
 ---
 
@@ -412,10 +439,15 @@ gravity_g   = mass_earth / (radius_earth ** 2) * (G_world / G_earth)
 | SK02 | 观测 | **1.1.4**：`cosmology.sky.summary` 与实算一致（极限星等 ±0.6、可见星 ±20%） | warn（无摘要时 skip） |
 | X01 | 通用 | `consistency.open_issues` 非空 | warn |
 | X02 | 通用 | `physics` 缺失或 `constants` 为空 | fatal |
+| C01 | 定量 | **1.1.5**：守恒账本配平（能量/水/碳/元素，容差见 `conservation`） | warn（无账可算时 skip） |
+| C02 | 定量 | **1.1.5**：天体与大气字段不越量纲硬域（`units.check`） | warn |
+| C03 | 定量 | **1.1.5**：`certification.coverage` ≥ 30% | warn（未 certify 时 skip） |
 
 评分：`100 − 25×fatal − 4×warn − 2×缺失段`，钳在 0–100。`--strict` 模式下存在 fatal 则退出码 1。
 
-> 1.1.4 起校验项为 39 项（1.1.3 为 37）。`R01` 是唯一会读 `seed.brief` 的检查；卡里缺 `cost` 会被点名——没写代价的选项就是免费奇观。`SK01`/`SK02` 与 `sky --check` 同源：**缺省即 skip**，旧世界不因没登记星表而掉分。
+> 1.1.5 起校验项为 44 项（1.1.4 为 39）。`R01` 是唯一会读 `seed.brief` 的检查；卡里缺 `cost` 会被点名——没写代价的选项就是免费奇观。`SK01`/`SK02` 与 `sky --check` 同源：**缺省即 skip**，旧世界不因没登记星表而掉分。
+>
+> `C01` 有一个特例：如果账本唯一的不平来自「声明值压过模型」（目前是 `C02`，即作者声明了温室但与大气成分推算不符），它判 **pass 并在说明里点名**——1.1.4 的口径是「声明优先、只报不改」，所以这不是自相矛盾，而是作者决策。账本本身照常显示残差，`ledger` 命令也会把 `explained` 单独列出来。
 
 ---
 
