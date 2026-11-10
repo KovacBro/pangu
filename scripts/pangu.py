@@ -49,6 +49,8 @@ import entailment as en  # noqa: E402
 import review as rvw  # noqa: E402
 import whatif as wi  # noqa: E402
 import sky as sk  # noqa: E402
+import chronicle as chn  # noqa: E402
+import naming as nmg  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "preview_template.html")
 
@@ -157,6 +159,8 @@ def cmd_doctor(args) -> int:
         ("scripts/review.py", "交付体检"),
         ("scripts/whatif.py", "反事实推演"),
         ("scripts/sky.py", "观测层"),
+        ("scripts/chronicle.py", "编年层"),
+        ("scripts/naming.py", "命名层"),
         ("scripts/preview_template.html", "3D 模板"),
         ("scripts/mapgen.py", "地图引擎"),
         ("scripts/benchmark.py", "地球基准"),
@@ -543,15 +547,27 @@ def cmd_preview(args) -> int:
     except Exception:  # noqa: BLE001 —— 账算不出来就不显示「账本」页，不能拖垮预览
         books, books_payload = {}, "{}"
 
+    # 1.1.6 · 地图入口：预览页不再内嵌地图数据（180×90 的场放大后发糊）。
+    # 同目录若有 map.html（`map --run -o 同一目录` 生成），dock 上挂一个「地图」按钮，
+    # 点了开新窗口——那边是 1440×720 的原生渲染，比内嵌版清楚得多。
+    out = args.out or os.path.splitext(path)[0] + "_preview.html"
+    map_href = ""
+    if not getattr(args, "no_map", False):
+        try:
+            if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(out)), "map.html")):
+                map_href = "map.html"
+        except OSError:
+            map_href = ""
+
     # 用 split/join 而非 str.replace，避免 payload 中出现占位符导致二次替换
     html = html.replace("__PANGU_TITLE__", str(title))
     html = html.replace("__PANGU_SKY_JSON__", sky_payload)
     html = html.replace("__PANGU_BOOKS_JSON__", books_payload)
+    html = html.replace("__PANGU_MAP_HREF__", map_href)
     html = html.replace("__PANGU_WORLD_JSON__", payload)
     html = html.replace("__PANGU_SCORE__", str(rep.score))
     html = html.replace("__PANGU_GRADE__", rep.grade)
 
-    out = args.out or os.path.splitext(path)[0] + "_preview.html"
     os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
@@ -561,6 +577,12 @@ def cmd_preview(args) -> int:
     if rep.fatal:
         warn(f"该世界有 {rep.fatal} 项 fatal，预览仅供观感参考")
     say(f"  双击打开即可。自洽评分 {rep.score}/100 [{rep.grade}]")
+
+    if map_href:
+        say("  地图入口：dock 的「地图」→ 同目录 map.html（新窗口，原生 PNG 渲染）")
+    elif not getattr(args, "no_map", False):
+        say("  地图入口：未找到同目录 map.html —— 先跑 "
+            "map <world> --run -o 同一目录，再重新生成预览")
 
     # 1.1.5 汇报：账本页里画了什么
     if books:
@@ -1071,15 +1093,22 @@ def cmd_export(args) -> int:
         A("尚未生成行星地图。运行 "
           f"`pangu.py map \"{path}\" --run --write --yes` 后重跑 export。\n")
 
-    # 九、历史
+    # 九、历史（1.1.6：纪元之下再挂一条由承载力推出来的编年史）
     eras = hist.get("eras") or []
-    if eras:
+    chro = hist.get("chronicle") if isinstance(hist.get("chronicle"), dict) else None
+    if eras or (chro and chro.get("events")):
         A(_h(2, "九 · 历史"))
         for e in eras:
             if not isinstance(e, dict):
                 continue
-            A(f"- **{e.get('name')}**（{e.get('span', '—')}）{e.get('summary', '')}")
+            A(f"- **{e.get('name')}**（{e.get('span', '—')}）"
+              f"{e.get('summary') or e.get('note') or ''}")
         A("")
+        if chro and chro.get("events"):
+            A(_h(3, f"编年史 · {len(chro['events'])} 条"
+                    f"（hash {chro.get('hash')}，同 seed 可复算）"))
+            A(chn.to_markdown(chro, world, heading=False))
+            A("")
 
     # 十、审查
     A(_h(2, "十 · 自洽性审查"))
@@ -2205,7 +2234,21 @@ PERSONAS = {
 }
 
 
-def _slice_prompt(world: dict, persona: str = "") -> str:
+def _chronicle_brief(world: dict, at_year=None, n: int = 3) -> list:
+    """1.1.6：从存档编年里取「这个人可能知道的事」。
+
+    切片写的是一个具体的人，那他就该有年份、有前情。取不到就返回空，
+    由调用方明说「这个切片还没有时间」——而不是悄悄替他编一段史。
+    """
+    hist = world.get("history") if isinstance(world.get("history"), dict) else {}
+    ch = hist.get("chronicle") if isinstance(hist.get("chronicle"), dict) else {}
+    evs = [e for e in (ch.get("events") or []) if isinstance(e, dict)]
+    if at_year is not None:
+        evs = [e for e in evs if float(e.get("t_year") or 0) <= float(at_year)]
+    return evs[-n:]
+
+
+def _slice_prompt(world: dict, persona: str = "", at_year=None) -> str:
     cos = world.get("cosmology") or {}
     cal = cos.get("calendar") or {}
     sky = [s for s in (cos.get("sky_phenomena") or []) if isinstance(s, str)]
@@ -2217,6 +2260,33 @@ def _slice_prompt(world: dict, persona: str = "") -> str:
         L.append("  抬头能看见：")
         for s in sky[:6]:
             L.append(f"    · {s}")
+
+    hist = world.get("history") if isinstance(world.get("history"), dict) else {}
+    has_ch = bool((hist.get("chronicle") or {}).get("events")) \
+        if isinstance(hist.get("chronicle"), dict) else False
+    brief = _chronicle_brief(world, at_year)
+    L.append("")
+    if brief:
+        head = "这一年之前" if at_year is not None else "最近"
+        L.append(f"  这个人的前情（{head}已发生的 {len(brief)} 件，只准引用这些）：")
+        for e in brief:
+            line = (f"    · 第 {int(e.get('t_year') or 0):,} 年  {e.get('title')}"
+                    f"  〔{e.get('strength')}〕")
+            era = str(e.get("era") or "")
+            if era:
+                line += f"  {era}"
+            ppl = e.get("people")
+            if isinstance(ppl, (int, float)):
+                line += f" · 全境 {_fmt_people(float(ppl))} 人"
+            L.append(line)
+        if at_year is not None:
+            L.append(f"    · 他活在第 {int(at_year):,} 年：之后的事，他一无所知")
+    elif has_ch:
+        L.append(f"  （第 {int(at_year):,} 年之前没有编年事件——这个人活在成文史之前）"
+                 if at_year is not None else "  （存档里的编年史是空的）")
+    else:
+        L.append("  （存档里没有 history.chronicle——先跑 "
+                 "pangu chronicle <world> --write --yes，这个切片才有前情）")
     L.append("")
     for k in picks:
         cn, body = PERSONAS[k]
@@ -2225,6 +2295,8 @@ def _slice_prompt(world: dict, persona: str = "") -> str:
     L.append("  硬要求：")
     L.append("   · 至少写进两条 sky_phenomena 的现象（N05 会数）")
     L.append("   · 数字要能对上历法：不写「24 小时」，写这个世界的一天")
+    if brief:
+        L.append("   · 前情只准用上面列出的编年（D12 会对账）；人名、地名、国名由你起")
     L.append("   · 附 cites（引用了哪些字段）与 status: ok")
     L.append("")
     L.append('  模板：{"narrative":{"slice":{"text":"…","persona":"%s",'
@@ -2239,7 +2311,7 @@ def cmd_slice(args) -> int:
         return 2
 
     if args.prompt:
-        say(_slice_prompt(world, args.persona or ""))
+        say(_slice_prompt(world, args.persona or "", args.at_year))
         return 0
 
     rep = ws.validate(world, strict=bool(args.strict))
@@ -2775,6 +2847,209 @@ def cmd_capacity(args) -> int:
 
 
 # ════════════════════════════════════════════════════════════════════
+# chronicle（1.1.6 编年层：从承载力推出文明史）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_chronicle(args) -> int:
+    if args.list:
+        rows = chn.meta_rows()
+        if args.json:
+            say(json.dumps(rows, ensure_ascii=False, indent=2))
+            return 0
+        say(f"【编年史规则】{len(rows)} 条（必然 = 可由数值算出；很可能 = 生态与社会的合理外推）")
+        for r in rows:
+            say(f"  {r['id']}  {r['name']:<10} [{r['strength']}]  ← {r['when']}")
+        say("\n跑：chronicle <world> ｜ 回写：--write --yes ｜ 对账：--check")
+        return 0
+
+    if not args.world:
+        err("需要一个 world.json", "chronicle <world.json>；只看规则目录用 --list")
+        return 2
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    if args.check:
+        res = chn.check(world)
+        if args.json:
+            out = {k: v for k, v in res.items() if k != "recomputed"}
+            say(json.dumps(out, ensure_ascii=False, indent=2))
+            return 0 if res["ok"] else 1
+        say("编年史体检")
+        say("-" * 52)
+        if res["hash_ok"] is None:
+            say(f"  · {res['why']}")
+            say("     → chronicle <world> --write --yes")
+            return 1
+        say(f"  存档 hash　{res['stored_hash']}")
+        if res.get("self_ok") is False:
+            say(f"  ✗ 内容 hash　{res['content_hash']}（与存档不符：史被手改过）")
+        say(f"  复算 hash　{res['now_hash']}  "
+            f"{'✓ 一致' if res['stored_hash'] == res['now_hash'] else '✗ 不一致'}")
+        if res["stale"]:
+            say(f"  ✗ 引用失效 {len(res['stale'])} 条："
+                + "、".join(f"{s['id']}（{'、'.join(s['bad'])}）" for s in res["stale"]))
+        if res["over"]:
+            say(f"  ✗ 人口越界 {len(res['over'])} 条："
+                + "、".join(f"{o['id']} {_fmt_people(o['people'])} > {_fmt_people(o['k'])}"
+                           for o in res["over"]))
+        if res["ok"]:
+            say("  ✓ 可复算、引用完整、人口不超过承载力")
+            return 0
+        say(f"     → {res['why']}；重跑 chronicle --write --yes 会按当前设定重写")
+        return 1
+
+    data = chn.derive(world, seed=args.seed)
+
+    if args.from_year is not None or args.to_year is not None:
+        lo = args.from_year if args.from_year is not None else -10 ** 9
+        hi = args.to_year if args.to_year is not None else 10 ** 9
+        data["events"] = [e for e in data["events"] if lo <= e["t_year"] <= hi]
+        summ = dict(data.get("summary") or {})
+        summ["window"] = [lo if lo > -10 ** 8 else None, hi if hi < 10 ** 8 else None]
+        data["summary"] = summ
+
+    if args.json:
+        say(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
+    say(chn.format_report(data, world, kind=args.kind or "all"))
+
+    if args.md:
+        md = chn.to_markdown(data, world)
+        if args.md == "-":
+            say("")
+            say(md)
+        else:
+            try:
+                d = os.path.dirname(os.path.abspath(args.md))
+                if d:
+                    os.makedirs(d, exist_ok=True)
+                with open(args.md, "w", encoding="utf-8") as f:
+                    f.write(md)
+                say(f"\n✓ 编年史已写入 {args.md}")
+            except OSError as e:
+                err(f"写文件失败：{e}")
+                return 3
+
+    if args.write:
+        if not args.yes:
+            err("回写 history.chronicle 需要显式确认", "加 --yes；先跑一遍不带 --write 看看")
+            return 2
+        hist = world.get("history") if isinstance(world.get("history"), dict) else {}
+        before = ws.validate(copy.deepcopy(world))
+        hist["chronicle"] = data
+        world["history"] = hist
+        wt.record_revision(world, f"chronicle：回写 {len(data['events'])} 条编年史",
+                           fields=["history.chronicle"])
+        after = ws.validate(copy.deepcopy(world))
+        _save_world(args.world, world)
+        say(f"\n  + 回写 {len(data['events'])} 条事件 ｜ hash {data['hash']}")
+        say(f"  评分 {before.score} → {after.score} ｜ 版本 → "
+            f"{(world.get('meta') or {}).get('version')}")
+        say(f"✓ 已写入 {args.world}")
+    else:
+        say("\n回写：chronicle <world> --write --yes（同 seed 可复算，--check 对账）")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
+# naming（1.1.6 命名层：名字的骨由音系与地形给，字归作者）
+# ════════════════════════════════════════════════════════════════════
+
+def cmd_naming(args) -> int:
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    if args.check:
+        res = nmg.check(world)
+        if args.json:
+            say(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0 if res["ok"] else 1
+        say("命名层体检")
+        say("-" * 52)
+        if res["hash_ok"] is None:
+            say(f"  · {res['why']}")
+            say("     → naming <world> --write --yes")
+            return 1
+        say(f"  存档 hash　{res['stored_hash']}")
+        if res.get("self_ok") is False:
+            say(f"  ✗ 内容 hash　{res.get('live_hash')}（与存档不符：名字被手改过）")
+        say(f"  复算 hash　{res['now_hash']}  "
+            f"{'✓ 一致' if res['hash_ok'] else '✗ 不一致'}")
+        if res.get("stale"):
+            say(f"  ✗ 引用失效 {len(res['stale'])} 条："
+                + "、".join(f"{s['name']}（{'、'.join(s['bad'])}）" for s in res["stale"][:5]))
+        if res.get("dup"):
+            say("  ✗ 重名：" + "、".join(res["dup"][:6]))
+        say("  ✓ 可复算、引用完整、无重名" if res["ok"] else f"     → {res['why']}")
+        return 0 if res["ok"] else 1
+
+    if args.set_phonology:
+        cons, vow, codas = [], [], []
+        for part in str(args.set_phonology).split(";"):
+            if "=" not in part:
+                continue
+            k, v = part.split("=", 1)
+            items = [x.strip().lower() for x in v.split(",") if x.strip()]
+            k = k.strip().lower()
+            if k.startswith("c"):
+                cons = items
+            elif k.startswith("v"):
+                vow = items
+            elif k.startswith("k"):
+                codas = items
+        if not cons or not vow:
+            err("音系至少要有辅音与元音", '形如 --set-phonology "c=k,t,m;v=a,e,i"')
+            return 2
+        civ = world.get("civilization") if isinstance(world.get("civilization"), dict) else {}
+        store = civ.get("names") if isinstance(civ.get("names"), dict) else {}
+        store["phonology"] = {
+            "consonants": cons, "vowels": vow, "codas": codas or cons[:3],
+            "origin": "author", "src": ["civilization.names.phonology"],
+        }
+        civ["names"] = store
+        world["civilization"] = civ
+
+    data = nmg.derive(world, seed=args.seed,
+                      count_person=args.count, count_place=args.count)
+
+    if args.json:
+        if args.kind == "person":
+            data["place"] = []
+        elif args.kind == "place":
+            data["person"] = []
+        say(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.kind == "person":
+        data["place"] = []
+    elif args.kind == "place":
+        data["person"] = []
+    say(nmg.format_report(data, world))
+
+    if args.write:
+        if not args.yes:
+            err("回写 civilization.names 需要显式确认", "加 --yes；先跑一遍不带 --write 看看")
+            return 2
+        full = nmg.derive(world, seed=args.seed,
+                          count_person=args.count, count_place=args.count)
+        civ = world.get("civilization") if isinstance(world.get("civilization"), dict) else {}
+        civ["names"] = full
+        world["civilization"] = civ
+        wt.record_revision(
+            world, f"naming：写入 {len(full['person'])} 人名 + {len(full['place'])} 地名",
+            fields=["civilization.names"])
+        _save_world(args.world, world)
+        say(f"\n  + 回写 {len(full['person'])} 人名 + {len(full['place'])} 地名 ｜ hash {full['hash']}")
+        say(f"✓ 已写入 {args.world}")
+    else:
+        say("\n回写：naming <world> --write --yes（同 seed 可复算，--check 对账）")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
 # kernel（1.1.5：1.2–1.8 的物理内核，一条命令全跑）
 # ════════════════════════════════════════════════════════════════════
 
@@ -3220,6 +3495,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="只算账本/误差/适用域，跳过内核自检与地球基准（约 0.3 秒）")
     pr.add_argument("--replay", action="store_true",
                     help="真的重放 map 与 ca 对 hash（两分钟左右，默认只读存档 hash）")
+    pr.add_argument("--no-map", action="store_true",
+                    help="1.1.6：不把地图嵌进预览页（省约 2 秒与 160 KB）")
     pr.set_defaults(func=cmd_preview)
 
     e = sub.add_parser("export", help="生成世界档案 Markdown")
@@ -3287,7 +3564,9 @@ def build_parser() -> argparse.ArgumentParser:
     sl.add_argument("world")
     sl.add_argument("--check", action="store_true", help="只做机检（默认行为）")
     sl.add_argument("--prompt", action="store_true",
-                    help="输出写作提示（四种视角，带本世界的天象与历法）")
+                    help="输出写作提示（四种视角，带本世界的天象、历法与编年前情）")
+    sl.add_argument("--at-year", type=int, metavar="YEAR",
+                    help="1.1.6：把这个人放在第 YEAR 年——只注入那一年之前已发生的编年")
     sl.add_argument("--persona", choices=list(PERSONAS),
                     help="resident(居民) / child(孩童) / outlander(外来者) / skeptic(敌对科学家)")
     sl.add_argument("--cites", action="store_true",
@@ -3417,6 +3696,35 @@ def build_parser() -> argparse.ArgumentParser:
                     help="出 Markdown（星图 PNG + 表），缺省打到标准输出")
     sy.add_argument("--json", action="store_true")
     sy.set_defaults(func=cmd_sky)
+
+    ch_ = sub.add_parser("chronicle", help="1.1.6：从承载力推出文明编年史（同 seed 可复算）")
+    ch_.add_argument("world", nargs="?", help="world.json（--list 时可省）")
+    ch_.add_argument("--list", action="store_true", help="列 19 条编年规则：编号 / 触发条件 / 强度")
+    ch_.add_argument("--seed", type=int, help="覆盖抖动种子（默认取 planet_map.seed）")
+    ch_.add_argument("--from-year", type=int, help="只看这一年之后的编年（时间轴回放）")
+    ch_.add_argument("--to-year", type=int, help="只看这一年之前的编年")
+    ch_.add_argument("--kind", help="只看某一类事件：war / plague / faith / calendar …")
+    ch_.add_argument("--md", nargs="?", const="-", metavar="FILE",
+                     help="另存 Markdown（表格 + 逐条正文），缺省打到标准输出")
+    ch_.add_argument("--write", action="store_true", help="写回 history.chronicle")
+    ch_.add_argument("--yes", action="store_true", help="确认回写")
+    ch_.add_argument("--check", action="store_true", help="hash 复算 + 引用失效 + 人口越界检测")
+    ch_.add_argument("--json", action="store_true")
+    ch_.set_defaults(func=cmd_chronicle)
+
+    nm = sub.add_parser("naming", help="1.1.6：命名层——音系与地形给出名字的骨，字归作者")
+    nm.add_argument("world")
+    nm.add_argument("--kind", choices=["person", "place", "all"], default="all",
+                    help="只看人名 / 只看地名（默认都给）")
+    nm.add_argument("--count", type=int, default=10, help="各给几个，默认 10")
+    nm.add_argument("--seed", type=int, help="覆盖抖动种子（默认取存档 seed 或 meta.id）")
+    nm.add_argument("--set-phonology", metavar="C=…;V=…",
+                    help='接管音系，如 "c=k,t,m,s;v=a,e,i;K=n,r"（c 辅音 / v 元音 / K 韵尾）')
+    nm.add_argument("--write", action="store_true", help="写回 civilization.names")
+    nm.add_argument("--yes", action="store_true", help="确认回写")
+    nm.add_argument("--check", action="store_true", help="hash 复算 + 引用失效 + 重名检测")
+    nm.add_argument("--json", action="store_true")
+    nm.set_defaults(func=cmd_naming)
 
     return p
 

@@ -3,7 +3,7 @@
     "id": "helikon",
     "name": "赫利孔",
     "subtitle": "三阳世界",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "created": "2026-10-27",
     "author": "盘古 / 自主生成",
     "tagline": "两个太阳，两道影子，一个从不迟到的历法。",
@@ -1625,8 +1625,327 @@
         "fields": [
           "cosmology.sky_phenomena"
         ]
+      },
+      {
+        "version": "1.1.5",
+        "date": "2026-11-07",
+        "change": "chronicle：回写 18 条编年史",
+        "fields": [
+          "history.chronicle"
+        ]
       }
-    ]
+    ],
+    "chronicle": {
+      "generator": "chronicle/1.1.6",
+      "seed": 7,
+      "hash": "d94a6f21",
+      "calendar": {
+        "epoch": "落火元年",
+        "day_hours": 31.4,
+        "year_days": 355.9,
+        "months": 8,
+        "month_days": 44.49
+      },
+      "population": {
+        "start": 5000,
+        "carrying_capacity": 62904328767.0,
+        "carrying_capacity_source": "biology.carrying_capacity.humans_subsistence",
+        "peak": 2913331459,
+        "peak_share": 0.0463,
+        "growth_per_year": 0.000726,
+        "model": "logistic：P(t)=K/(1+(K/P0-1)e^(-rt))"
+      },
+      "summary": {
+        "n_events": 18,
+        "span_years": 21116,
+        "carrying_capacity": 62904328767.0,
+        "peak_population": 2913331459,
+        "peak_share": 0.0463,
+        "growth_per_year": 0.000726,
+        "climate_fit": 0.997,
+        "eras": [
+          {
+            "name": "萌芽纪",
+            "from_year": 1836
+          },
+          {
+            "name": "农耕纪",
+            "from_year": 5141
+          },
+          {
+            "name": "城邦纪",
+            "from_year": 8814
+          },
+          {
+            "name": "王国纪",
+            "from_year": 12853
+          },
+          {
+            "name": "鼎盛纪",
+            "from_year": 18364
+          }
+        ]
+      },
+      "events": [
+        {
+          "id": "H01",
+          "kind": "origin",
+          "title": "第一笔",
+          "text": "「落火元年」，这一年被记作第 0 年：一昼夜 31.4 小时、一年 355.9 天，第一次被刻在星图边缘上。从此他们有了「以前」和「以后」——这是这个文明唯一一次不需要理由的跃迁。",
+          "t_year": 0,
+          "era": "萌芽纪",
+          "q": 0.0,
+          "people": 5000,
+          "src": [
+            "cosmology.calendar.epoch",
+            "cosmology.calendar.year_days",
+            "cosmology.calendar.day_hours"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H02",
+          "kind": "calendar",
+          "title": "定历",
+          "text": "355.9 天 ÷ 44.49 天 = 8：一年正好 8 个「月」，**历法不需要闰日**。这是算术给他们的礼物，不是祭司的功劳——任何人只要会除法就能预言下一次节庆在哪一天。",
+          "t_year": 367,
+          "era": "萌芽纪",
+          "q": 0.02,
+          "people": 6527,
+          "src": [
+            "cosmology.calendar.year_days",
+            "cosmology.calendar.month_days",
+            "cosmology.calendar.months"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H03",
+          "kind": "taboo",
+          "title": "立禁",
+          "text": "「不可直视双星合的正中时刻。在互食的 90 分钟里……」被写进最早的律法。它读起来像道德，其实是生理学：这条禁忌的每一条都对应着物理层的一个代价。世界先收钱，然后才有人替它编理由。",
+          "t_year": 734,
+          "era": "萌芽纪",
+          "q": 0.04,
+          "people": 8519,
+          "src": [
+            "civilization.taboo"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H20",
+          "kind": "binary",
+          "title": "双日之民",
+          "text": "天上不只有一个光源：长明、短烛。两颗星每 44.5 天互绕一周，影子每天换一次夹角，每 44.5 天重合一次。他们的时间单位不是太阳给的，是**两颗星的相对位置**给的。",
+          "t_year": 1102,
+          "era": "萌芽纪",
+          "q": 0.06,
+          "people": 11121,
+          "src": [
+            "cosmology.stars"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H04",
+          "kind": "energy",
+          "title": "能源",
+          "text": "人口到 2万，柴薪的边际收益开始下降。「双星辐照（主要用于盐墙储热）+ 地息燃烧……」第一次被当成基础设施，而不是运气——能量密度决定了他们能造多大的城、能走多远的路。",
+          "t_year": 1836,
+          "era": "农耕纪",
+          "q": 0.1,
+          "people": 18948,
+          "src": [
+            "civilization.energy_source"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H05",
+          "kind": "agriculture",
+          "title": "种子入土",
+          "text": "陆地只占 23%，可耕的还要再打折。把种子埋进土里之后，同一片地的产出第一次超过采集——这颗星球的理论口粮上限是 629.0亿人（biology.carrying_capacity.humans_subsistence），而此时他们还不到 4万人。**从这一刻起，每一次人口增长都在预支未来。**",
+          "t_year": 2938,
+          "era": "农耕纪",
+          "q": 0.16,
+          "people": 42144,
+          "src": [
+            "cosmology.bodies[0].planet_map.summary.land_fraction",
+            "biology.carrying_capacity.humans_subsistence"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H22",
+          "kind": "rhythm",
+          "title": "两段睡眠",
+          "text": "一昼夜 31.4 小时。一次睡眠撑不到下一个天亮，于是作息被切成两段（昼中一觉、夜中一觉）。他们的语言里没有「熬夜」——因为『夜』本来就长到必须被切开。",
+          "t_year": 4040,
+          "era": "农耕纪",
+          "q": 0.22,
+          "people": 93733,
+          "src": [
+            "cosmology.calendar.day_hours"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H06",
+          "kind": "city",
+          "title": "第一批城市",
+          "text": "人口 27万人。第一批万人城长在海岸线上——水运比陆运便宜一个数量级。城市不是变大的村庄：它把「陌生人之间的合作」变成了日常，也第一次让瘟疫、火灾与暴动有了足够的密度。",
+          "t_year": 5509,
+          "era": "城邦纪",
+          "q": 0.3,
+          "people": 272128,
+          "src": [
+            "cosmology.bodies[0].planet_map.summary.ocean_fraction"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H21",
+          "kind": "dark",
+          "title": "没有黑夜",
+          "text": "恒星总光度 1.468 L☉，夜里的天光被压在 19 等上下。他们抬头只能看见两百来颗星，银河是传说不是景。**在一个没有真正黑夜的世界里，「怕黑」这种情绪根本不会进化出来**；守夜、宵禁、夜祷这套制度也就无从谈起——他们的问题从来不是黑，是亮。",
+          "t_year": 6243,
+          "era": "城邦纪",
+          "q": 0.34,
+          "people": 463673,
+          "src": [
+            "cosmology.stars"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H07",
+          "kind": "writing",
+          "title": "文字",
+          "text": "人口 79万人，粮食要入仓、税要记账、节庆要排到下一年。文字为记账而生，随后被用来写诗。他们的计时方式是：「以双星合为「月」，一月 44.49 天……」——历法不是天文学的副产品，是行政的第一块地基。",
+          "t_year": 6978,
+          "era": "城邦纪",
+          "q": 0.38,
+          "people": 790042,
+          "src": [
+            "civilization.timekeeping"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H08",
+          "kind": "sea",
+          "title": "出海",
+          "text": "海洋占 77%。有卫星就有潮汐表：退潮时露出的那条路，是普通人唯一免费的远行方式。",
+          "t_year": 8447,
+          "era": "城邦纪",
+          "q": 0.46,
+          "people": 2293616,
+          "src": [
+            "cosmology.bodies[0].planet_map.summary.ocean_fraction"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H09",
+          "kind": "state",
+          "title": "成国",
+          "text": "人口 869万人，灌溉、防洪、运粮都需要跨村落调度，于是有了不种地也能吃饭的人。他们的社会形状是：「沿晨昏温差带分布的城邦联盟。社会阶层按「影子清晰度」划分：能在正午看……」——这不是文化选择，是地理与能量密度允许的唯一几种解法之一。",
+          "t_year": 10283,
+          "era": "王国纪",
+          "q": 0.56,
+          "people": 8691166,
+          "src": [
+            "civilization.social_shape"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H10",
+          "kind": "war",
+          "title": "争地",
+          "text": "人口 4297万人，而这条曲线终点是 29.1亿人。人均好地已经分完，边际产出开始下降——**马尔萨斯压力不是一种观点，是一条曲线**：再往前，每多一个人就少一口饭。于是战争从掠夺变成了必需。",
+          "t_year": 12486,
+          "era": "王国纪",
+          "q": 0.68,
+          "people": 42969767,
+          "src": [
+            "biology.carrying_capacity.humans_subsistence"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H11",
+          "kind": "plague",
+          "title": "大疫",
+          "text": "人口 1.2亿人，城市密度足够让病原体把宿主当成道路。一次大疫抹掉了一到三成人口——在他们的编年史里，这往往比任何一场战争都更接近「天意」。",
+          "t_year": 13955,
+          "era": "鼎盛纪",
+          "q": 0.76,
+          "people": 124589055,
+          "src": [
+            "cosmology.bodies[0].planet_map.summary.land_fraction"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H12",
+          "kind": "reform",
+          "title": "变法",
+          "text": "他们的技术树不走地球那条路：「跳过冶铜与青铜，直接从天然赤铜进入冷锻工艺……」这条路少了一整段材料的台阶，也因此在别处更早撞到天花板。技术路径由元素与相态决定，不由聪明程度决定。",
+          "t_year": 15424,
+          "era": "鼎盛纪",
+          "q": 0.84,
+          "people": 360352068,
+          "src": [
+            "civilization.tech_path"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H13",
+          "kind": "faith",
+          "title": "国教",
+          "text": "信仰锚定在最不容置疑的那一幕上：「每个人在天亮后有两个影子：长明的影子边缘锐利、色偏冷灰……」它每天/每年准时发生，可预测、可复用、无法反驳——**一个能被算出来的神，比一个全能的神更像真的。**",
+          "t_year": 16526,
+          "era": "鼎盛纪",
+          "q": 0.9,
+          "people": 795889910,
+          "src": [
+            "cosmology.sky_phenomena"
+          ],
+          "strength": "很可能"
+        },
+        {
+          "id": "H14",
+          "kind": "peak",
+          "title": "顶点",
+          "text": "人口 29.1亿人，占理论上限 629.0亿人的 4.6%。没有到 100%：真实文明永远卡在「能养活」与「真的养活」之间那道沟里——战争、瘟疫、盐碱化与赋税各吃掉一部分。**这个百分比是引擎给的，不是史书给的。**",
+          "t_year": 18362,
+          "era": "鼎盛纪",
+          "q": 1.0,
+          "people": 2913331459,
+          "src": [
+            "biology.carrying_capacity.humans_subsistence"
+          ],
+          "strength": "必然"
+        },
+        {
+          "id": "H15",
+          "kind": "aftermath",
+          "title": "余波",
+          "text": "他们把过剩的人口推上船（或推过山口），在外海与高原上复制了一套同类社会。母星的人口曲线因此被削平——扩张是历史上唯一被反复验证过的减速器。",
+          "t_year": 21116,
+          "era": "余波纪",
+          "q": 1.15,
+          "people": 2913331459,
+          "src": [
+            "biology.carrying_capacity.humans_subsistence"
+          ],
+          "strength": "很可能"
+        }
+      ]
+    }
   },
   "consistency": {
     "score": 0,

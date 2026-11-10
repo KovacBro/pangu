@@ -42,7 +42,7 @@ DIMENSIONS = ("structure", "energy", "observation", "evolution", "narrative",
               "quantitative")
 
 # 引擎版本：doctor 用它和 SKILL / README / CHANGELOG / MCP 对齐（1.1.3）
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 
 
 # ════════════════════════════════════════════════════════════════════

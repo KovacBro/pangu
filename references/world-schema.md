@@ -275,8 +275,23 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `eras` | obj[] | `{name, span, summary}` |
+| `eras` | obj[] | `{name, span, summary}`（`note` 也认，1.1.6 起 export 兼容） |
 | `revisions` | obj[] | `{version, date, change, fields?}`，改设定必记；`fields` 是 1.1.2 新增的可选字段（本次改了哪些路径，最多 40 条）。用 `patch` 改设定会自动追加，不必手写 |
+| `chronicle` | obj | **1.1.6 新增，生成物，不要手填。** 由 `chronicle --write --yes` 写入，见 §3.11 |
+
+### 3.11 `history.chronicle`（1.1.6，生成物）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `generator` | str | `chronicle/1.1.6` |
+| `seed` | int | 抖动种子；缺省取 `planet_map.seed`，可用 `--seed` 覆盖。**同 seed 同 hash** |
+| `hash` | str | 事件内容的 sha1 前 8 位。改一岁、改一句都会变 |
+| `calendar` | obj | `{epoch, day_hours, year_days, months, month_days}` 的快照 |
+| `population` | obj | `{start, carrying_capacity, carrying_capacity_source, peak, peak_share, growth_per_year, model}`；`model` 为 logistic |
+| `events` | obj[] | `{id, kind, title, text, t_year, era, q, people, src[], strength}` |
+| `summary` | obj | `{n_events, span_years, carrying_capacity, peak_population, peak_share, growth_per_year, climate_fit, eras[]}` |
+
+`events[].src` 是引用路径（如 `biology.carrying_capacity.humans_subsistence`），`--check` 会逐条验证；**引用的字段被删掉，这条史就失效**。`strength` 只有两档：`必然` / `很可能`。`q` 是该事件在文明跨度上的相对时刻（0 = 第一笔，1 = 顶点，>1 = 余波）。
 
 ### 3.10 `consistency`
 

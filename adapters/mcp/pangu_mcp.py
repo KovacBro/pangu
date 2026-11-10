@@ -46,7 +46,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 CLI = os.path.join(ROOT, "scripts", "pangu.py")
 
 SERVER_NAME = "pangu"
-SERVER_VERSION = "1.1.5"
+SERVER_VERSION = "1.1.6"
 DEFAULT_PROTOCOL = "2024-11-05"
 SUPPORTED_PROTOCOLS = ("2024-11-05", "2024-10-07", "2025-03-26", "2025-06-18")
 
@@ -419,6 +419,29 @@ TOOLS = [
             "yes": {"type": "boolean", "description": "确认回写"},
             "check": {"type": "boolean", "description": "体检失效推论"},
         }),
+    },
+    {
+        "name": "pangu_chronicle",
+        "title": "编年史（承载力 → 文明时间轴）",
+        "description": (
+            "从承载力与历法**推**出一条文明编年史：19 条规则（第一笔 / 定历 / 立禁 / "
+            "种子入土 / 城市 / 文字 / 出海 / 成国 / 争地 / 大疫 / 变法 / 国教 / 顶点 / 余波，"
+            "外加双日之民 / 没有黑夜 / 两段睡眠 / 晨昏线），事件时刻由 logistic 人口曲线"
+            "反解，每条带 src 出处与强度（必然 / 很可能）。同 seed 可复算。"
+            "write=true 回写 history.chronicle；check=true 复算 hash、检出引用失效与人口越界。"
+        ),
+        "inputSchema": _schema({
+            "world": {"type": "string", "description": "world.json 路径（list=true 时可省）"},
+            "list": {"type": "boolean", "description": "列 19 条规则的编号 / 触发条件 / 强度"},
+            "seed": {"type": "number", "description": "覆盖抖动种子"},
+            "from_year": {"type": "number", "description": "只看这一年之后（时间轴回放）"},
+            "to_year": {"type": "number", "description": "只看这一年之前"},
+            "kind": {"type": "string", "description": "只看某一类事件，如 war / plague"},
+            "write": {"type": "boolean", "description": "回写 history.chronicle（需 yes=true）"},
+            "yes": {"type": "boolean", "description": "确认回写"},
+            "check": {"type": "boolean", "description": "hash 复算 / 引用失效 / 人口越界"},
+            "json": {"type": "boolean", "description": "机器可读输出"},
+        }, ["world"]),
     },
 ]
 
@@ -806,6 +829,34 @@ def _call_tool(name: str, a: dict) -> dict:
             args.append("--yes")
         if a.get("check"):
             args.append("--check")
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
+
+    # ── 编年史 ──────────────────────────────────────────────
+    if name == "pangu_chronicle":
+        if a.get("list"):
+            code, out, err = _run_cli(["chronicle", "--list"])
+            return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["chronicle", str(w)]
+        if a.get("seed") is not None:
+            args += ["--seed", str(int(a["seed"]))]
+        if a.get("from_year") is not None:
+            args += ["--from-year", str(int(a["from_year"]))]
+        if a.get("to_year") is not None:
+            args += ["--to-year", str(int(a["to_year"]))]
+        if a.get("kind"):
+            args += ["--kind", str(a["kind"])]
+        if a.get("write"):
+            args.append("--write")
+        if a.get("write") and a.get("yes"):
+            args.append("--yes")
+        if a.get("check"):
+            args.append("--check")
+        if a.get("json"):
+            args.append("--json")
         code, out, err = _run_cli(args)
         return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
 

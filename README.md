@@ -1,12 +1,12 @@
-# 盘古 1.1.5 Pangu
+# 盘古 1.1.6 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.1.5-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.6-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-105%2F105-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-121%2F121-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -17,6 +17,33 @@
 > 地球不是模板，是一个样本。
 
 ---
+
+## 1.1.6 新增了什么
+
+1.1.1 有**地**，1.1.2 能**改**，1.1.3 知道**走到哪**，1.1.4 **抬头能看见**，1.1.5 **知道自己错多少**，1.1.6 **知道这三千年里发生了什么**，也知道**东西该叫什么**。
+
+前几版把律、地、天都算出来了，唯独「人」这一层只有散文：`civilization` 是一段自我介绍，`history.eras` 是三个手写的纪元标题。这一版补上时间轴，而且用同一种方式补 —— **不编故事，只做正向推导**：
+
+> 承载力 → 人口曲线（logistic）→ 人口刻度 → 事件时刻 → 事件文案
+
+- **`chronicle` — 编年史，从地上长出来**：19 条规则（H01–H23），每条触发条件都落在 `world.json` 的某个字段上。年长来自 `calendar.year_days`，人口上限来自 `carrying_capacity.humans_subsistence`，「定历」来自 `year_days ÷ month_days` 的余数，禁忌 / 能源 / 技术路径 / 社会形状直接引用 `civilization.*` 的原文，国教锚定 `sky_phenomena` 里最显眼的那一条，余波由气候适配与种子决定。
+- **可复算**：`--check` 按 seed 重推再对 hash。手改一句史书，hash 立刻对不上；改了下游字段却没重跑 `--write`，`--check` 与 `review` 的 **D12** 会点名。
+- **每条都带出处**：事件带 `src`（引用哪几个字段）、`strength`（必然 / 很可能）与 `q`（在文明跨度上的相对时刻）。**没有出处的史不许存在** —— 这条规矩跟 `ca` 的 `source`、`entail` 的 `src` 是同一条。
+- **时间轴回放**：`--from-year` / `--to-year` 截一段看，`--seed` 换一种抖动，`--md` 出表 + 逐条正文，`export` 自动把它挂在「九 · 历史」底下。
+- **切片接上时间轴**：`slice --prompt` 自动带上「这个人之前发生过的 3 件事」（年份 / 强度 / 纪元 / 全境人口），`--at-year 3000` 可以把这个人钉在第 3000 年 —— 之后的事他一无所知。存档里没有编年史就明说没有，不替作者编。
+- **`naming` — 名字的骨由引擎给，字归作者**：音系从 `meta.id` 的字母长出来（`helikon` → `h l k n` × `e i o`），不足 8 辅音 / 4 元音就补默认集，补了什么写进 `borrowed`；地名后缀由 `land_fraction` 判沿海 / 内陆。每批 10 个人名 + 10 个地名，每个都能拆音节、指回字段；`--check` 算两份 hash（重推一份、存档名字一份），手改一个字母就红。`--set-phonology` 让作者直接换一套读音。
+- **地图从主产物里开出去**：`preview` 的 dock 上有一个「地图」按钮，点开同目录的 `map.html`（新窗口）—— 那边是 1440×720 的原生渲染，比把 180×90 的场塞进预览页再放大清楚得多。预览页因此回到 246 KB。`map.html` 这一版补上**每层图例**：色带直接由渲染用的 ramp 生成，标尺取自渲染用的同一份 ranges（高程 0–5.6 km、温度 247–304 K、降水 0–P95），切层即换；群系层给色块，板块层给边界与热点。
+- **赫利孔算下来**：18 条事件、跨度 21,116 年。第 367 年一年正好 8 个月、历法不需要闰日（算术给的，不是祭司的功劳）；第 2,938 年种子入土，此时 4 万人，而理论口粮上限是 629 亿人；第 18,362 年走到顶点，只有理论上限的 4.6%。**那个 4.6% 是引擎给的，不是史书给的。**
+- 数字：`review` 十一项 → **十二项**（D12 编年），`selftest` 105 → **121**（V13–V21 编年与地图入口、V22–V23 切片接编年、V24–V27 命名层，与 M1b）。
+
+```bash
+python scripts/pangu.py chronicle examples/helikon/world.json          # 从承载力推出整条文明史
+python scripts/pangu.py chronicle examples/helikon/world.json --md -   # 出表 + 逐条正文
+python scripts/pangu.py chronicle out/world.json --write --yes         # 回写 history.chronicle
+python scripts/pangu.py chronicle out/world.json --check               # hash 复算 / 引用失效
+```
+
+**没有做的**：文明层仍然只有一层薄壳。编年史推**事件顺序与时刻**，不推政体、经济与战争的具体过程，也不写人名与国名 —— 名字是作者的活，年份与因果是引擎的活。
 
 ## 1.1.5 新增了什么
 
@@ -95,7 +122,7 @@ python scripts/pangu.py whatif examples/helikon/world.json --set "cosmology.bodi
 
 前面三个命令负责**把世界造出来**，这两个负责**判断能不能交**、以及**如果当初选另一条会怎样**。
 
-- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完九项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
+- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完十二项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致 / 地球基准 / 守恒账本 / 适用域 / 编年史，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
 - **`whatif` — 反事实推演**（`scripts/whatif.py`）：在内存副本上改设定，回答「世界会变成什么样」——重力怎么动、哪条必然推论消失、审查从哪一条开始崩、若采纳要重跑什么。`--set` 定点改，`--scale` 按倍率缩放并**保留单位后缀**（`4.004e-11 m3kg-1s-2` → `2.8028e-11 m3kg-1s-2`），`--recalc` 先抹平 P01 这类算术冲突。**永不写原世界**，`--write` 才另存一份假设世界。
 - 例：G × 0.7 后地表重力 1.76 → 1.23 g，E09「没有翅膀」自动消失（能飞了），恰好演示了「反常识是有代价的，代价一变，奇观就散」。
 - 与 `sweep` 的分工：`sweep` 扫**一个数**、只回答「哪一步崩了」；`whatif` 任意多字段、回答「**世界变成什么样**」。
@@ -311,7 +338,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── windsurf/pangu.md       Windsurf 规则
 │   ├── gemini/GEMINI.md        Gemini CLI 入口
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
-│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，20 个 tool）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，21 个 tool）
 ├── docs/
 │   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
 │   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
@@ -320,6 +347,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── 开发文档-v1.1.3.md       1.1.3 导航与选项：plan / options / entail 的契约与判定
 │   ├── 开发文档-v1.1.4.md       1.1.4 观测层与增补层：sky / benchmark / capacity 的口径
 │   ├── 开发文档-v1.1.5.md       1.1.5 守恒与误差：八个内核、四本账、± 与适用域
+│   ├── 开发文档-v1.1.6.md       1.1.6 编年层：推演链、19 条规则、数据契约与判定
 │   ├── 1.1.4-更新方案.md        1.1.4 的立稿与落地复盘（§15 差距清单、§16 增补）
 │   ├── 1.1.5-更新方案.md        通往真实世界模型的十一个大版本路线图（1.1.5 全量并入）
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
@@ -338,8 +366,10 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、元素与基座检验、卡间互斥与对账
 │   ├── rite.py                  七斧状态机：斧位判定、缺口、下一步命令、六项交付门槛
 │   ├── options_lib.py           选项卡解析与检索：列 / 抽 / 采纳 / 未答命题
-│   ├── entailment.py            必然推论：30 条后果规则、幂等回写、失效检测
-│   ├── review.py                交付体检：十一项编排与判定（只读）
+│   ├── entailment.py            必然推论：36 条后果规则、幂等回写、失效检测
+│   ├── chronicle.py             编年层：19 条事件规则、logistic 反解时刻、hash 可复算
+│   ├── naming.py                命名层：slug→音系、地形→后缀语义，音系+seed→人名/地名（双 hash 对账）
+│   ├── review.py                交付体检：十二项编排与判定（只读）
 │   ├── whatif.py                反事实推演：副本改动、现象增减、分级与下游
 │   ├── world_tuning.py          调参层：点路径读写、参数扫描（含等比）、版本对比、斧位差、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合

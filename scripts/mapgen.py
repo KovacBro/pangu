@@ -1214,43 +1214,78 @@ def _draw_rivers(px, W, H, res: MapResult, color=(70, 150, 190), width=2):
                         px[o], px[o + 1], px[o + 2] = color
 
 
+RAMP_OCEAN = [
+    (0.0, (5, 14, 26)), (0.25, (8, 30, 50)), (0.55, (12, 60, 86)),
+    (0.80, (22, 96, 120)), (1.0, (46, 140, 150)),
+]
+RAMP_LAND = [
+    (0.0, (74, 86, 62)), (0.18, (104, 100, 64)), (0.38, (134, 114, 74)),
+    (0.58, (160, 142, 104)), (0.78, (196, 190, 170)), (0.92, (225, 228, 220)),
+    (1.0, (248, 250, 250)),
+]
+RAMP_TEMP = [
+    (0.0, (30, 42, 94)), (0.18, (38, 86, 144)), (0.36, (62, 150, 176)),
+    (0.52, (156, 200, 150)), (0.68, (232, 196, 94)), (0.84, (226, 120, 60)),
+    (1.0, (176, 44, 40)),
+]
+RAMP_DRY = [
+    (0.0, (86, 66, 44)), (0.22, (132, 112, 66)), (0.45, (110, 140, 76)),
+    (0.65, (58, 120, 86)), (0.82, (36, 96, 116)), (1.0, (28, 62, 112)),
+]
+RAMP_HAB = [
+    (0.0, (10, 18, 28)), (0.18, (24, 48, 50)), (0.40, (44, 96, 66)),
+    (0.62, (102, 150, 58)), (0.82, (196, 176, 76)), (1.0, (240, 224, 138)),
+]
+RAMP_RELIEF = [(0.0, (34, 44, 48)), (0.35, (92, 92, 82)),
+               (0.65, (168, 162, 146)), (1.0, (240, 242, 238))]
+PLATE_COLS = [
+    (74, 104, 148), (156, 108, 84), (92, 132, 92), (128, 104, 140),
+    (168, 140, 84), (78, 128, 132), (140, 84, 84), (96, 112, 156),
+    (116, 140, 104), (150, 120, 150), (100, 140, 120), (170, 110, 120),
+    (110, 118, 160), (138, 130, 96), (90, 150, 150), (160, 96, 96),
+]
+
+
+def _render_ranges(res: MapResult) -> dict:
+    """
+    渲染各层时用的归一化口径（1.1.6 抽出）。
+
+    图例的标尺必须与图完全同源，否则「图上那片红」和「图例说 300 K」会各说各话。
+    所以 `_render_layer` 与 `_viewer_payload` 都从这里取数，只有一处真相。
+    """
+    t_lo = _percentile(res.temperature, 0.02) if res.temperature else 250.0
+    t_hi = _percentile(res.temperature, 0.98) if res.temperature else 300.0
+    return {
+        "max_depth": max(0.1, max(res.depth) if res.depth else 0.1),
+        "max_elev": max(0.1, max(res.elev) if res.elev else 0.1),
+        "max_precip": max(1.0, _percentile(res.precip, 0.95) if res.precip else 1.0),
+        "t_lo": t_lo,
+        "t_hi": t_hi,
+        "t_span": max(1.0, t_hi - t_lo),
+    }
+
+
+def _legend(ramp, lo: str, hi: str, note: str) -> dict:
+    """把 Python 端的色带原样翻译成 CSS 渐变，图与图例不可能对不上。"""
+    stops = ",".join(f"rgb({c[0]},{c[1]},{c[2]}) {p * 100:.0f}%" for p, c in ramp)
+    return {"grad": f"linear-gradient(90deg,{stops})", "lo": lo, "hi": hi, "note": note}
+
+
 def _render_layer(res: MapResult, layer: str, W, H, s, coast):
     n = W * H
     px = bytearray(n * 3)
-    ocean_ramp = [
-        (0.0, (5, 14, 26)), (0.25, (8, 30, 50)), (0.55, (12, 60, 86)),
-        (0.80, (22, 96, 120)), (1.0, (46, 140, 150)),
-    ]
-    land_ramp = [
-        (0.0, (74, 86, 62)), (0.18, (104, 100, 64)), (0.38, (134, 114, 74)),
-        (0.58, (160, 142, 104)), (0.78, (196, 190, 170)), (0.92, (225, 228, 220)),
-        (1.0, (248, 250, 250)),
-    ]
-    temp_ramp = [
-        (0.0, (30, 42, 94)), (0.18, (38, 86, 144)), (0.36, (62, 150, 176)),
-        (0.52, (156, 200, 150)), (0.68, (232, 196, 94)), (0.84, (226, 120, 60)),
-        (1.0, (176, 44, 40)),
-    ]
-    dry_ramp = [
-        (0.0, (86, 66, 44)), (0.22, (132, 112, 66)), (0.45, (110, 140, 76)),
-        (0.65, (58, 120, 86)), (0.82, (36, 96, 116)), (1.0, (28, 62, 112)),
-    ]
-    hab_ramp = [
-        (0.0, (10, 18, 28)), (0.18, (24, 48, 50)), (0.40, (44, 96, 66)),
-        (0.62, (102, 150, 58)), (0.82, (196, 176, 76)), (1.0, (240, 224, 138)),
-    ]
-    max_depth = max(0.1, max(res.depth) if res.depth else 0.1)
-    max_elev = max(0.1, max(res.elev) if res.elev else 0.1)
-    max_precip = max(1.0, _percentile(res.precip, 0.95) if res.precip else 1.0)
-    t_lo = _percentile(res.temperature, 0.02)
-    t_hi = _percentile(res.temperature, 0.98)
-    t_span = max(1.0, t_hi - t_lo)
-    plate_cols = [
-        (74, 104, 148), (156, 108, 84), (92, 132, 92), (128, 104, 140),
-        (168, 140, 84), (78, 128, 132), (140, 84, 84), (96, 112, 156),
-        (116, 140, 104), (150, 120, 150), (100, 140, 120), (170, 110, 120),
-        (110, 118, 160), (138, 130, 96), (90, 150, 150), (160, 96, 96),
-    ]
+    ocean_ramp = RAMP_OCEAN
+    land_ramp = RAMP_LAND
+    temp_ramp = RAMP_TEMP
+    dry_ramp = RAMP_DRY
+    hab_ramp = RAMP_HAB
+    rg = _render_ranges(res)
+    max_depth = rg["max_depth"]
+    max_elev = rg["max_elev"]
+    max_precip = rg["max_precip"]
+    t_lo = rg["t_lo"]
+    t_span = rg["t_span"]
+    plate_cols = PLATE_COLS
 
     for i in range(n):
         o = i * 3
@@ -1314,8 +1349,7 @@ def _render_layer(res: MapResult, layer: str, W, H, s, coast):
                 c = (255, 168, 72)
         elif layer == "relief":
             g = _clamp((s.elev[i] + s.depth[i] * 0.35) / max_elev, 0, 1)
-            c = _ramp([(0.0, (34, 44, 48)), (0.35, (92, 92, 82)),
-                       (0.65, (168, 162, 146)), (1.0, (240, 242, 238))], g)
+            c = _ramp(RAMP_RELIEF, g)
             c = _shade_color(c, s.shade[i] if not s.ocean[i] else 0.8)
         else:
             c = bc
@@ -1432,6 +1466,29 @@ def _viewer_payload(res: MapResult, W, H):
             data[k] = _b64(arr, 1.0)
     data["b"] = _b64(biome, raw=True)
     data["o"] = _b64(ocean, raw=True)
+
+    # 1.1.6 · 每层图例：色带直接由渲染用的 ramp 生成，标尺取自渲染用的同一份 ranges
+    rg = _render_ranges(res)
+    legend = {
+        "elevation": _legend(
+            RAMP_LAND, "0 km", f"{rg['max_elev']:.1f} km",
+            f"陆地按本星最高峰归一；海按深度着色（0 – {rg['max_depth']:.1f} km），低温格压白"),
+        "temperature": _legend(
+            RAMP_TEMP, f"{rg['t_lo']:.0f} K", f"{rg['t_hi']:.0f} K",
+            "年辐照 + 温室 + 海拔递减；取 2%–98% 分位，海洋压暗"),
+        "precipitation": _legend(
+            RAMP_DRY, "0", f"{rg['max_precip']:.0f} mm",
+            "风带 + 迎风坡 + 海陆分布；95% 分位封顶"),
+        "habitat": _legend(
+            RAMP_HAB, "0", "1", "温度 / 降水 / 高程 / 土壤归一；海洋压暗"),
+        "relief": _legend(
+            RAMP_RELIEF, "低", "高", "高程 + 0.35×水深，西北向光照"),
+        "tectonics": {
+            "items": [["#e85c48", "聚合边界"], ["#48c8d2", "张裂边界"],
+                      ["#e2c45c", "转换边界"], ["#ffa848", "热点"]],
+            "note": "底色为板块编号；边界与热点按应力判定",
+        },
+    }
     return {
         "world": res.meta.get("name", ""),
         "version": MAP_VERSION,
@@ -1440,6 +1497,7 @@ def _viewer_payload(res: MapResult, W, H):
         "stats": dict(res.stats, seed0=res.meta.get("seed", 0)),
         "checks": res.checks,
         "biomes": [{"name": b["name"], "color": b["color"]} for b in res.biomes],
+        "legend": legend,
         "fields": data,
         "layers": {
             "elevation": "map-elevation.png",
@@ -1483,6 +1541,10 @@ h4{margin:18px 0 8px;font-size:11px;color:var(--dim);font-weight:500;letter-spac
 .kv b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
 .legend{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:10.5px;color:var(--dim)}
 .legend i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:-1px}
+.bar{height:9px;border-radius:5px;margin:3px 0 3px;border:1px solid #17304a}
+.bar-cap{display:flex;justify-content:space-between;font-size:9.5px;color:#5d7894;
+  font-variant-numeric:tabular-nums}
+.bar-note{width:100%;font-size:10px;line-height:1.65;color:#5d7894;margin-top:5px}
 footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 22px;
   border-top:1px solid var(--line);font-size:11px;color:var(--dim)}
 #probe{position:absolute;pointer-events:none;background:rgba(6,16,28,.92);
@@ -1508,7 +1570,7 @@ footer{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:0 22px;
   <div id="stage"><canvas id="map"></canvas><div id="probe"></div>
     <div id="hint">滚轮缩放 · 拖动平移 · 双击复位</div></div>
   <aside id="right">
-    <h4>群系图例</h4><div class="legend" id="legend"></div>
+    <h4>图例</h4><div class="legend" id="legend"></div>
     <h4>体检</h4><div id="checks" style="font-size:11px;line-height:1.9;color:var(--dim)"></div>
     <h4>说明</h4>
     <div style="font-size:11px;line-height:1.8;color:var(--dim)">
@@ -1534,6 +1596,36 @@ function load(){let n=0;const keys=Object.keys(D.layers);
     im.onload=()=>{imgs[k]=im;if(++n===keys.length)draw();};
     im.onerror=()=>{if(++n===keys.length)draw();};
     im.src=D.layers[k];}}
+/* 1.1.6 · 每层一张图例：色带与标尺都由服务端按渲染口径算好，前端只负责摆 */
+function renderLegend(){
+  const lg=$('legend');lg.innerHTML='';
+  if(cur==='biome'){
+    D.biomes.forEach(b=>{const s=document.createElement('span');
+      s.innerHTML='<i style="background:'+b.color+'"></i>'+b.name;lg.appendChild(s);});
+    const tip=document.createElement('div');
+    tip.className='bar-note';
+    tip.textContent='海岸线深色；极冰 / 海冰按群系着色';
+    lg.appendChild(tip);return;
+  }
+  const L=(D.legend||{})[cur];
+  if(!L){const d=document.createElement('div');d.className='bar-note';
+    d.textContent='这一层没有图例';lg.appendChild(d);return;}
+  if(L.items){
+    L.items.forEach(it=>{const s=document.createElement('span');
+      s.style.width='100%';
+      s.innerHTML='<i style="background:'+it[0]+'"></i>'+it[1];lg.appendChild(s);});
+  }
+  if(L.grad){
+    const d=document.createElement('div');d.style.width='100%';
+    d.innerHTML='<div class="bar" style="background:'+L.grad+'"></div>'+
+      '<div class="bar-cap"><span>'+L.lo+'</span><span>'+L.hi+'</span></div>';
+    lg.appendChild(d);
+  }
+  if(L.note){
+    const d=document.createElement('div');d.className='bar-note';
+    d.textContent=L.note;lg.appendChild(d);
+  }
+}
 function setup(){
   $('seed').textContent='seed '+D.stats.seed0;
   $('k-ocean').textContent=(D.stats.ocean_fraction*100).toFixed(1)+'%';
@@ -1544,15 +1636,15 @@ function setup(){
   $('k-hab').textContent=D.stats.habitat_mean.toFixed(2);
   $('k-river').textContent=D.stats.river_cells;
   $('k-plates').textContent=D.stats.plates;
-  const lg=$('legend');D.biomes.forEach(b=>{const s=document.createElement('span');
-    s.innerHTML='<i style="background:'+b.color+'"></i>'+b.name;lg.appendChild(s);});
+  renderLegend();
   D.checks.forEach(c=>{const d=document.createElement('div');
     d.textContent=(c.ok?'✓ ':'! ')+c.id+' '+c.note;d.style.color=c.ok?'#9fc4a8':'#e8b06a';
     $('checks').appendChild(d);});
   $('clock').textContent='等距圆柱 · '+D.nx+'×'+D.ny+' 格 · '+D.version;
   const lb=$('layers');LAYERS.forEach(([k,t])=>{const b=document.createElement('button');
     b.textContent=t;b.dataset.k=k;if(k===cur)b.className='on';
-    b.onclick=()=>{cur=k;[...lb.children].forEach(x=>x.className=x.dataset.k===k?'on':'');draw();};
+    b.onclick=()=>{cur=k;[...lb.children].forEach(x=>x.className=x.dataset.k===k?'on':'');
+      renderLegend();draw();};
     lb.appendChild(b);});
 }
 function draw(){
@@ -1610,6 +1702,23 @@ stage.addEventListener('dblclick',()=>{zoom=1;ox=oy=0;draw();});
 window.addEventListener('resize',draw);
 setup();load();
 </script></body></html>"""
+
+
+def preview_payload(world: dict, res=(180, 90), seed=None) -> dict:
+    """
+    给 preview.html 的「地图」页签用的精简载荷（1.1.6）。
+
+    与 map.html 的 `_viewer_payload` 同源，但**去掉 layers**：预览是单文件，
+    不能引外部 PNG，改为把 180×90 的字段交给页面在 canvas 上着色。
+    这样 7 层图变成 6 层场（群系 / 高程 / 温度 / 降水 / 宜居度 / 晕渲），
+    体积只涨约 160 KB，且与「数据与渲染分离」的原则一致。
+    """
+    r = build(world, res=res, seed=seed)
+    p = _viewer_payload(r, 0, 0)
+    p.pop("layers", None)
+    p.pop("render", None)
+    p["source"] = "mapgen.preview_payload"
+    return p
 
 
 def _write_viewer(res: MapResult, outdir: str, W, H):

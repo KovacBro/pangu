@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9，1.1.5 加 D10/D11）
+盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9，1.1.5 加 D10/D11，1.1.6 加 D12）
 ================================================================
-一条命令跑完十一项体检，给出「能不能交」的单一结论。
+一条命令跑完十二项体检，给出「能不能交」的单一结论。
 
 设计约束
 --------
@@ -209,8 +209,37 @@ def _certify_item(world: dict, fast: bool) -> dict:
                  "覆盖率低于 30% 时，这个世界的数字大多还是「拍的」，别当模型用")
 
 
+def _chronicle_item(world: dict, fast: bool) -> dict:
+    """D12 编年：那段历史是从「地」推出来的，还是一段散文。软门槛。"""
+    import chronicle as chr_
+    ch = chr_.stored(world)
+    if not ch:
+        return _item("D12", "编年", SKIP, None, "还没有编年史（可选）",
+                     "chronicle <world> --write --yes",
+                     "civilization 只有自我介绍时，读者不知道这三千年里发生了什么")
+    n = len([e for e in (ch.get("events") or []) if isinstance(e, dict)])
+    if fast:
+        return _item("D12", "编年", SKIP, None, f"{n} 条（--fast 未复算）",
+                     "chronicle <world> --check")
+    try:
+        res = chr_.check(world)
+    except Exception as e:  # noqa: BLE001
+        return _item("D12", "编年", SOFT, False, f"复算失败：{type(e).__name__}",
+                     "chronicle <world> --check", "编年层挂了，说明推演有回归")
+    brief = f"{n} 条 ｜ hash {res.get('stored_hash')}"
+    if not res.get("hash_ok"):
+        brief += " ｜ hash 不一致"
+    if res.get("stale"):
+        brief += f" ｜ 引用失效 {len(res['stale'])}"
+    if res.get("over"):
+        brief += f" ｜ 人口越界 {len(res['over'])}"
+    return _item("D12", "编年", SOFT, bool(res.get("ok")), brief,
+                 "chronicle <world> --check",
+                 "史要由承载力与历法推出：hash 不一致=手改过，人口越界=史比地能养的多")
+
+
 def run(world: dict, path: str = "", fast: bool = False) -> dict:
-    """跑完九项体检。返回 {items, ok, hard_fail, soft_warn, conclusion, ...}。"""
+    """跑完十二项体检。返回 {items, ok, hard_fail, soft_warn, conclusion, ...}。"""
     rep = ws.validate(world)
     wd = ws.weirdness(world)
     items = [_item("D1", "自洽", HARD, rep.fatal == 0,
@@ -230,6 +259,7 @@ def run(world: dict, path: str = "", fast: bool = False) -> dict:
     items.append(_bench_item(fast))
     items.append(_ledger_item(world))
     items.append(_certify_item(world, fast))
+    items.append(_chronicle_item(world, fast))
 
     hard_fail = [i for i in items if i["level"] == HARD and i["ok"] is False]
     soft_warn = [i for i in items if i["level"] == SOFT and i["ok"] is False]

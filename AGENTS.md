@@ -13,6 +13,8 @@
 
 1.1.5 起多了第五件：**账本**（`kernel` / `ledger` / `certify` / `replay`）。前四件解决「像不像、自不自洽」，这一件解决「错多少、哪些数根本不是算的」：八个物理内核各自对解析解或公开数，四本守恒账带容差，每个派生量带 ±，每条关键结论标明是算出来的、半算半填、经验式还是作者拍的。星表按 seed 确定性生成、可复算，**不是真实星表**；天光是经验模型（±0.5 等）；天球位置是圆轨道近似。`whatif --sky` 让「改一个数，今夜星空会怎样」当场可见；世界档案与预览页的第一屏是星图。
 
+1.1.6 起多了第六件：**编年**（`chronicle`）。前五件把律、地、天、账都算出来了，「人」这一层却只有散文。编年层不编故事，只做正向推导：承载力 → 人口曲线（logistic）→ 人口刻度 → 事件时刻 → 事件文案。19 条规则（H01–H23），时刻由人口曲线**反解**，所以改一次 `carrying_capacity` 整条时间轴都会动。每条事件带 `src` 出处、`strength`（必然 / 很可能）与 `q`（相对时刻），同 seed 可复算 hash；`--check` 指出引用失效、人口越界与手改痕迹，`review` 多出 **D12 编年**。**不写人名与国名**——名字是作者的活，年份与因果是引擎的活。
+
 ## 何时触发
 
 用户提出下列任一意图时，**先读 `SKILL.md` 全文**，再动手：
@@ -41,6 +43,13 @@ python scripts/pangu.py entail out/world.json          # 从已立之律推出�
 python scripts/pangu.py entail out/world.json --write --yes       # 幂等回写 sky_phenomena
 python scripts/pangu.py entail out/world.json --check             # 改设定后哪些旧推论失效了
 python scripts/pangu.py entail --list                             # 36 条规则的触发条件与强度
+
+# —— 编年（1.1.6）——
+python scripts/pangu.py chronicle out/world.json       # 从承载力推出整条文明史
+python scripts/pangu.py chronicle out/world.json --list        # 19 条规则：触发条件与强度
+python scripts/pangu.py chronicle out/world.json --write --yes # 回写 history.chronicle
+python scripts/pangu.py chronicle out/world.json --check       # hash 复算 / 引用失效 / 人口越界
+python scripts/pangu.py chronicle out/world.json --from-year 8000 --to-year 14000  # 时间轴回放
 
 # —— 抬头（1.1.4）——
 python scripts/pangu.py sky out/world.json             # 今夜：天光 / 极限星等 / 星图 / 关键天体

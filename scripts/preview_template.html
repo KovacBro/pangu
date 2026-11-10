@@ -305,6 +305,7 @@
     #cr-card{left:12px;right:12px;top:auto;bottom:74px;width:auto;padding:10px 12px}
     #cr-card .cr-cap,#cr-card .cr-els{display:none}
   }
+
 </style>
 </head>
 <body>
@@ -337,6 +338,7 @@
   <button id="v-life">演化</button>
   <button id="v-creature">生物</button>
   <button id="v-books">账本</button>
+  <button id="v-map">地图</button>
   <div class="sep"></div>
   <button id="btn-reset" title="R">复位</button>
 </div>
@@ -399,6 +401,9 @@
     <div class="bk-note" id="bk-foot"></div>
   </div>
 </div>
+
+<!-- 1.1.6 · 地图入口：同目录 map.html 的地址（空 = 没生成，按钮隐藏） -->
+<script id="pangu-map-href" type="text/plain">__PANGU_MAP_HREF__</script>
 
 <div id="boot">
   <div class="ring"></div>
@@ -2280,6 +2285,11 @@ $('v-surface').onclick = () => SURF.open();
 $('v-life').onclick = () => LIFE.open();
 $('v-creature').onclick = () => { if (CREATURE) CREATURE.open(); };
 $('v-books').onclick = () => { BOOKS.open(); };
+/* 地图不开新视图：同目录的 map.html 才是原生 1440×720 渲染，这里只负责把门打开 */
+$('v-map').onclick = () => {
+  const href = (($('pangu-map-href') || {}).textContent || '').trim();
+  if (href) window.open(href, '_blank');
+};
 
 /* 没有账本数据（旧产物 / 没跑 1.1.5）就把按钮藏起来，别给一个点了没反应的入口 */
 (function hideBooksButtonIfEmpty() {
@@ -2289,6 +2299,12 @@ $('v-books').onclick = () => { BOOKS.open(); };
     ok = !!(d.ledger || d.certify || d.kernel || d.checks);
   } catch (e) { ok = false; }
   if (!ok) { const b = $('v-books'); if (b) b.style.display = 'none'; }
+})();
+
+/* 1.1.6 · 同目录没有 map.html（或加了 --no-map）就不给入口 */
+(function hideMapButtonIfEmpty() {
+  const href = (($('pangu-map-href') || {}).textContent || '').trim();
+  if (!href) { const b = $('v-map'); if (b) b.style.display = 'none'; }
 })();
 
 /* ── 降级页 ─────────────────────────────────────────────────── */

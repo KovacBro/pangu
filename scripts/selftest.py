@@ -155,6 +155,20 @@ def test_map(tmp):
           r.returncode == 0 and not miss and min(sizes or [0]) > 500,
           f"缺 {miss}")
 
+    # 1.1.6 · 每层带图例，且色带与标尺由渲染口径同源生成
+    legend = {}
+    try:
+        with open(os.path.join(outdir, "map.html"), encoding="utf-8") as f:
+            m = re.search(r'<script id="data"[^>]*>(.*?)</script>', f.read(), re.S)
+        legend = (json.loads(m.group(1)) if m else {}).get("legend") or {}
+    except Exception:
+        legend = {}
+    need_lg = {"elevation", "temperature", "precipitation", "habitat", "relief", "tectonics"}
+    ok_lg = need_lg.issubset(legend) and all(
+        ("grad" in legend[k] or "items" in legend[k]) for k in need_lg)
+    check("M1b", "map.html 每层带图例（色带与标尺同源）", ok_lg,
+          f"keys={sorted(legend)}")
+
     r = run([CLI, "map", EXAMPLE, "--check", "--res", "120x60"], timeout=300)
     check("M2", "map --check 同 seed 复算一致且六项体检通过",
           r.returncode == 0 and "地图可复算" in r.stdout, (r.stdout + r.stderr)[-160:])
@@ -506,7 +520,7 @@ def test_review(tmp):
     except Exception:
         res = {}
     check("V2", "review --json 给出 items / hard_fail / ok",
-          r.returncode == 0 and len(res.get("items") or []) == 11
+          r.returncode == 0 and len(res.get("items") or []) == 12
           and res.get("ok") is True and res.get("hard_fail") == [],
           f"items={len(res.get('items') or [])} ok={res.get('ok')}")
 
@@ -976,10 +990,10 @@ def test_mcp():
             "pangu_map", "pangu_ca", "pangu_patch", "pangu_sweep", "pangu_diff",
             "pangu_plan", "pangu_options", "pangu_entail",
             "pangu_review", "pangu_whatif", "pangu_sky",
-            "pangu_benchmark", "pangu_capacity"}
+            "pangu_benchmark", "pangu_capacity", "pangu_chronicle"}
     schema_ok = all(t.get("inputSchema", {}).get("type") == "object" for t in tools)
-    check("P7", "tools/list 返回 20 个工具且 schema 合法",
-          len(tools) == 20 and need.issubset(names) and schema_ok,
+    check("P7", "tools/list 返回 21 个工具且 schema 合法",
+          len(tools) == 21 and need.issubset(names) and schema_ok,
           f"{len(tools)} 个，缺 {need - names}")
 
     reps, _ = rpc([
@@ -1134,6 +1148,161 @@ def test_v115(tmp):
           f"size={len(html)} keys={sorted(books)[:5]}")
 
 
+
+
+def test_preview_map(tmp):
+    print("\n§1.1.6 地图入口（preview → map.html 新窗口）")
+
+    def href_of(path):
+        if not os.path.exists(path):
+            return "MISSING"
+        with open(path, encoding="utf-8") as f:
+            h = f.read()
+        if "__PANGU_MAP_HREF__" in h:
+            return "PLACEHOLDER"
+        m = re.search(r'<script id="pangu-map-href"[^>]*>(.*?)</script>', h, re.S)
+        return (m.group(1).strip() if m else "NO-TAG")
+
+    out = os.path.join(tmp, "prev_nomap.html")
+    r = run([CLI, "preview", EXAMPLE, "-o", out, "--no-map"])
+    v = href_of(out)
+    check("V19", "--no-map 不挂地图入口（占位符已替换为空）",
+          r.returncode == 0 and v == "", f"href={v!r}")
+
+    d = os.path.join(tmp, "mapdir")
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, "map.html"), "w", encoding="utf-8") as f:
+        f.write("<!doctype html><title>stub</title>")
+    out2 = os.path.join(d, "prev.html")
+    r2 = run([CLI, "preview", EXAMPLE, "-o", out2])
+    v2 = href_of(out2)
+    check("V20", "同目录有 map.html 时挂上入口（点了开新窗口）",
+          r2.returncode == 0 and v2 == "map.html", f"href={v2!r}")
+
+    # 内嵌那套必须彻底退场：既不该再有 200 KB 的场数据，也不该有画布
+    with open(out2, encoding="utf-8") as f:
+        h2 = f.read()
+    check("V21", "预览不再内嵌地图数据（体积回落、无 map-canvas）",
+          'id="map-canvas"' not in h2 and 'id="pangu-map"' not in h2,
+          f"size={len(h2)}")
+
+
+def test_chronicle(tmp):
+    print("\n§1.1.6 编年层（chronicle）")
+
+    r = run([CLI, "chronicle", EXAMPLE, "--json"])
+    try:
+        d = json.loads(r.stdout or "{}")
+    except Exception:
+        d = {}
+    ev = d.get("events") or []
+    check("V13", "chronicle --json 给出事件链 / hash / 人口模型",
+          r.returncode == 0 and len(ev) >= 8 and len(str(d.get("hash") or "")) == 8
+          and (d.get("population") or {}).get("carrying_capacity"),
+          f"rc={r.returncode} n={len(ev)} hash={d.get('hash')}")
+
+    a = json.loads(run([CLI, "chronicle", EXAMPLE, "--json", "--seed", "11"]).stdout or "{}")
+    b = json.loads(run([CLI, "chronicle", EXAMPLE, "--json", "--seed", "11"]).stdout or "{}")
+    c = json.loads(run([CLI, "chronicle", EXAMPLE, "--json", "--seed", "12"]).stdout or "{}")
+    ha, hb, hc = a.get("hash"), b.get("hash"), c.get("hash")
+    check("V14", "编年史可复算：同 seed 同 hash，换 seed 换 hash",
+          bool(ha) and ha == hb and ha != hc, f"{ha} / {hb} / {hc}")
+
+    no_src = [e.get("id") for e in ev if not (e.get("src") or [])]
+    check("V15", "每条事件都带 src：不许有无出处的史",
+          not no_src, f"缺依据：{no_src[:4]}")
+
+    out = os.path.join(tmp, "chronicle.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(jload(EXAMPLE), f, ensure_ascii=False)
+    w1 = run([CLI, "chronicle", out, "--write", "--yes"])
+    w2 = run([CLI, "chronicle", out, "--check"])
+    check("V16", "chronicle --write 后 --check 对得上（hash 可复算）",
+          w1.returncode == 0 and w2.returncode == 0,
+          f"write={w1.returncode} check={w2.returncode}")
+
+    d2 = jload(out)
+    evs = ((d2.get("history") or {}).get("chronicle") or {}).get("events") or []
+    if evs:
+        evs[0]["text"] = str(evs[0].get("text") or "") + "（手改）"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(d2, f, ensure_ascii=False)
+    w3 = run([CLI, "chronicle", out, "--check"])
+    check("V17", "手改史书后 --check 退出码 1 并点名 hash",
+          w3.returncode == 1 and "hash" in (w3.stdout or ""),
+          f"rc={w3.returncode}")
+
+    res = json.loads(run([CLI, "review", EXAMPLE, "--json", "--fast"]).stdout or "{}")
+    ids = [i.get("id") for i in (res.get("items") or [])]
+    check("V18", "review 多出 D12 编年（十二项体检）",
+          "D12" in ids and len(ids) == 12, f"items={ids}")
+
+    # V22/V23：切片接上编年（1.1.6 收尾的一根线）
+    r = run([CLI, "slice", EXAMPLE, "--prompt"])
+    txt = r.stdout or ""
+    years = re.findall(r"第 ([\d,]+) 年", txt)
+    ev_years = {f"{int(e.get('t_year') or 0):,}" for e in ev}
+    check("V22", "slice --prompt 注入编年前情，年份都来自存档编年",
+          r.returncode == 0 and "只准引用这些" in txt
+          and bool(years) and all(y in ev_years for y in years),
+          f"years={years[:4]}")
+
+    t2 = run([CLI, "slice", EXAMPLE, "--prompt", "--at-year", "5000"]).stdout or ""
+    ys = sorted(int(y.replace(",", "")) for y in re.findall(r"第 ([\d,]+) 年", t2))
+    early = run([CLI, "slice", EXAMPLE, "--prompt", "--at-year", "-100"])
+    check("V23", "--at-year 只给那一年之前的事；再往前则明说「没有史」",
+          bool(ys) and max(ys) <= 5000 and "18,362" not in t2
+          and "成文史之前" in (early.stdout or ""),
+          f"years={ys}")
+
+
+# ════════════════════════════════════════════════════════════════════
+
+def test_naming(tmp):
+    print("\n§1.1.6 命名层（naming）")
+
+    r = run([CLI, "naming", EXAMPLE, "--json"])
+    try:
+        d = json.loads(r.stdout or "{}")
+    except Exception:
+        d = {}
+    ph = d.get("phonology") or {}
+    per = d.get("person") or []
+    plc = d.get("place") or []
+    bad = [p.get("name") for p in per + plc
+           if not (p.get("syllables") and p.get("rule") and p.get("src"))]
+    check("V24", "naming --json 给出音系 / pool / 人名 / 地名，且每条可拆可溯",
+          r.returncode == 0 and bool(ph.get("consonants")) and bool(ph.get("vowels"))
+          and len(per) == 10 and len(plc) == 10 and not bad
+          and (d.get("pool") or {}).get("cv", 0) > 0,
+          f"cons={len(ph.get('consonants') or [])} bad={bad[:3]}")
+
+    ha = d.get("hash")
+    hb = json.loads(run([CLI, "naming", EXAMPLE, "--json"]).stdout or "{}").get("hash")
+    hc = json.loads(run([CLI, "naming", EXAMPLE, "--json", "--seed", "99"]).stdout or "{}").get("hash")
+    check("V25", "命名可复算：同 seed 同 hash，换 seed 换 hash",
+          bool(ha) and ha == hb and ha != hc, f"{ha} / {hb} / {hc}")
+
+    out = os.path.join(tmp, "naming.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(jload(EXAMPLE), f, ensure_ascii=False)
+    w1 = run([CLI, "naming", out, "--write", "--yes"])
+    w2 = run([CLI, "naming", out, "--check"])
+    d2 = jload(out)
+    d2["civilization"]["names"]["person"][0]["name"] = "Zzz"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(d2, f, ensure_ascii=False)
+    w3 = run([CLI, "naming", out, "--check"])
+    check("V26", "naming --write 后 --check 绿；手改一个名字后变红",
+          w1.returncode == 0 and w2.returncode == 0 and w3.returncode == 1,
+          f"write={w1.returncode} check={w2.returncode} tampered={w3.returncode}")
+
+    r = run([CLI, "naming", EXAMPLE, "--set-phonology", "c=q,w,x;v=u,a;K=q"])
+    check("V27", "--set-phonology 让作者接管音系（q / w / x 进门）",
+          r.returncode == 0 and "q" in (r.stdout or "").lower(),
+          f"rc={r.returncode}")
+
+
 # ════════════════════════════════════════════════════════════════════
 
 def main() -> int:
@@ -1163,6 +1332,9 @@ def main() -> int:
         test_install(tmp)
         test_mcp()
         test_v115(tmp)
+        test_preview_map(tmp)
+        test_chronicle(tmp)
+        test_naming(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
