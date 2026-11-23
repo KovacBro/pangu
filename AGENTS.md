@@ -15,7 +15,7 @@
 
 1.1.6 起多了第六件：**编年**（`chronicle`）。前五件把律、地、天、账都算出来了，「人」这一层却只有散文。编年层不编故事，只做正向推导：承载力 → 人口曲线（logistic）→ 人口刻度 → 事件时刻 → 事件文案。19 条规则（H01–H23），时刻由人口曲线**反解**，所以改一次 `carrying_capacity` 整条时间轴都会动。每条事件带 `src` 出处、`strength`（必然 / 很可能）与 `q`（相对时刻），同 seed 可复算 hash；`--check` 指出引用失效、人口越界与手改痕迹，`review` 多出 **D12 编年**。**不写人名与国名**——名字是作者的活，年份与因果是引擎的活。
 
-1.1.6 第二批多了第七、第八件：**问学**（`inquiry`）与**艺术**（`aesthetic`）。这两层不发明新物理，只把前面算出来的物理量翻译成「人会怎么想、会做什么」——而翻译的单位是**观测能力与感官条件**。
+1.1.7 多了第七、第八件：**问学**（`inquiry`）与**艺术**（`aesthetic`）。这两层不发明新物理，只把前面算出来的物理量翻译成「人会怎么想、会做什么」——而翻译的单位是**观测能力与感官条件**。
 
 - `inquiry`：天光 → 极限星等 → 可见星数 → 能测什么 → 假说的形状。输出四类：**已知**（有可复测量）/ **假说**（信息集内合理但可能错）/ **难题**（缺工具）/ **不可知**（物理上拿不到信息）。21 条规则（K01–K03 / H01–H09 / P01–P04 / U01–U05），每条带 `src` 与强度；`review` 多出 **D14 问学**。
 - `aesthetic`：声速 `c = sqrt(γRT/M)`、维恩峰值 `λ = 2.898e6/T`、重力 `g_calc` 是真算的，由此推出调色板 / 影的画法 / 音高（`12·log2(c/343)` 个半音）/ 乐器尺寸上限 / 建筑 / 城市形态 / 叙事 / 仪式，最后压成**一件可演出的作品**。12 条规则（V01–V03 / M01–M03 / A01–A02 / L01–L02 / R01 / W01）；不适用的规则返回空——单星世界不会长出「两道影的画法」。`review` 多出 **D15 艺术**。
@@ -59,7 +59,7 @@ python scripts/pangu.py chronicle out/world.json --write --yes # 回写 history.
 python scripts/pangu.py chronicle out/world.json --check       # hash 复算 / 引用失效 / 人口越界
 python scripts/pangu.py chronicle out/world.json --from-year 8000 --to-year 14000  # 时间轴回放
 
-# —— 问学与艺术（1.1.6 第二批）——
+# —— 问学与艺术（1.1.7）——
 python scripts/pangu.py inquiry out/world.json         # 已知 / 假说 / 难题 / 不可知（21 条规则）
 python scripts/pangu.py inquiry out/world.json --kind unknowable   # 只看「物理上永远拿不到」
 python scripts/pangu.py inquiry out/world.json --write --yes   # 回写 inquiry

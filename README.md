@@ -1,12 +1,12 @@
-# 盘古 1.1.6 Pangu
+# 盘古 1.1.7 Pangu
 
 <img src="assets/icon.svg" width="72" align="right" alt="pangu">
 
-[![version](https://img.shields.io/badge/version-1.1.6-E8B15C)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.7-E8B15C)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-4C7FA6)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.9%2B-3776AB)](https://www.python.org)
 [![agent skill](https://img.shields.io/badge/agent%20skill-SKILL.md-8A7BD6)](SKILL.md)
-[![tests](https://img.shields.io/badge/selftest-121%2F121-3FA96A)](scripts/selftest.py)
+[![tests](https://img.shields.io/badge/selftest-130%2F130-3FA96A)](scripts/selftest.py)
 
 **开天辟地式造世引擎** — 先立律，后长物。
 
@@ -17,6 +17,28 @@
 > 地球不是模板，是一个样本。
 
 ---
+
+## 1.1.7 新增了什么
+
+1.1.6 补上的是「这三千年」与「叫什么」。这一版补同一件事的另一半：**他们会问什么，会做什么。**
+
+两层都不发明新物理 —— 只把前面已经算出来的温度、声速、重力、日长、天光，翻译成「人会怎么想、会做什么」。翻译单位是**观测能力与感官条件**，不是作者的口味。
+
+- **`inquiry` — 他们会提出什么假说**：唯一自变量是**观测能力**。天光 → 极限星等 → 肉眼可见星数 → 能测什么 → 假说的形状。输出分四类，最后一类才是价值所在：**已知**（有可复测量）/ **假说**（信息集内合理，但可能是错的，像托勒密）/ **难题**（缺工具）/ **不可知**（物理上拿不到信息）。赫利孔三星、极限星等 3.94，于是它的视差不成立（背后没有更暗的背景）、银河不可见、系外行星无法确认、恒星内部不可达 —— **不是没研究，是这条路封死了**。
+- **`aesthetic` — 他们会做什么样的艺术**：艺术是「感官在特定物理条件下的最优解」。声速 `c = sqrt(γRT/M)`、维恩峰值 `λ = 2.898e6/T`、重力取派生表 `gravity_g_calc`，这三样是真算的；由它们推出调色板（赫利孔 649 nm，偏红，蓝颜料靠矿物硬磨）、音高（同一根管子偏移 `12·log2(c/343)` 个半音）、乐器尺寸上限（体型 ∝ `g^-0.33`）、建筑（1.76 g → 穹顶与拱券优先）、城市（海洋 77% → 港口即首都）、叙事（历法余数决定闭环还是「多出来的日子」），最后压成**一件可演出的作品**。不适用的规则直接不出现：单星世界不会长出「两道影的画法」。
+- **两个新层都不掷骰子**：hash 只覆盖内容，换 seed 不变；改一个物理量（把三星换成单星），整份问学与艺术跟着变 —— 变的不是文风，是可观测的信息集。
+- 数字：`review` 十二项 → **十五项**（D13 命名、D14 问学、D15 艺术），`selftest` 121 → **130**（V28–V35 问学与艺术、V36 十五项体检），MCP 21 → **24 个 tool**，`doctor` 版本一致性扩到 **六处**。
+
+```bash
+python scripts/pangu.py inquiry   examples/helikon/world.json          # 已知 / 假说 / 难题 / 不可知
+python scripts/pangu.py aesthetic examples/helikon/world.json          # 调色板 / 音高 / 建筑 / 一件作品
+python scripts/pangu.py inquiry   out/world.json --kind unknowable     # 只看「物理上永远拿不到」
+python scripts/pangu.py inquiry   out/world.json --write --yes         # 回写 inquiry
+python scripts/pangu.py aesthetic out/world.json --write --yes         # 回写 aesthetic
+python scripts/pangu.py aesthetic out/world.json --check               # 改了世界没重跑就会红
+```
+
+**没有做的**：不推「他们会发明什么技术」，只推「他们能测到什么」；不给艺术定好坏，只给「这个感官条件下最优解的形状」。
 
 ## 1.1.6 新增了什么
 
@@ -34,20 +56,13 @@
 - **`naming` — 名字的骨由引擎给，字归作者**：音系从 `meta.id` 的字母长出来（`helikon` → `h l k n` × `e i o`），不足 8 辅音 / 4 元音就补默认集，补了什么写进 `borrowed`；地名后缀由 `land_fraction` 判沿海 / 内陆。每批 10 个人名 + 10 个地名，每个都能拆音节、指回字段；`--check` 算两份 hash（重推一份、存档名字一份），手改一个字母就红。`--set-phonology` 让作者直接换一套读音。
 - **地图从主产物里开出去**：`preview` 的 dock 上有一个「地图」按钮，点开同目录的 `map.html`（新窗口）—— 那边是 1440×720 的原生渲染，比把 180×90 的场塞进预览页再放大清楚得多。预览页因此回到 246 KB。`map.html` 这一版补上**每层图例**：色带直接由渲染用的 ramp 生成，标尺取自渲染用的同一份 ranges（高程 0–5.6 km、温度 247–304 K、降水 0–P95），切层即换；群系层给色块，板块层给边界与热点。
 - **赫利孔算下来**：18 条事件、跨度 21,116 年。第 367 年一年正好 8 个月、历法不需要闰日（算术给的，不是祭司的功劳）；第 2,938 年种子入土，此时 4 万人，而理论口粮上限是 629 亿人；第 18,362 年走到顶点，只有理论上限的 4.6%。**那个 4.6% 是引擎给的，不是史书给的。**
-- **`inquiry` — 他们会提出什么假说**：唯一自变量是**观测能力**。天光 → 极限星等 → 肉眼可见星数 → 能测什么 → 假说的形状。输出分四类，最后一类才是价值所在：**已知**（有可复测量）/ **假说**（信息集内合理，但可能是错的，像托勒密）/ **难题**（缺工具）/ **不可知**（物理上拿不到信息）。赫利孔三星、极限星等 3.9，于是它的视差不成立（背后没有更暗的背景）、银河不可见、系外行星无法确认、恒星内部不可达 —— **不是没研究，是这条路封死了**。
-- **`aesthetic` — 他们会做什么样的艺术**：艺术是「感官在特定物理条件下的最优解」。声速 `c = sqrt(γRT/M)`、维恩峰值 `λ = 2.898e6/T` 是真算的；由它们推出调色板（赫利孔 649 nm，偏红，蓝颜料靠矿物硬磨）、音高（同一根管子高 `12·log2(c/343)` 个半音）、乐器尺寸上限（体型 ∝ `g^-0.33`）、建筑（1.76 g → 穹顶与拱券优先）、城市（海洋 77% → 港口即首都）、叙事（历法余数决定闭环还是「多出来的日子」），最后压成**一件可演出的作品**。不适用的规则直接不出现：单星世界不会长出「两道影的画法」。
-- **两个新层都不掷骰子**：hash 只覆盖内容，换 seed 不变；改一个物理量（把三星换成单星），整份问学与艺术跟着变 —— 变的不是文风，是可观测的信息集。
-- 数字：`review` 十一项 → **十五项**（D12 编年、D13 命名、D14 问学、D15 艺术），`selftest` 105 → **130**（V13–V21 编年与地图入口、V22–V23 切片接编年、V24–V27 命名层、V28–V35 问学与艺术、V36 十五项体检，与 M1b）。
+- 数字：`review` 十一项 → **十二项**（D12 编年），`selftest` 105 → **121**（V13–V21 编年与地图入口、V22–V23 切片接编年、V24–V27 命名层，与 M1b）。
 
 ```bash
 python scripts/pangu.py chronicle examples/helikon/world.json          # 从承载力推出整条文明史
 python scripts/pangu.py chronicle examples/helikon/world.json --md -   # 出表 + 逐条正文
 python scripts/pangu.py chronicle out/world.json --write --yes         # 回写 history.chronicle
 python scripts/pangu.py chronicle out/world.json --check               # hash 复算 / 引用失效
-python scripts/pangu.py inquiry   examples/helikon/world.json          # 已知 / 假说 / 难题 / 不可知
-python scripts/pangu.py aesthetic examples/helikon/world.json          # 调色板 / 音高 / 建筑 / 一件作品
-python scripts/pangu.py inquiry   out/world.json --write --yes         # 回写 inquiry
-python scripts/pangu.py aesthetic out/world.json --write --yes         # 回写 aesthetic
 ```
 
 **没有做的**：文明层仍然只有一层薄壳。编年史推**事件顺序与时刻**，不推政体、经济与战争的具体过程，也不写人名与国名 —— 名字是作者的活，年份与因果是引擎的活。
@@ -354,6 +369,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── 开发文档-v1.1.3.md       1.1.3 导航与选项：plan / options / entail 的契约与判定
 │   ├── 开发文档-v1.1.4.md       1.1.4 观测层与增补层：sky / benchmark / capacity 的口径
 │   ├── 开发文档-v1.1.5.md       1.1.5 守恒与误差：八个内核、四本账、± 与适用域
+│   ├── 开发文档-v1.1.7.md       1.1.7 问学层与艺术层：四类划分、声学公式、判定与验收
 │   ├── 开发文档-v1.1.6.md       1.1.6 编年层：推演链、19 条规则、数据契约与判定
 │   ├── 1.1.6-三大方向.md        深渊 / 舌 / 接触：三份设计草案（未实现；2026-11 深化，含三处会失败的修正）
 │   ├── 1.1.4-更新方案.md        1.1.4 的立稿与落地复盘（§15 差距清单、§16 增补）

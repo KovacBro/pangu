@@ -3069,7 +3069,7 @@ def cmd_naming(args) -> int:
 
 
 # ════════════════════════════════════════════════════════════════════
-# inquiry / aesthetic（1.1.6 追问层与艺术层：同一个物理世界，两种下游翻译）
+# inquiry / aesthetic（1.1.7 追问层与艺术层：同一个物理世界，两种下游翻译）
 # ════════════════════════════════════════════════════════════════════
 
 def _layer_check(res: dict, title: str, rerun: str) -> int:
@@ -3927,7 +3927,7 @@ def build_parser() -> argparse.ArgumentParser:
     nm.set_defaults(func=cmd_naming)
 
     iq_ = sub.add_parser(
-        "inquiry", help="1.1.6：问学层——他们会提出什么假说、会卡在哪、什么永远不知道")
+        "inquiry", help="1.1.7：问学层——他们会提出什么假说、会卡在哪、什么永远不知道")
     iq_.add_argument("world", nargs="?", help="world.json（--list 时可省）")
     iq_.add_argument("--list", action="store_true", help="列 21 条问学规则：编号 / 触发条件 / 强度")
     iq_.add_argument("--seed", type=int, help="覆盖抖动种子（默认沿用存档 seed）")
@@ -3941,7 +3941,7 @@ def build_parser() -> argparse.ArgumentParser:
     iq_.set_defaults(func=cmd_inquiry)
 
     ae_ = sub.add_parser(
-        "aesthetic", help="1.1.6：艺术层——感官条件推出他们会做什么样的艺术")
+        "aesthetic", help="1.1.7：艺术层——感官条件推出他们会做什么样的艺术")
     ae_.add_argument("world", nargs="?", help="world.json（--list 时可省）")
     ae_.add_argument("--list", action="store_true", help="列 12 条艺术规则：编号 / 触发条件 / 强度")
     ae_.add_argument("--seed", type=int, help="覆盖抖动种子（默认沿用存档 seed）")

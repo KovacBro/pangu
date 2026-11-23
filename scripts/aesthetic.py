@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-盘古 · 艺术层（1.1.6）
+盘古 · 艺术层（1.1.7）
 ======================
 艺术不是装饰，是**感官在特定物理条件下的最优解**。
 
@@ -29,7 +29,7 @@ from typing import Any
 
 import world_schema as ws
 
-GENERATOR = "aesthetic/1.1.6"
+GENERATOR = "aesthetic/1.1.7"
 
 R_GAS = 8.314462618          # J/(mol·K)
 GAMMA = 1.4                  # 双原子为主的大气

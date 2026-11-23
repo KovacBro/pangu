@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-盘古 · 问学层（1.1.6）
+盘古 · 问学层（1.1.7）
 ======================
 地理与编年回答「这里有什么、发生过什么」。这个模块回答另外两个问题：
 
@@ -37,7 +37,7 @@ from typing import Any
 import sky as sk
 import world_schema as ws
 
-GENERATOR = "inquiry/1.1.6"
+GENERATOR = "inquiry/1.1.7"
 
 RULES_META = [
     ("K01", "历法", "calendar 有日长与年长", "必然"),
