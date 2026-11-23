@@ -443,6 +443,72 @@ TOOLS = [
             "json": {"type": "boolean", "description": "机器可读输出"},
         }, ["world"]),
     },
+    {
+        "name": "pangu_naming",
+        "title": "命名层（音系 + 地形 → 人名 / 地名）",
+        "description": (
+            "名字的骨由引擎给，字归作者：音系从 meta.id 的字母长出来，地名后缀由 "
+            "land_fraction 判沿海 / 内陆，音系 + seed 生成人名与地名，每个都能拆音节、"
+            "指回字段。write=true 回写 civilization.names；check=true 算两份 hash 对账"
+            "（重推一份、存档名字一份），手改一个字母就红。"
+        ),
+        "inputSchema": _schema({
+            "world": _S,
+            "kind": {"type": "string", "description": "person / place / all（默认 all）"},
+            "count": {"type": "number", "description": "各给几个，默认 10"},
+            "seed": {"type": "number", "description": "覆盖抖动种子"},
+            "set_phonology": {"type": "string",
+                              "description": '接管音系，如 "c=k,t,m;v=a,e,i;K=n,r"'},
+            "write": {"type": "boolean", "description": "回写 civilization.names（需 yes）"},
+            "yes": {"type": "boolean", "description": "确认回写"},
+            "check": _B,
+            "json": _B,
+        }, ["world"]),
+    },
+    {
+        "name": "pangu_inquiry",
+        "title": "问学层（观测能力 → 假说的形状）",
+        "description": (
+            "会提出什么假说、卡在哪、什么永远不知道。唯一自变量是观测能力：天光 → "
+            "极限星等 → 可见星数 → 能测什么。四类输出：known（有可复测量）/ "
+            "hypotheses（信息集内合理但可能错）/ puzzles（缺工具）/ unknowable"
+            "（物理上拿不到信息）。21 条规则，每条带 src 与强度。write=true 回写 inquiry。"
+        ),
+        "inputSchema": _schema({
+            "world": _S,
+            "list": {"type": "boolean", "description": "列 21 条规则的编号 / 触发条件 / 强度"},
+            "kind": {"type": "string",
+                     "description": "known / hypothesis / puzzle / unknowable"},
+            "seed": {"type": "number", "description": "覆盖种子（本层不掷骰子，hash 不变）"},
+            "md": _S,
+            "write": {"type": "boolean", "description": "回写 inquiry（需 yes）"},
+            "yes": _B,
+            "check": _B,
+            "json": _B,
+        }, ["world"]),
+    },
+    {
+        "name": "pangu_aesthetic",
+        "title": "艺术层（感官条件 → 会长出什么艺术）",
+        "description": (
+            "艺术是「感官在特定物理条件下的最优解」。声速 c=sqrt(γRT/M)、维恩峰值 "
+            "λ=2.898e6/T、重力 g_calc 是真算的；由此推出调色板 / 影的画法 / 音高"
+            "（12·log2(c/343) 个半音）/ 乐器尺寸 / 建筑 / 城市形态 / 叙事 / 仪式 / "
+            "一件可演出的作品。12 条规则；不适用的规则直接不出现。write=true 回写 aesthetic。"
+        ),
+        "inputSchema": _schema({
+            "world": _S,
+            "list": {"type": "boolean", "description": "列 12 条规则"},
+            "kind": {"type": "string",
+                     "description": "vision / music / arch / letter / ritual / work"},
+            "seed": {"type": "number", "description": "覆盖种子"},
+            "md": _S,
+            "write": {"type": "boolean", "description": "回写 aesthetic（需 yes）"},
+            "yes": _B,
+            "check": _B,
+            "json": _B,
+        }, ["world"]),
+    },
 ]
 
 GUIDE_FILES = {
@@ -860,6 +926,56 @@ def _call_tool(name: str, a: dict) -> dict:
         code, out, err = _run_cli(args)
         return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
 
+    if name == "pangu_naming":
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = ["naming", str(w)]
+        if a.get("kind"):
+            args += ["--kind", str(a["kind"])]
+        if a.get("count") is not None:
+            args += ["--count", str(int(a["count"]))]
+        if a.get("seed") is not None:
+            args += ["--seed", str(int(a["seed"]))]
+        if a.get("set_phonology"):
+            args += ["--set-phonology", str(a["set_phonology"])]
+        if a.get("write"):
+            args.append("--write")
+        if a.get("write") and a.get("yes"):
+            args.append("--yes")
+        if a.get("check"):
+            args.append("--check")
+        if a.get("json"):
+            args.append("--json")
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
+
+    if name in ("pangu_inquiry", "pangu_aesthetic"):
+        sub = "inquiry" if name == "pangu_inquiry" else "aesthetic"
+        if a.get("list"):
+            code, out, err = _run_cli([sub, "--list"])
+            return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code != 0)
+        w = a.get("world")
+        if not w:
+            return _result("缺少参数 world", True)
+        args = [sub, str(w)]
+        if a.get("kind"):
+            args += ["--kind", str(a["kind"])]
+        if a.get("seed") is not None:
+            args += ["--seed", str(int(a["seed"]))]
+        if a.get("md"):
+            args += ["--md", str(a["md"])]
+        if a.get("write"):
+            args.append("--write")
+        if a.get("write") and a.get("yes"):
+            args.append("--yes")
+        if a.get("check"):
+            args.append("--check")
+        if a.get("json"):
+            args.append("--json")
+        code, out, err = _run_cli(args)
+        return _result(out + (f"\n[stderr]\n{err}" if err.strip() else ""), code not in (0, 1))
+
     return _result(f"未知工具：{name}", True)
 
 
@@ -907,6 +1023,9 @@ def _handle(msg: dict) -> None:
                 "pangu_map 推演行星地图、pangu_ca 跑生态演化、pangu_preview 出 3D、"
                 "pangu_export 出档案。改设定用 pangu_patch（自动升版本记修订），"
                 "扫参数用 pangu_sweep，比版本用 pangu_diff。"
+                "人文三件：pangu_naming 起名（音系与地形给的骨）、"
+                "pangu_chronicle 出编年史、pangu_inquiry 推他们会问什么、"
+                "pangu_aesthetic 推他们会做什么艺术。"
             ),
         })
         return

@@ -520,7 +520,7 @@ def test_review(tmp):
     except Exception:
         res = {}
     check("V2", "review --json 给出 items / hard_fail / ok",
-          r.returncode == 0 and len(res.get("items") or []) == 12
+          r.returncode == 0 and len(res.get("items") or []) == 15
           and res.get("ok") is True and res.get("hard_fail") == [],
           f"items={len(res.get('items') or [])} ok={res.get('ok')}")
 
@@ -990,10 +990,11 @@ def test_mcp():
             "pangu_map", "pangu_ca", "pangu_patch", "pangu_sweep", "pangu_diff",
             "pangu_plan", "pangu_options", "pangu_entail",
             "pangu_review", "pangu_whatif", "pangu_sky",
-            "pangu_benchmark", "pangu_capacity", "pangu_chronicle"}
+            "pangu_benchmark", "pangu_capacity", "pangu_chronicle",
+            "pangu_naming", "pangu_inquiry", "pangu_aesthetic"}
     schema_ok = all(t.get("inputSchema", {}).get("type") == "object" for t in tools)
-    check("P7", "tools/list 返回 21 个工具且 schema 合法",
-          len(tools) == 21 and need.issubset(names) and schema_ok,
+    check("P7", "tools/list 返回 24 个工具且 schema 合法",
+          len(tools) == 24 and need.issubset(names) and schema_ok,
           f"{len(tools)} 个，缺 {need - names}")
 
     reps, _ = rpc([
@@ -1235,7 +1236,11 @@ def test_chronicle(tmp):
     res = json.loads(run([CLI, "review", EXAMPLE, "--json", "--fast"]).stdout or "{}")
     ids = [i.get("id") for i in (res.get("items") or [])]
     check("V18", "review 多出 D12 编年（十二项体检）",
-          "D12" in ids and len(ids) == 12, f"items={ids}")
+          "D12" in ids and len(ids) >= 12, f"items={ids}")
+
+    check("V36", "review 到十五项：D13 命名 / D14 问学 / D15 艺术都在",
+          {"D13", "D14", "D15"}.issubset(set(ids)) and len(ids) == 15,
+          f"items={ids}")
 
     # V22/V23：切片接上编年（1.1.6 收尾的一根线）
     r = run([CLI, "slice", EXAMPLE, "--prompt"])
@@ -1305,6 +1310,101 @@ def test_naming(tmp):
 
 # ════════════════════════════════════════════════════════════════════
 
+def test_layers(tmp):
+    print("\n§1.1.6 问学层与艺术层（inquiry / aesthetic）")
+
+    # ── 问学 ────────────────────────────────────────────────────────
+    r = run([CLI, "inquiry", EXAMPLE, "--json"])
+    try:
+        d = json.loads(r.stdout or "{}")
+    except Exception:
+        d = {}
+    g = d.get("groups") or {}
+    flat = [e for k in ("known", "hypotheses", "puzzles", "unknowable") for e in g.get(k) or []]
+    nobad = [e.get("id") for e in flat
+             if not e.get("src") or e.get("src") == ["meta.name"]
+             or e.get("strength") not in ("必然", "很可能")]
+    check("V28", "inquiry --json 四类齐全，每条都带可溯的 src 与强度",
+          r.returncode == 0 and bool(g.get("known")) and bool(g.get("hypotheses"))
+          and bool(g.get("unknowable")) and len(flat) >= 8 and not nobad,
+          f"n={len(flat)} bad={nobad[:3]}")
+
+    h1 = d.get("hash")
+    h2 = json.loads(run([CLI, "inquiry", EXAMPLE, "--json"]).stdout or "{}").get("hash")
+    h3 = json.loads(run([CLI, "inquiry", EXAMPLE, "--json", "--seed", "7"]).stdout or "{}").get("hash")
+    check("V29", "问学不掷骰子：同一世界同 hash，换 seed 也不变（内容全由观测能力决定）",
+          bool(h1) and h1 == h2 and h1 == h3, f"{h1} / {h2} / {h3}")
+
+    out = os.path.join(tmp, "inquiry.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(jload(EXAMPLE), f, ensure_ascii=False)
+    w1 = run([CLI, "inquiry", out, "--write", "--yes"])
+    w2 = run([CLI, "inquiry", out, "--check"])
+    d2 = jload(out)
+    d2["inquiry"]["groups"]["known"][0]["text"] = "手改过的话"
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(d2, f, ensure_ascii=False)
+    w3 = run([CLI, "inquiry", out, "--check"])
+    check("V30", "inquiry --write 后 --check 绿；手改一条结论后变红",
+          w1.returncode == 0 and w2.returncode == 0 and w3.returncode == 1,
+          f"write={w1.returncode} check={w2.returncode} tampered={w3.returncode}")
+
+    # ── 艺术 ────────────────────────────────────────────────────────
+    r = run([CLI, "aesthetic", EXAMPLE, "--json"])
+    try:
+        a = json.loads(r.stdout or "{}")
+    except Exception:
+        a = {}
+    s = a.get("senses") or {}
+    forms = a.get("forms") or []
+    # 声速自校验：c = sqrt(γRT/M)
+    import math as _m
+    c_want = _m.sqrt(1.4 * 8.314462618 * (s.get("temp_k") or 288.0)
+                     / ((s.get("molar_mass") or 29.0) / 1000.0))
+    c_err = abs((s.get("sound_speed") or 0) - c_want) / c_want if c_want else 1.0
+    check("V31", "aesthetic 的声速与重力是真算的（sqrt(γRT/M) 复算一致；重力取派生表）",
+          r.returncode == 0 and c_err < 0.01 and (s.get("gravity_g") or 0) > 0,
+          f"c={s.get('sound_speed')} want={c_want:.1f} g={s.get('gravity_g')}")
+
+    nbad = [e.get("id") for e in forms
+            if not e.get("src") or e.get("src") == ["meta.name"]]
+    check("V32", "aesthetic 每条形式都挂 src，且至少 5 条（视觉 / 音乐 / 建筑 / 文学 / 作品）",
+          bool(forms) and len(forms) >= 5 and not nbad,
+          f"n={len(forms)} bad={nbad[:3]}")
+
+    out = os.path.join(tmp, "aesthetic.json")
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(jload(EXAMPLE), f, ensure_ascii=False)
+    w1 = run([CLI, "aesthetic", out, "--write", "--yes"])
+    w2 = run([CLI, "aesthetic", out, "--check"])
+    w3 = run([CLI, "patch", out, "--set", "cosmology.bodies[0].axial_tilt_deg=80"])
+    w4 = run([CLI, "aesthetic", out, "--check"])
+    check("V33", "aesthetic --write 后 --check 绿；改了世界（倾角 80°）后变红",
+          w1.returncode == 0 and w2.returncode == 0 and w3.returncode == 0
+          and w4.returncode == 1,
+          f"write={w1.returncode} check={w2.returncode} patch={w3.returncode} drift={w4.returncode}")
+
+    r = run([CLI, "aesthetic", EXAMPLE, "--kind", "music", "--json"])
+    try:
+        m = json.loads(r.stdout or "{}")
+    except Exception:
+        m = {}
+    kinds = {e.get("kind") for e in (m.get("forms") or [])}
+    check("V34", "--kind 过滤：只看音乐时，返回的条目全是 music",
+          r.returncode == 0 and bool(kinds) and kinds == {"music"},
+          f"kinds={sorted(kinds)}")
+
+    md = os.path.join(tmp, "layers.md")
+    r1 = run([CLI, "inquiry", EXAMPLE, "--md", md])
+    r2 = run([CLI, "aesthetic", EXAMPLE, "--md", md + ".aes"])
+    ok = r1.returncode == 0 and r2.returncode == 0
+    for p in (md, md + ".aes"):
+        ok = ok and os.path.exists(p) and len(open(p, encoding="utf-8").read()) > 400
+    check("V35", "--md 两个层都能落成 Markdown", ok, f"rc={r1.returncode}/{r2.returncode}")
+
+
+# ════════════════════════════════════════════════════════════════════
+
 def main() -> int:
     _enc()
     print("=" * 62)
@@ -1335,6 +1435,7 @@ def main() -> int:
         test_preview_map(tmp)
         test_chronicle(tmp)
         test_naming(tmp)
+        test_layers(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

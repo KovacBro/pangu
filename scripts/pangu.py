@@ -51,6 +51,8 @@ import whatif as wi  # noqa: E402
 import sky as sk  # noqa: E402
 import chronicle as chn  # noqa: E402
 import naming as nmg  # noqa: E402
+import inquiry as inq  # noqa: E402
+import aesthetic as aes  # noqa: E402
 
 TEMPLATE = os.path.join(HERE, "preview_template.html")
 
@@ -119,9 +121,12 @@ def _version_audit() -> list:
     readme = _read("README.md")
     change = _read("CHANGELOG.md")
     mcp = _read(os.path.join("adapters", "mcp", "pangu_mcp.py"))
+    inst = _read("install.py")
     rows = [
         {"where": "内核", "value": ws.VERSION,
          "ok": bool(ws.VERSION)},
+        {"where": "install", "value": _first(r'VERSION\s*=\s*"([0-9.]+)"', inst),
+         "ok": _first(r'VERSION\s*=\s*"([0-9.]+)"', inst) == ws.VERSION},
         {"where": "SKILL", "value": _first(r"^\s*version:\s*([0-9.]+)", skill),
          "ok": _first(r"^\s*version:\s*([0-9.]+)", skill) == ws.VERSION},
         {"where": "README", "value": _first(r"badge/version-([0-9.]+)-", readme),
@@ -161,6 +166,8 @@ def cmd_doctor(args) -> int:
         ("scripts/sky.py", "观测层"),
         ("scripts/chronicle.py", "编年层"),
         ("scripts/naming.py", "命名层"),
+        ("scripts/inquiry.py", "问学层"),
+        ("scripts/aesthetic.py", "艺术层"),
         ("scripts/preview_template.html", "3D 模板"),
         ("scripts/mapgen.py", "地图引擎"),
         ("scripts/benchmark.py", "地球基准"),
@@ -1027,6 +1034,18 @@ def cmd_export(args) -> int:
             ("社会", civ.get("social_shape", "—")),
             ("禁忌", civ.get("taboo", "—")),
         ]))
+
+        # 1.1.6 增补：同一个物理世界，两种下游翻译——他们问什么、他们做什么
+        inq_d = world.get("inquiry") if isinstance(world.get("inquiry"), dict) else None
+        if inq_d and inq_d.get("groups"):
+            A(_h(3, "问学 · 他们会提出什么，什么永远不知道"))
+            A(inq.to_markdown(inq_d, world, heading=False))
+            A("")
+        aes_d = world.get("aesthetic") if isinstance(world.get("aesthetic"), dict) else None
+        if aes_d and aes_d.get("forms"):
+            A(_h(3, "艺术 · 这个感官条件下会长出什么"))
+            A(aes.to_markdown(aes_d, world, heading=False))
+            A("")
 
     # 八、行星地图
     A(_h(2, "八 · 行星地图"))
@@ -3050,6 +3069,187 @@ def cmd_naming(args) -> int:
 
 
 # ════════════════════════════════════════════════════════════════════
+# inquiry / aesthetic（1.1.6 追问层与艺术层：同一个物理世界，两种下游翻译）
+# ════════════════════════════════════════════════════════════════════
+
+def _layer_check(res: dict, title: str, rerun: str) -> int:
+    """两个新层共用的体检：hash 复算 + 手改检测 + 引用失效。"""
+    say(title)
+    say("-" * 52)
+    if res.get("hash_ok") is None:
+        say(f"  · {res['why']}")
+        say(f"     → {rerun}")
+        return 1
+    say(f"  存档 hash　{res['stored_hash']}")
+    if res.get("self_ok") is False:
+        say(f"  ✗ 内容 hash　{res.get('content_hash')}（与存档不符：被手改过）")
+    say(f"  复算 hash　{res['now_hash']}  "
+        f"{'✓ 一致' if res['hash_ok'] else '✗ 不一致'}")
+    if res.get("stale"):
+        say(f"  ✗ 引用失效 {len(res['stale'])} 条："
+            + "、".join(f"{s['id']}（{'、'.join(s['bad'])}）"
+                       for s in res["stale"][:6]))
+    if res["ok"]:
+        say("  ✓ 可复算、每条结论的依据都还在")
+        return 0
+    say(f"     → {res['why']}")
+    say(f"     → {rerun} 会按当前设定重写")
+    return 1
+
+
+def _layer_md(args, md_text: str, label: str) -> int:
+    if args.md == "-":
+        say("")
+        say(md_text)
+        return 0
+    try:
+        d = os.path.dirname(os.path.abspath(args.md))
+        if d:
+            os.makedirs(d, exist_ok=True)
+        with open(args.md, "w", encoding="utf-8") as f:
+            f.write(md_text)
+    except OSError as e:
+        err(f"写文件失败：{e}")
+        return 3
+    say(f"\n✓ {label}已写入 {args.md}")
+    return 0
+
+
+def cmd_inquiry(args) -> int:
+    if args.list:
+        rows = inq.meta_rows()
+        if args.json:
+            say(json.dumps(rows, ensure_ascii=False, indent=2))
+            return 0
+        say(f"【问学规则】{len(rows)} 条"
+            "（已知 = 有可复测量；假说 = 信息集内合理但可能错；"
+            "难题 = 缺工具；不可知 = 物理封死）")
+        for r in rows:
+            say(f"  {r['id']}  {r['name']:<14} [{r['strength']}]  ← {r['when']}")
+        say("\n跑：inquiry <world> ｜ 回写：--write --yes ｜ 对账：--check")
+        return 0
+
+    if not args.world:
+        err("需要一个 world.json", "inquiry <world.json>；只看规则目录用 --list")
+        return 2
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    if args.check:
+        res = inq.check(world)
+        if args.json:
+            say(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0 if res["ok"] else 1
+        return _layer_check(res, "问学层体检", "inquiry <world> --write --yes")
+
+    data = inq.derive(world, seed=args.seed)
+
+    if args.kind:
+        want = args.kind.strip()
+        keep = [e for k, evs in (data.get("groups") or {}).items() for e in evs
+                if str(e.get("kind")) == want]
+        if not keep:
+            kinds = sorted({str(e.get("kind")) for evs in (data.get("groups") or {}).values()
+                            for e in evs})
+            err(f"没有 kind={want} 的条目", "可选：" + "、".join(kinds))
+            return 2
+        data["groups"] = {k: [e for e in v if str(e.get("kind")) == want]
+                          for k, v in (data.get("groups") or {}).items()}
+
+    if args.json:
+        say(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
+    say(inq.format_report(data, world))
+
+    if args.md:
+        rc = _layer_md(args, inq.to_markdown(data, world), "问学")
+        if rc:
+            return rc
+
+    if args.write:
+        if not args.yes:
+            err("回写 inquiry 需要显式确认", "加 --yes；先跑一遍不带 --write 看看")
+            return 2
+        world["inquiry"] = data
+        wt.record_revision(world, f"inquiry：写入 {len(data['groups']['known'])} 条已知 + "
+                                  f"{len(data['groups']['hypotheses'])} 条假说",
+                           fields=["inquiry"])
+        _save_world(args.world, world)
+        say(f"\n  + 回写问学 ｜ hash {data['hash']} ｜ 版本 → "
+            f"{(world.get('meta') or {}).get('version')}")
+        say(f"✓ 已写入 {args.world}")
+    else:
+        say("\n回写：inquiry <world> --write --yes（同 seed 可复算，--check 对账）")
+    return 0
+
+
+def cmd_aesthetic(args) -> int:
+    if args.list:
+        rows = aes.meta_rows()
+        if args.json:
+            say(json.dumps(rows, ensure_ascii=False, indent=2))
+            return 0
+        say(f"【艺术规则】{len(rows)} 条（必然 = 由公式算出；很可能 = 感官条件下的合理外推）")
+        for r in rows:
+            say(f"  {r['id']}  {r['name']:<8} [{r['strength']}]  ← {r['when']}")
+        say("\n跑：aesthetic <world> ｜ 回写：--write --yes ｜ 对账：--check")
+        return 0
+
+    if not args.world:
+        err("需要一个 world.json", "aesthetic <world.json>；只看规则目录用 --list")
+        return 2
+    world = _load_or_fail(args.world)
+    if world is None:
+        return 2
+
+    if args.check:
+        res = aes.check(world)
+        if args.json:
+            say(json.dumps(res, ensure_ascii=False, indent=2))
+            return 0 if res["ok"] else 1
+        return _layer_check(res, "艺术层体检", "aesthetic <world> --write --yes")
+
+    data = aes.derive(world, seed=args.seed)
+
+    if args.kind:
+        want = args.kind.strip()
+        keep = [e for e in data.get("forms") or [] if str(e.get("kind")) == want]
+        if not keep:
+            kinds = sorted({str(e.get("kind")) for e in data.get("forms") or []})
+            err(f"没有 kind={want} 的条目", "可选：" + "、".join(kinds))
+            return 2
+        data["forms"] = keep
+
+    if args.json:
+        say(json.dumps(data, ensure_ascii=False, indent=2))
+        return 0
+
+    say(aes.format_report(data, world))
+
+    if args.md:
+        rc = _layer_md(args, aes.to_markdown(data, world), "艺术档案")
+        if rc:
+            return rc
+
+    if args.write:
+        if not args.yes:
+            err("回写 aesthetic 需要显式确认", "加 --yes；先跑一遍不带 --write 看看")
+            return 2
+        world["aesthetic"] = data
+        wt.record_revision(world, f"aesthetic：写入 {len(data['forms'])} 条艺术结论",
+                           fields=["aesthetic"])
+        _save_world(args.world, world)
+        say(f"\n  + 回写艺术 ｜ hash {data['hash']} ｜ 版本 → "
+            f"{(world.get('meta') or {}).get('version')}")
+        say(f"✓ 已写入 {args.world}")
+    else:
+        say("\n回写：aesthetic <world> --write --yes（同 seed 可复算，--check 对账）")
+    return 0
+
+
+# ════════════════════════════════════════════════════════════════════
 # kernel（1.1.5：1.2–1.8 的物理内核，一条命令全跑）
 # ════════════════════════════════════════════════════════════════════
 
@@ -3725,6 +3925,34 @@ def build_parser() -> argparse.ArgumentParser:
     nm.add_argument("--check", action="store_true", help="hash 复算 + 引用失效 + 重名检测")
     nm.add_argument("--json", action="store_true")
     nm.set_defaults(func=cmd_naming)
+
+    iq_ = sub.add_parser(
+        "inquiry", help="1.1.6：问学层——他们会提出什么假说、会卡在哪、什么永远不知道")
+    iq_.add_argument("world", nargs="?", help="world.json（--list 时可省）")
+    iq_.add_argument("--list", action="store_true", help="列 21 条问学规则：编号 / 触发条件 / 强度")
+    iq_.add_argument("--seed", type=int, help="覆盖抖动种子（默认沿用存档 seed）")
+    iq_.add_argument("--kind", help="只看某一类：known / hypothesis / puzzle / unknowable")
+    iq_.add_argument("--md", nargs="?", const="-", metavar="FILE",
+                     help="另存 Markdown，缺省打到标准输出")
+    iq_.add_argument("--write", action="store_true", help="写回 inquiry")
+    iq_.add_argument("--yes", action="store_true", help="确认回写")
+    iq_.add_argument("--check", action="store_true", help="hash 复算 + 手改检测 + 依据失效")
+    iq_.add_argument("--json", action="store_true")
+    iq_.set_defaults(func=cmd_inquiry)
+
+    ae_ = sub.add_parser(
+        "aesthetic", help="1.1.6：艺术层——感官条件推出他们会做什么样的艺术")
+    ae_.add_argument("world", nargs="?", help="world.json（--list 时可省）")
+    ae_.add_argument("--list", action="store_true", help="列 12 条艺术规则：编号 / 触发条件 / 强度")
+    ae_.add_argument("--seed", type=int, help="覆盖抖动种子（默认沿用存档 seed）")
+    ae_.add_argument("--kind", help="只看某一类：vision / music / arch / letter / ritual / work")
+    ae_.add_argument("--md", nargs="?", const="-", metavar="FILE",
+                     help="另存 Markdown，缺省打到标准输出")
+    ae_.add_argument("--write", action="store_true", help="写回 aesthetic")
+    ae_.add_argument("--yes", action="store_true", help="确认回写")
+    ae_.add_argument("--check", action="store_true", help="hash 复算 + 手改检测 + 依据失效")
+    ae_.add_argument("--json", action="store_true")
+    ae_.set_defaults(func=cmd_aesthetic)
 
     return p
 

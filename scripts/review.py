@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9，1.1.5 加 D10/D11，1.1.6 加 D12）
+盘古 · 交付体检（1.1.3 大条 D，1.1.4 加 D9，1.1.5 加 D10/D11，1.1.6 加 D12–D15）
 ================================================================
-一条命令跑完十二项体检，给出「能不能交」的单一结论。
+一条命令跑完十五项体检，给出「能不能交」的单一结论。
 
 设计约束
 --------
@@ -238,8 +238,58 @@ def _chronicle_item(world: dict, fast: bool) -> dict:
                  "史要由承载力与历法推出：hash 不一致=手改过，人口越界=史比地能养的多")
 
 
+def _layer_item(iid, name, mod, world, fast, cmd, hint, counter) -> dict:
+    """推演层的统一体检：有存档就复算 hash，没有就记 skip。软门槛。"""
+    ch = mod.stored(world)
+    if not ch:
+        return _item(iid, name, SKIP, None, "还没有（可选）",
+                     cmd.replace(" --check", " --write --yes"), hint)
+    n = counter(ch)
+    if fast:
+        return _item(iid, name, SKIP, None, f"{n} 条（--fast 未复算）", cmd)
+    try:
+        res = mod.check(world)
+    except Exception as e:  # noqa: BLE001 —— 一层挂了不该拖垮整个体检
+        return _item(iid, name, SOFT, False, f"复算失败：{type(e).__name__}", cmd, hint)
+    brief = f"{n} 条 ｜ hash {res.get('stored_hash')}"
+    if not res.get("hash_ok"):
+        brief += " ｜ hash 不一致"
+    if res.get("stale"):
+        brief += f" ｜ 引用失效 {len(res['stale'])}"
+    if res.get("dup"):
+        brief += f" ｜ 重名 {len(res['dup'])}"
+    return _item(iid, name, SOFT, bool(res.get("ok")), brief, cmd, hint)
+
+
+def _naming_item(world: dict, fast: bool) -> dict:
+    """D13 命名：名字的骨必须从音系与地形长出来。"""
+    import naming as nmg
+    return _layer_item(
+        "D13", "命名", nmg, world, fast, "naming <world> --check",
+        "读者最先验的是名字：与音系、地形无关的名字会瞬间破功",
+        lambda c: len(c.get("person") or []) + len(c.get("place") or []))
+
+
+def _inquiry_item(world: dict, fast: bool) -> dict:
+    """D14 问学：他们能提出什么假说、什么永远不知道。"""
+    import inquiry as inq
+    return _layer_item(
+        "D14", "问学", inq, world, fast, "inquiry <world> --check",
+        "假说的形状由「看得见什么」决定；「难题」与「不可知」必须分开",
+        lambda c: sum(len(v or []) for v in (c.get("groups") or {}).values()))
+
+
+def _aesthetic_item(world: dict, fast: bool) -> dict:
+    """D15 艺术：感官条件的最优解，不是随手的审美。"""
+    import aesthetic as aes
+    return _layer_item(
+        "D15", "艺术", aes, world, fast, "aesthetic <world> --check",
+        "声速与波长是真算的；形式是外推——`--check` 红了说明改了世界没重跑",
+        lambda c: len(c.get("forms") or []))
+
+
 def run(world: dict, path: str = "", fast: bool = False) -> dict:
-    """跑完十二项体检。返回 {items, ok, hard_fail, soft_warn, conclusion, ...}。"""
+    """跑完十五项体检。返回 {items, ok, hard_fail, soft_warn, conclusion, ...}。"""
     rep = ws.validate(world)
     wd = ws.weirdness(world)
     items = [_item("D1", "自洽", HARD, rep.fatal == 0,
@@ -260,6 +310,9 @@ def run(world: dict, path: str = "", fast: bool = False) -> dict:
     items.append(_ledger_item(world))
     items.append(_certify_item(world, fast))
     items.append(_chronicle_item(world, fast))
+    items.append(_naming_item(world, fast))
+    items.append(_inquiry_item(world, fast))
+    items.append(_aesthetic_item(world, fast))
 
     hard_fail = [i for i in items if i["level"] == HARD and i["ok"] is False]
     soft_warn = [i for i in items if i["level"] == SOFT and i["ok"] is False]

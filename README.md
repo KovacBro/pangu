@@ -34,13 +34,20 @@
 - **`naming` — 名字的骨由引擎给，字归作者**：音系从 `meta.id` 的字母长出来（`helikon` → `h l k n` × `e i o`），不足 8 辅音 / 4 元音就补默认集，补了什么写进 `borrowed`；地名后缀由 `land_fraction` 判沿海 / 内陆。每批 10 个人名 + 10 个地名，每个都能拆音节、指回字段；`--check` 算两份 hash（重推一份、存档名字一份），手改一个字母就红。`--set-phonology` 让作者直接换一套读音。
 - **地图从主产物里开出去**：`preview` 的 dock 上有一个「地图」按钮，点开同目录的 `map.html`（新窗口）—— 那边是 1440×720 的原生渲染，比把 180×90 的场塞进预览页再放大清楚得多。预览页因此回到 246 KB。`map.html` 这一版补上**每层图例**：色带直接由渲染用的 ramp 生成，标尺取自渲染用的同一份 ranges（高程 0–5.6 km、温度 247–304 K、降水 0–P95），切层即换；群系层给色块，板块层给边界与热点。
 - **赫利孔算下来**：18 条事件、跨度 21,116 年。第 367 年一年正好 8 个月、历法不需要闰日（算术给的，不是祭司的功劳）；第 2,938 年种子入土，此时 4 万人，而理论口粮上限是 629 亿人；第 18,362 年走到顶点，只有理论上限的 4.6%。**那个 4.6% 是引擎给的，不是史书给的。**
-- 数字：`review` 十一项 → **十二项**（D12 编年），`selftest` 105 → **121**（V13–V21 编年与地图入口、V22–V23 切片接编年、V24–V27 命名层，与 M1b）。
+- **`inquiry` — 他们会提出什么假说**：唯一自变量是**观测能力**。天光 → 极限星等 → 肉眼可见星数 → 能测什么 → 假说的形状。输出分四类，最后一类才是价值所在：**已知**（有可复测量）/ **假说**（信息集内合理，但可能是错的，像托勒密）/ **难题**（缺工具）/ **不可知**（物理上拿不到信息）。赫利孔三星、极限星等 3.9，于是它的视差不成立（背后没有更暗的背景）、银河不可见、系外行星无法确认、恒星内部不可达 —— **不是没研究，是这条路封死了**。
+- **`aesthetic` — 他们会做什么样的艺术**：艺术是「感官在特定物理条件下的最优解」。声速 `c = sqrt(γRT/M)`、维恩峰值 `λ = 2.898e6/T` 是真算的；由它们推出调色板（赫利孔 649 nm，偏红，蓝颜料靠矿物硬磨）、音高（同一根管子高 `12·log2(c/343)` 个半音）、乐器尺寸上限（体型 ∝ `g^-0.33`）、建筑（1.76 g → 穹顶与拱券优先）、城市（海洋 77% → 港口即首都）、叙事（历法余数决定闭环还是「多出来的日子」），最后压成**一件可演出的作品**。不适用的规则直接不出现：单星世界不会长出「两道影的画法」。
+- **两个新层都不掷骰子**：hash 只覆盖内容，换 seed 不变；改一个物理量（把三星换成单星），整份问学与艺术跟着变 —— 变的不是文风，是可观测的信息集。
+- 数字：`review` 十一项 → **十五项**（D12 编年、D13 命名、D14 问学、D15 艺术），`selftest` 105 → **130**（V13–V21 编年与地图入口、V22–V23 切片接编年、V24–V27 命名层、V28–V35 问学与艺术、V36 十五项体检，与 M1b）。
 
 ```bash
 python scripts/pangu.py chronicle examples/helikon/world.json          # 从承载力推出整条文明史
 python scripts/pangu.py chronicle examples/helikon/world.json --md -   # 出表 + 逐条正文
 python scripts/pangu.py chronicle out/world.json --write --yes         # 回写 history.chronicle
 python scripts/pangu.py chronicle out/world.json --check               # hash 复算 / 引用失效
+python scripts/pangu.py inquiry   examples/helikon/world.json          # 已知 / 假说 / 难题 / 不可知
+python scripts/pangu.py aesthetic examples/helikon/world.json          # 调色板 / 音高 / 建筑 / 一件作品
+python scripts/pangu.py inquiry   out/world.json --write --yes         # 回写 inquiry
+python scripts/pangu.py aesthetic out/world.json --write --yes         # 回写 aesthetic
 ```
 
 **没有做的**：文明层仍然只有一层薄壳。编年史推**事件顺序与时刻**，不推政体、经济与战争的具体过程，也不写人名与国名 —— 名字是作者的活，年份与因果是引擎的活。
@@ -122,7 +129,7 @@ python scripts/pangu.py whatif examples/helikon/world.json --set "cosmology.bodi
 
 前面三个命令负责**把世界造出来**，这两个负责**判断能不能交**、以及**如果当初选另一条会怎样**。
 
-- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完十二项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致 / 地球基准 / 守恒账本 / 适用域 / 编年史，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
+- **`review` — 交付体检**（`scripts/review.py`）：一条命令跑完十五项 —— 自洽 / 反常识度 / 切片 / 红队 / 地图复算 / 演化复算 / 推论失效 / 选项卡一致 / 地球基准 / 守恒账本 / 适用域 / 编年史 / 命名 / 问学 / 艺术，最后给一个 **「可交付 / 不可交付」** 的单一判断。未过的硬门槛按修复顺序排好，每条附一句为什么和一条可直接跑的命令。**只读**，可以反复跑；`--fast` 秒级（跳过地图与演化复算），`--strict` 退出码 1 进 CI。
 - **`whatif` — 反事实推演**（`scripts/whatif.py`）：在内存副本上改设定，回答「世界会变成什么样」——重力怎么动、哪条必然推论消失、审查从哪一条开始崩、若采纳要重跑什么。`--set` 定点改，`--scale` 按倍率缩放并**保留单位后缀**（`4.004e-11 m3kg-1s-2` → `2.8028e-11 m3kg-1s-2`），`--recalc` 先抹平 P01 这类算术冲突。**永不写原世界**，`--write` 才另存一份假设世界。
 - 例：G × 0.7 后地表重力 1.76 → 1.23 g，E09「没有翅膀」自动消失（能飞了），恰好演示了「反常识是有代价的，代价一变，奇观就散」。
 - 与 `sweep` 的分工：`sweep` 扫**一个数**、只回答「哪一步崩了」；`whatif` 任意多字段、回答「**世界变成什么样**」。
@@ -234,7 +241,7 @@ python scripts/pangu.py options  out/helikon.json --check    # 卡间互斥 / �
 python scripts/pangu.py entail   out/helikon.json            # 从已立之律推出必然现象
 python scripts/pangu.py entail   out/helikon.json --write --yes   # 幂等回写 sky_phenomena
 python scripts/pangu.py entail   out/helikon.json --check    # 改设定后哪些旧推论失效了
-python scripts/pangu.py review   out/helikon.json            # 十一项体检：能不能交
+python scripts/pangu.py review   out/helikon.json            # 十五项体检：能不能交
 python scripts/pangu.py whatif   out/helikon.json --scale "physics.constants[0].world_value=0.7" --recalc
                                                              # 反事实：重力再低 30% 会怎样
 python scripts/pangu.py sky      out/helikon.json             # 抬头：今夜的天光 / 极限星等 / 星图
@@ -291,7 +298,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 | 无代价奇观 | 越夸张越没解释，一问就崩 | **代价律 + 痕迹律**：每个奇观标价，且必须留下可观测痕迹 |
 | 流程不可导航 | 每轮都要重读方法论，才知道自己在第几步、下一步干什么 | **`plan`**：斧位 + 缺口 + 该问的问题 + 下一步命令 + 六项门槛 |
 | 灵感断供 | 想得出来的都是「双星 + 超级地球」，改猛了像噪声 | **`options`**（132 个带代价的选项）+ **`entail`**（30 条从设定推现象的规则） |
-| 交付靠自觉 | 六条体检命令，漏一条就是漏一条，没人说「能交」 | **`review`**：九项一命令、一个判断、修复按顺序排好 |
+| 交付靠自觉 | 六条体检命令，漏一条就是漏一条，没人说「能交」 | **`review`**：十五项一命令、一个判断、修复按顺序排好 |
 | 不敢改 | 改坏了要整轮重来，所以宁可不动 | **`whatif`**：先在副本上推演后果，代价 / 现象 / 崩点一次看清 |
 
 ---
@@ -338,7 +345,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── windsurf/pangu.md       Windsurf 规则
 │   ├── gemini/GEMINI.md        Gemini CLI 入口
 │   ├── generic/BOOTSTRAP.md    纯对话版（自包含提示词）
-│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，21 个 tool）
+│   └── mcp/pangu_mcp.py        MCP stdio 服务器（零依赖，24 个 tool）
 ├── docs/
 │   ├── 开发文档-v1.0.md         1.0 架构、算法、接口、验收矩阵、路线图
 │   ├── 开发文档-v1.1.md         1.1 范围、四项功能定义、验收门槛
@@ -348,6 +355,7 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 │   ├── 开发文档-v1.1.4.md       1.1.4 观测层与增补层：sky / benchmark / capacity 的口径
 │   ├── 开发文档-v1.1.5.md       1.1.5 守恒与误差：八个内核、四本账、± 与适用域
 │   ├── 开发文档-v1.1.6.md       1.1.6 编年层：推演链、19 条规则、数据契约与判定
+│   ├── 1.1.6-三大方向.md        深渊 / 舌 / 接触：三份设计草案（未实现；2026-11 深化，含三处会失败的修正）
 │   ├── 1.1.4-更新方案.md        1.1.4 的立稿与落地复盘（§15 差距清单、§16 增补）
 │   ├── 1.1.5-更新方案.md        通往真实世界模型的十一个大版本路线图（1.1.5 全量并入）
 │   ├── 跨harness移植说明.md     各宿主加载机制、配置样例、排错
@@ -363,13 +371,17 @@ python scripts/pangu.py diff     out/world-v1.json out/world-v2.json
 ├── scripts/
 │   ├── pangu.py                 CLI：plan / options / entail / review / whatif / init / validate / preview / export
 │   │                                / axioms / doctor / slice / redteam / ca / map / patch / sweep / diff
+│   │                                / sky / kernel / ledger / certify / replay / capacity / benchmark
+│   │                                / chronicle / naming / inquiry / aesthetic
 │   ├── world_schema.py          校验内核：天体物理计算、评分、反常识度、元素与基座检验、卡间互斥与对账
 │   ├── rite.py                  七斧状态机：斧位判定、缺口、下一步命令、六项交付门槛
 │   ├── options_lib.py           选项卡解析与检索：列 / 抽 / 采纳 / 未答命题
 │   ├── entailment.py            必然推论：36 条后果规则、幂等回写、失效检测
 │   ├── chronicle.py             编年层：19 条事件规则、logistic 反解时刻、hash 可复算
 │   ├── naming.py                命名层：slug→音系、地形→后缀语义，音系+seed→人名/地名（双 hash 对账）
-│   ├── review.py                交付体检：十二项编排与判定（只读）
+│   ├── inquiry.py               问学层：观测能力→假说的形状，已知/假说/难题/不可知四类（21 条规则）
+│   ├── aesthetic.py             艺术层：声速/波长/重力→调色板/音高/建筑/叙事/一件作品（12 条规则）
+│   ├── review.py                交付体检：十五项编排与判定（只读）
 │   ├── whatif.py                反事实推演：副本改动、现象增减、分级与下游
 │   ├── world_tuning.py          调参层：点路径读写、参数扫描（含等比）、版本对比、斧位差、下游重跑推断
 │   ├── ca_engine.py             生态演化引擎：编译、跑、复算比对、地图耦合

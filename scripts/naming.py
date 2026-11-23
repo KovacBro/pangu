@@ -294,6 +294,12 @@ def _hash(data: dict) -> str:
 # 体检
 # ════════════════════════════════════════════════════════════════════
 
+def stored(world: dict) -> dict:
+    """存档里的命名结果（civilization.names）；没有就是空 dict。"""
+    s = ws._get(world, "civilization", "names", default=None)
+    return s if isinstance(s, dict) else {}
+
+
 def check(world: dict) -> dict:
     """复算 hash + 检查每条 src 是否还能解析。"""
     store = ws._get(world, "civilization", "names", default=None)
